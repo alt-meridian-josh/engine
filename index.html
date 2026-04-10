@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Alt Meridian | Deal Insurance Engine</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .audit-card { transition: all 0.3s ease; }
+        .audit-card:hover { transform: translateY(-2px); border-color: #2563eb; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 font-sans">
+
+    <header class="bg-white border-b border-slate-200 py-6">
+        <div class="max-w-4xl mx-auto px-4 flex justify-between items-center">
+            <h1 class="text-xl font-bold tracking-tight text-slate-800">ALT MERIDIAN <span class="text-blue-600">ENGINE</span></h1>
+            <div id="connection-status" class="text-xs font-medium px-3 py-1 rounded-full bg-slate-100 text-slate-500">Connecting...</div>
+        </div>
+    </header>
+
+    <main class="max-w-4xl mx-auto px-4 py-12">
+        <div class="mb-10 text-center md:text-left">
+            <h2 class="text-4xl font-extrabold text-slate-900 mb-3">Signal Audit</h2>
+            <p class="text-slate-600 text-lg">Translate field observations into CFO-defensible value models.</p>
+        </div>
+
+        <div id="lever-container" class="grid gap-6 md:grid-cols-2">
+            <div class="animate-pulse bg-white border border-slate-200 p-6 rounded-xl h-48"></div>
+            <div class="animate-pulse bg-white border border-slate-200 p-6 rounded-xl h-48"></div>
+        </div>
+    </main>
+
+    <script>
+        // --- 1. LIVE CONFIGURATION ---
+        const SB_URL = "https://kpecdezcolcycgpuqbgs.supabase.co";
+        const SB_KEY = "sb_publishable_LqM8qLV9Bnd4wh2Ol2ljIA_ZIQpoBAM";
+
+        const statusEl = document.getElementById('connection-status');
+        const container = document.getElementById('lever-container');
+
+        // --- 2. ENGINE LOGIC ---
+        async function loadEngine() {
+            try {
+                // Fetching the levers you just added to your SQL table
+                const response = await fetch(`${SB_URL}/rest/v1/levers?select=*`, {
+                    headers: {
+                        'apikey': SB_KEY,
+                        'Authorization': `Bearer ${SB_KEY}`
+                    }
+                });
+                
+                const levers = await response.json();
+                
+                if (levers.length > 0) {
+                    statusEl.innerText = "● LIVE ENGINE";
+                    statusEl.classList.replace('bg-slate-100', 'bg-green-100');
+                    statusEl.classList.replace('text-slate-500', 'text-green-700');
+                    renderLevers(levers);
+                }
+            } catch (error) {
+                statusEl.innerText = "● OFFLINE";
+                statusEl.classList.replace('bg-slate-100', 'bg-red-100');
+                statusEl.classList.replace('text-slate-500', 'text-red-700');
+                container.innerHTML = `<p class="text-red-500">Failed to connect to the value database. Check console for details.</p>`;
+                console.error("Database Connection Error:", error);
+            }
+        }
+
+        // --- 3. UI RENDERING ---
+        function renderLevers(levers) {
+            container.innerHTML = levers.map(lever => `
+                <div class="audit-card bg-white border border-slate-200 p-6 rounded-xl shadow-sm">
+                    <div class="flex justify-between items-start mb-4">
+                        <span class="text-[10px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 px-2 py-1 rounded">${lever.id}</span>
+                        <span class="text-[10px] text-slate-400 font-semibold uppercase tracking-tighter">Underwritten Logic</span>
+                    </div>
+                    <h3 class="font-bold text-xl mb-2 text-slate-800">${lever.name}</h3>
+                    <p class="text-sm text-slate-500 leading-relaxed mb-6">
+                        ${lever.scrutiny_note || 'Governed by VEF Realization Curve.'}
+                    </p>
+                    <button class="w-full bg-slate-900 text-white py-3 rounded-lg font-bold text-sm hover:bg-blue-600 transition-all">
+                        SELECT SIGNAL
+                    </button>
+                </div>
+            `).join('');
+        }
+
+        // Start the engine on page load
+        loadEngine();
+    </script>
+</body>
+</html>
