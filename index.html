@@ -66,23 +66,23 @@ body {
   background: #0A0A0A;
   display: flex; align-items: center; justify-content: center;
   z-index: 9999;
-  transition: opacity 0.7s ease;
+  transition: opacity 0.5s ease;
 }
-#ldr.out { opacity: 0; pointer-events: none; }
+#ldr.out { opacity: 0; pointer-events: none; visibility: hidden; }
 .lm { display: flex; flex-direction: column; align-items: center; gap: 20px; }
 .lsvg { width: 48px; height: 48px; }
 .lc { stroke: rgba(255,255,255,0.06); stroke-width: 1.2; fill: none; }
 .lca {
   stroke: #C84B2F; stroke-width: 1.2; fill: none;
   stroke-dasharray: 138; stroke-dashoffset: 138;
-  animation: ldraw 1.1s cubic-bezier(.4,0,.2,1) 0.2s forwards;
+  animation: ldraw 0.8s cubic-bezier(.4,0,.2,1) 0.1s forwards;
   transform-origin: center; transform: rotate(-90deg);
 }
 .ll { stroke: rgba(255,255,255,0.04); stroke-width: 1; stroke-dasharray: 48; stroke-dashoffset: 48; }
 .lla {
   stroke: #C84B2F; stroke-width: 1;
   stroke-dasharray: 48; stroke-dashoffset: 48;
-  animation: ll2 0.3s ease 0.9s forwards;
+  animation: ll2 0.25s ease 0.7s forwards;
 }
 @keyframes ldraw { to { stroke-dashoffset: 0; } }
 @keyframes ll2 { to { stroke-dashoffset: 0; } }
@@ -90,14 +90,14 @@ body {
   font-family: 'Syne', sans-serif; font-weight: 800;
   font-size: 22px; letter-spacing: 0.08em; text-transform: uppercase;
   color: #F0EDE6;
-  opacity: 0; animation: lf 0.3s ease 1.0s forwards;
+  opacity: 0; animation: lf 0.3s ease 0.75s forwards;
 }
 .lword b { color: #F0EDE6; font-weight: 800; }
 .lsub {
   font-family: 'DM Mono', monospace; font-size: 10px;
   letter-spacing: 0.18em; text-transform: uppercase;
   color: rgba(200,75,47,0.9);
-  opacity: 0; animation: lf 0.3s ease 1.15s forwards;
+  opacity: 0; animation: lf 0.3s ease 0.9s forwards;
 }
 @keyframes lf { to { opacity: 1; } }
 .theme-toggle {
@@ -408,6 +408,41 @@ html.dark .prod-card.dark { background: #050505; }
 .msg-av.you { background: var(--bg); color: var(--muted); border: 1px solid var(--rule); transition: background 0.4s; }
 .msg-body { font-size: 14px; color: var(--ink); line-height: 1.6; flex: 1; transition: color 0.4s; }
 .msg-body.dim { color: var(--muted); }
+
+/* Chat starters */
+.chat-starters {
+  padding: 0 28px 16px;
+  display: flex; gap: 8px; flex-wrap: wrap;
+  background: var(--chat-bg); transition: background 0.4s;
+}
+.starter-btn {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 0.06em; color: var(--muted);
+  background: var(--bg); border: 1px solid var(--rule);
+  border-radius: 2px; padding: 6px 12px; cursor: pointer;
+  transition: all 0.2s; text-align: left; line-height: 1.4;
+}
+.starter-btn:hover { border-color: var(--accent); color: var(--accent); }
+.chat-starters.hidden { display: none; }
+.chat-spinner {
+  display: flex; align-items: center; gap: 10px;
+}
+.chat-spinner svg {
+  width: 22px; height: 22px; flex-shrink: 0;
+}
+.spinner-c { stroke: rgba(200,75,47,0.2); stroke-width: 1.2; fill: none; }
+.spinner-a {
+  stroke: #C84B2F; stroke-width: 1.2; fill: none;
+  stroke-dasharray: 44; stroke-dashoffset: 44;
+  animation: spinDraw 1s cubic-bezier(.4,0,.2,1) infinite;
+  transform-origin: center; transform: rotate(-90deg);
+}
+@keyframes spinDraw {
+  0%   { stroke-dashoffset: 44; opacity: 1; }
+  60%  { stroke-dashoffset: 0;  opacity: 1; }
+  80%  { stroke-dashoffset: 0;  opacity: 0.3; }
+  100% { stroke-dashoffset: 44; opacity: 1; }
+}
 .chat-input-wrap {
   padding: 14px 28px; border-top: 1px solid var(--rule);
   display: flex; gap: 10px; background: var(--chat-bg); transition: background 0.4s ease;
@@ -690,10 +725,10 @@ footer {
 <section class="section" id="demo">
   <div class="section-label">See it work</div>
   <h2 class="section-headline">What does this look like for your business?</h2>
-  <p class="section-sub">Describe what you sell. Get a governed value scenario back — with evidence — in seconds.</p>
+  <p class="section-sub">Describe what you sell. Get a governed value scenario back, with evidence, in seconds.</p>
   <div class="chat-wrap">
     <div class="chat-head">
-      <div class="chat-title">Alt Meridian — Value Intelligence</div>
+      <div class="chat-title">Alt Meridian · Value Intelligence</div>
       <div class="chat-badge">Powered by VEF</div>
     </div>
     <div class="chat-msgs" id="chat-msgs">
@@ -701,6 +736,11 @@ footer {
         <div class="msg-av am">AM</div>
         <div class="msg-body">Tell me what your business sells and who your buyer is. I'll show you one governed value scenario with real evidence that applies to your situation.</div>
       </div>
+    </div>
+    <div class="chat-starters" id="chat-starters">
+      <button class="starter-btn" onclick="useStarter(this)">We sell WMS software to 3PL operators</button>
+      <button class="starter-btn" onclick="useStarter(this)">We sell predictive maintenance software to manufacturers</button>
+      <button class="starter-btn" onclick="useStarter(this)">We sell carbon credits to corporate sustainability teams</button>
     </div>
     <div class="chat-input-wrap">
       <input type="text" id="chat-input" placeholder="e.g. We sell WMS software to 3PL operators..." maxlength="300">
@@ -724,12 +764,11 @@ footer {
 </footer>
 
 <script>
-// LOADER DISMISS
-window.addEventListener('load', function() {
-  setTimeout(function() {
-    document.getElementById('ldr').classList.add('out');
-  }, 1600);
-});
+// LOADER DISMISS — immediate, no event dependency
+setTimeout(function() {
+  var ldr = document.getElementById('ldr');
+  if (ldr) { ldr.classList.add('out'); }
+}, 1400);
 
 // DEFAULT DARK MODE — apply before paint
 (function() {
@@ -930,19 +969,58 @@ recalc();
 const CHAT_ENDPOINT = 'https://kpecdezcolcycgpuqbgs.supabase.co/functions/v1/value-chat';
 const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwZWNkZXpjb2xjeWNncHVxYmdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQxNTc0MDYsImV4cCI6MjA1OTczMzQwNn0.L5DsNPKim0TFsPT0j1g_3dALEEbBR6VsK-CaHKp_lEo';
 
+// Session state
+let chatHistory = [];
+let chatSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+let solutionContext = '';
+let leadCaptured = false;
+
+function spinnerHTML() {
+  return `<div class="chat-spinner">
+    <svg viewBox="0 0 16 16">
+      <circle class="spinner-c" cx="8" cy="8" r="6"/>
+      <circle class="spinner-a" cx="8" cy="8" r="6"/>
+    </svg>
+  </div>`;
+}
+
+function useStarter(btn) {
+  document.getElementById('chat-input').value = btn.textContent;
+  document.getElementById('chat-starters').classList.add('hidden');
+  sendChat();
+}
+
 async function sendChat() {
   const inp = document.getElementById('chat-input');
   const btn = document.getElementById('chat-send');
   const msgs = document.getElementById('chat-msgs');
+  const starters = document.getElementById('chat-starters');
+  if (starters) starters.classList.add('hidden');
   const text = inp.value.trim();
   if (!text) return;
+
+  // Capture solution context on first message
+  if (chatHistory.length === 0) solutionContext = text;
 
   addMsg('you', text);
   inp.value = '';
   btn.disabled = true;
 
+  // Spinner
   const tid = 'think-' + Date.now();
-  addMsg('am', 'Searching the database...', tid, true);
+  const spinWrap = document.createElement('div');
+  spinWrap.className = 'msg';
+  spinWrap.id = tid;
+  const spinAv = document.createElement('div');
+  spinAv.className = 'msg-av am';
+  spinAv.textContent = 'AM';
+  const spinBody = document.createElement('div');
+  spinBody.className = 'msg-body';
+  spinBody.innerHTML = spinnerHTML();
+  spinWrap.appendChild(spinAv);
+  spinWrap.appendChild(spinBody);
+  msgs.appendChild(spinWrap);
+  msgs.scrollTop = msgs.scrollHeight;
 
   try {
     const res = await fetch(CHAT_ENDPOINT, {
@@ -952,14 +1030,35 @@ async function sendChat() {
         'Authorization': 'Bearer ' + ANON_KEY,
         'apikey': ANON_KEY,
       },
-      body: JSON.stringify({ query: text })
+      body: JSON.stringify({
+        query: text,
+        history: chatHistory,
+        session_id: chatSessionId,
+        solution_context: solutionContext,
+      })
     });
+
     const data = await res.json();
     const reply = data.response || data.error || 'Unable to generate scenario.';
-    document.getElementById(tid)?.closest('.msg')?.remove();
+
+    // Update history
+    chatHistory.push({ role: 'user', content: text });
+    chatHistory.push({ role: 'assistant', content: reply });
+    if (chatHistory.length > 10) chatHistory = chatHistory.slice(-10);
+
+    // Flag lead capture
+    if (data.lead_captured) leadCaptured = true;
+
+    document.getElementById(tid)?.remove();
     addMsg('am', reply, null, false, true);
+
+    // If lead captured, disable input gracefully
+    if (leadCaptured) {
+      inp.placeholder = 'Email captured. Reach out at josh@altmeridian.com anytime.';
+    }
+
   } catch(e) {
-    document.getElementById(tid)?.closest('.msg')?.remove();
+    document.getElementById(tid)?.remove();
     addMsg('am', 'Something went wrong. Email josh@altmeridian.com directly.', null, true);
   }
 
