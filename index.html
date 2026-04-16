@@ -3,575 +3,1027 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Alt Meridian — Value Intelligence</title>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<title>Alt Meridian — Does Your Value Convert?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-:root{
-  --bg:#0A0A0A;--s1:#111;--s2:#181818;
-  --b1:rgba(245,242,235,0.07);--b2:rgba(245,242,235,0.13);--b3:rgba(245,242,235,0.24);
-  --sand:#F5F2EB;--mu:#6B6560;--mu2:#3A3530;--tx:#F0EDE8;
-  --ac:#C84B2F;--gr:#1E5C3A;--green:#2ECC71;
-  --cv:#C84B2F;--mv:#1E5C3A;--jv:#1D4ED8;
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --ink:    #0F0F0F;
+  --sand:   #F5F2EB;
+  --accent: #C84B2F;
+  --green:  #1E5C3A;
+  --muted:  #7A7268;
+  --rule:   #DEDAD2;
+  --surf:   #FFFFFF;
+  --bg:     #F5F2EB;
+  --tile-bg: #FFFFFF;
+  --tile-hover: #F8F5EE;
+  --calc-bg: #FFFFFF;
+  --calc-ctx: #F5F2EB;
+  --input-bg: #F5F2EB;
+  --prod-bg: #FFFFFF;
+  --chat-bg: #FFFFFF;
+  --canvas-r: 15; --canvas-g: 15; --canvas-b: 15;
+  color-scheme: light;
+  transition: background 0.4s ease, color 0.4s ease;
 }
-html,body{background:var(--bg);color:var(--tx);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden}
-#loader{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9999;transition:opacity .55s ease}
-#loader.out{opacity:0;pointer-events:none}
-.lm{display:flex;flex-direction:column;align-items:center;gap:26px}
-.lsvg{width:56px;height:56px}
-.lc{stroke:rgba(245,242,235,.08);stroke-width:1.5;fill:none}
-.lca{stroke:var(--ac);stroke-width:1.5;fill:none;stroke-dasharray:176;stroke-dashoffset:176;animation:lD 1.1s cubic-bezier(.4,0,.2,1) .3s forwards;transform-origin:center;transform:rotate(-90deg)}
-.ll{stroke:rgba(245,242,235,.06);stroke-width:1;stroke-dasharray:56;stroke-dashoffset:56}
-.lla{stroke:var(--ac);stroke-width:1;stroke-dasharray:56;stroke-dashoffset:56;animation:lL .4s ease .95s forwards}
-@keyframes lD{to{stroke-dashoffset:0}}@keyframes lL{to{stroke-dashoffset:0}}
-.lw{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.28em;text-transform:uppercase;color:var(--mu);opacity:0;animation:lF .4s ease 1.05s forwards}
-.lw b{color:var(--sand)}.ls2{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.1em;color:var(--mu2);opacity:0;animation:lF .4s ease 1.3s forwards}
-@keyframes lF{to{opacity:1}}
-nav{position:fixed;top:0;left:0;right:0;z-index:500;height:48px;border-bottom:1px solid var(--b1);background:rgba(10,10,10,.95);backdrop-filter:blur(24px);display:flex;align-items:center;justify-content:space-between;padding:0 28px}
-.nl{display:flex;align-items:center;gap:10px}
-.nsvg{width:20px;height:20px}.nc{stroke:rgba(245,242,235,.12);stroke-width:1.5;fill:none}
-.nca{stroke:var(--sand);stroke-width:1.2;fill:none}.nln{stroke:var(--ac);stroke-width:1.2}
-.nw{font-family:'Syne',sans-serif;font-weight:800;font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--sand)}
-.nw em{color:var(--ac);font-style:normal}
-.nr{display:flex;align-items:center;gap:14px}
-.nstat{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--mu)}
-.nstat.live{color:var(--gr)}.nstat.err{color:var(--ac)}
-.nback{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.08em;text-transform:uppercase;color:var(--mu);cursor:pointer;background:none;border:1px solid var(--b2);padding:5px 10px;transition:all .12s;display:none}
-.nback:hover{border-color:var(--tx);color:var(--tx)}.nback.vis{display:block}
-main{padding-top:48px}.view{display:none}.view.active{display:block}
-#vLand{min-height:calc(100vh - 48px);display:flex;flex-direction:column}
-.hero{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 32px 52px;text-align:center;position:relative;overflow:hidden}
-.hgrid{position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(var(--b1) 1px,transparent 1px),linear-gradient(90deg,var(--b1) 1px,transparent 1px);background-size:70px 70px;mask-image:radial-gradient(ellipse 80% 70% at 50% 50%,black,transparent)}
-.hglow{position:absolute;inset:0;pointer-events:none;background:radial-gradient(ellipse 60% 50% at 50% 58%,rgba(200,75,47,.042),transparent 70%)}
-.h-eye{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.22em;text-transform:uppercase;color:var(--ac);margin-bottom:22px;opacity:.85}
-.h-h1{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(40px,7vw,84px);line-height:.91;letter-spacing:-.03em;color:var(--sand);margin-bottom:18px}
-.h-h1 em{color:var(--ac);font-style:normal;display:block}
-.h-sub{font-size:13px;color:var(--mu);line-height:1.8;max-width:420px;margin-bottom:52px;font-weight:300}
-.intent-row{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--b1);width:100%;max-width:760px;margin-bottom:32px}
-.ic{background:var(--bg);padding:26px 22px 22px;cursor:pointer;position:relative;overflow:hidden;transition:background .14s;display:flex;flex-direction:column;gap:10px;text-align:left;border:none}
-.ic::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;opacity:.35;transition:opacity .14s}
-.ic:hover::before,.ic.sel::before{opacity:1}.ic:hover,.ic.sel{background:var(--s1)}.ic.sel{background:var(--s2)}
-.ic[data-i="convince"]::before{background:var(--cv)}.ic[data-i="measure"]::before{background:var(--mv)}.ic[data-i="justify"]::before{background:var(--jv)}
-.ic-dot{position:absolute;top:12px;right:12px;width:15px;height:15px;border-radius:50%;border:1px solid var(--b2);transition:all .12s}
-.ic.sel .ic-dot{border-color:transparent}.ic[data-i="convince"].sel .ic-dot{background:var(--cv)}.ic[data-i="measure"].sel .ic-dot{background:var(--mv)}.ic[data-i="justify"].sel .ic-dot{background:var(--jv)}
-.ic-v{font-family:'Syne',sans-serif;font-weight:800;font-size:24px;letter-spacing:-.02em;line-height:1}
-.ic[data-i="convince"] .ic-v{color:var(--cv)}.ic[data-i="measure"] .ic-v{color:var(--mv)}.ic[data-i="justify"] .ic-v{color:var(--jv)}
-.ic-what{font-size:11px;color:var(--tx);line-height:1.55}.ic-who{font-size:9px;color:var(--mu);border-top:1px solid var(--b1);padding-top:8px;margin-top:2px;line-height:1.5}
-.or-row{display:flex;align-items:center;gap:12px;width:100%;max-width:760px;margin-bottom:20px}
-.or-line{flex:1;height:1px;background:var(--b1)}.or-txt{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--mu2);white-space:nowrap}
-.fi-wrap{width:100%;max-width:760px;position:relative}
-.fi{width:100%;background:var(--s1);border:1px solid var(--b2);color:var(--tx);font-family:'DM Sans',sans-serif;font-size:14px;padding:15px 54px 15px 18px;outline:none;transition:border-color .15s;resize:none;line-height:1.55;min-height:52px;max-height:120px}
-.fi:focus{border-color:var(--b3)}.fi::placeholder{color:var(--mu2)}
-.fi-btn{position:absolute;right:10px;top:50%;transform:translateY(-50%);background:var(--ac);border:none;color:var(--sand);width:32px;height:32px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;transition:opacity .15s}
-.fi-btn:hover{opacity:.85}.fi-hint{font-family:'DM Mono',monospace;font-size:8px;color:var(--mu2);letter-spacing:.05em;margin-top:8px}
-#vOp{min-height:calc(100vh - 48px)}
-.op-header{padding:40px 28px 28px;border-bottom:1px solid var(--b1)}
-.op-ibar{display:inline-flex;align-items:center;gap:6px;font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.1em;text-transform:uppercase;padding:4px 10px;border:1px solid;margin-bottom:14px}
-.op-ibar.convince{border-color:var(--cv);color:var(--cv);background:rgba(200,75,47,.06)}
-.op-ibar.measure{border-color:var(--mv);color:var(--mv);background:rgba(30,92,58,.06)}
-.op-ibar.justify{border-color:var(--jv);color:var(--jv);background:rgba(29,78,216,.06)}
-.op-q{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(20px,3.5vw,36px);line-height:1;letter-spacing:-.01em;color:var(--sand)}
-.op-sub{font-size:10px;color:var(--mu);margin-top:7px;line-height:1.6}
-.op-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1px;background:var(--b1)}
-.oc2{background:var(--bg);padding:26px 22px;cursor:pointer;position:relative;transition:background .12s;display:flex;flex-direction:column;gap:10px}
-.oc2:hover{background:var(--s1)}.oc2.sel{background:var(--s2)}
-.oc2.sel::before{content:'';position:absolute;top:0;left:0;width:2px;height:100%;background:var(--ac)}
-.oc2-chk{position:absolute;top:14px;right:14px;width:18px;height:18px;border-radius:50%;border:1px solid var(--b2);display:flex;align-items:center;justify-content:center;font-size:9px;color:transparent;transition:all .12s}
-.oc2.sel .oc2-chk{background:var(--ac);border-color:var(--ac);color:var(--sand)}
-.oc2-icon{font-size:22px;line-height:1}.oc2-title{font-family:'Syne',sans-serif;font-weight:700;font-size:15px;color:var(--sand);line-height:1.15}
-.oc2-desc{font-size:10px;color:var(--mu);line-height:1.6}.oc2-eg{font-family:'DM Mono',monospace;font-size:8px;color:var(--mu2);letter-spacing:.04em;margin-top:2px}
-.bnav{position:fixed;bottom:0;left:0;right:0;border-top:1px solid var(--b1);background:rgba(10,10,10,.97);backdrop-filter:blur(20px);padding:14px 28px;display:flex;align-items:center;justify-content:space-between;transform:translateY(100%);transition:transform .25s cubic-bezier(.4,0,.2,1);z-index:300}
-.bnav.up{transform:translateY(0)}.bnav-info{font-size:10px;color:var(--mu)}.bnav-info b{color:var(--tx);font-weight:400}
-.bnav-btns{display:flex;gap:8px}
-.bbk{background:none;border:1px solid var(--b2);color:var(--mu);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.08em;text-transform:uppercase;padding:9px 16px;cursor:pointer;transition:all .12s}
-.bbk:hover{border-color:var(--tx);color:var(--tx)}
-.bnxt{border:none;color:var(--sand);font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;text-transform:uppercase;padding:9px 20px;cursor:pointer;transition:opacity .15s,transform .15s;background:var(--ac)}
-.bnxt:hover{opacity:.9;transform:translateX(2px)}.bnxt:disabled{opacity:.28;cursor:not-allowed;transform:none}
-#vChat{min-height:calc(100vh - 48px);display:flex;flex-direction:column}
-.chat-area{flex:1;max-width:680px;width:100%;margin:0 auto;padding:36px 24px 110px;display:flex;flex-direction:column;gap:14px}
-.msg{display:flex;gap:10px;align-items:flex-start}.msg.u{flex-direction:row-reverse}
-.ava{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'DM Mono',monospace;font-size:7px;flex-shrink:0;background:var(--s2);border:1px solid var(--b2);color:var(--mu)}
-.msg.u .ava{background:var(--ac);border-color:var(--ac);color:var(--sand)}
-.bubble{background:var(--s1);border:1px solid var(--b1);padding:12px 15px;max-width:86%;font-size:13px;line-height:1.65;color:var(--tx)}
-.msg.u .bubble{background:var(--s2);border-color:var(--b2)}
-.bubble.thinking{display:flex;gap:5px;align-items:center;padding:12px 16px}
-.dot{width:4px;height:4px;border-radius:50%;background:var(--mu);animation:blink 1.3s infinite}
-.dot:nth-child(2){animation-delay:.22s}.dot:nth-child(3){animation-delay:.44s}
-@keyframes blink{0%,80%,100%{opacity:.12}40%{opacity:1}}
-.cbar{position:fixed;bottom:0;border-top:1px solid var(--b1);background:rgba(10,10,10,.97);backdrop-filter:blur(20px);padding:12px 24px;display:flex;gap:8px;align-items:flex-end;max-width:680px;width:100%;left:50%;transform:translateX(-50%)}
-.cin{flex:1;background:var(--s1);border:1px solid var(--b2);color:var(--tx);font-family:'DM Mono',monospace;font-size:12px;padding:10px 13px;resize:none;outline:none;transition:border-color .15s;min-height:40px;max-height:110px;line-height:1.5}
-.cin:focus{border-color:var(--b3)}
-.cbtn{background:var(--ac);border:none;color:var(--sand);width:40px;height:40px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;transition:opacity .15s;flex-shrink:0}
-.cbtn:hover{opacity:.85}.cbtn:disabled{opacity:.25;cursor:not-allowed}
-#vModel{padding-bottom:80px}
-.mtop{display:flex;align-items:center;padding:12px 24px;border-bottom:1px solid var(--b1);flex-wrap:wrap;gap:10px}
-.mctx{display:flex;gap:6px;flex-wrap:wrap;flex:1}
-.chip{font-family:'DM Mono',monospace;font-size:7px;letter-spacing:.08em;text-transform:uppercase;padding:4px 9px;border:1px solid;white-space:nowrap}
-.chip.convince{border-color:var(--cv);color:var(--cv);background:rgba(200,75,47,.05)}
-.chip.measure{border-color:var(--mv);color:var(--mv);background:rgba(30,92,58,.05)}
-.chip.justify{border-color:var(--jv);color:var(--jv);background:rgba(29,78,216,.05)}
-.msrc{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.06em;text-transform:uppercase;color:var(--mu2)}
-.ibanner{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid var(--b1);flex-wrap:wrap;gap:10px}
-.ib-l{display:flex;flex-direction:column;gap:3px}.ib-verb{font-family:'Syne',sans-serif;font-weight:800;font-size:17px;letter-spacing:-.01em}
-.ib-desc{font-size:10px;color:var(--mu);line-height:1.5;max-width:400px}.ib-r{display:flex;gap:5px}
-.pb{background:none;border:1px solid var(--b2);color:var(--mu);font-family:'DM Mono',monospace;font-size:7px;letter-spacing:.08em;text-transform:uppercase;padding:5px 10px;cursor:pointer;transition:all .12s}
-.pb:hover{border-color:var(--tx);color:var(--tx)}.pb.act{background:var(--s2);border-color:var(--ac);color:var(--sand)}
-.dtabs{display:flex;border-bottom:1px solid var(--b1);padding:0 24px;overflow-x:auto;scrollbar-width:none}
-.dtab{font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--mu);padding:11px 14px;border-bottom:2px solid transparent;cursor:pointer;background:none;border-top:none;border-left:none;border-right:none;white-space:nowrap;transition:all .12s}
-.dtab:hover{color:var(--tx)}.dtab.act{color:var(--tx);border-bottom-color:var(--ac)}
-.recalc{height:11px;padding:0 24px;font-family:'DM Mono',monospace;font-size:7px;letter-spacing:.1em;text-transform:uppercase;color:var(--ac);opacity:0;transition:opacity .1s;margin:3px 0}
-.recalc.on{opacity:1}.dpanel{display:none;padding:22px 24px}.dpanel.act{display:block}
-.trio{display:grid;grid-template-columns:2fr 1fr 1fr;gap:1px;background:var(--b1);margin-bottom:24px}
-.to{background:var(--bg);padding:20px 18px;position:relative}
-.to::after{content:'';position:absolute;top:0;left:0;right:0;height:2px}
-.to.lc::after{background:var(--cv)}.to.lm::after{background:var(--mv)}.to.lj::after{background:var(--green)}.to.sec::after{background:var(--b2)}
-.to-lbl{font-family:'DM Mono',monospace;font-size:7px;letter-spacing:.16em;text-transform:uppercase;color:var(--mu);margin-bottom:7px}
-.to-big{font-family:'Syne',sans-serif;font-weight:800;font-size:clamp(20px,3vw,32px);line-height:1;margin-bottom:3px;transition:all .25s}
-.to.lc .to-big{color:var(--cv)}.to.lm .to-big{color:var(--mv)}.to.lj .to-big{color:var(--green)}.to.sec .to-big{color:var(--sand)}
-.to-sub{font-size:9px;color:var(--mu);margin-bottom:10px}.to-rows{border-top:1px solid var(--b1);padding-top:7px;display:flex;flex-direction:column;gap:4px}
-.to-row{display:flex;justify-content:space-between}.to-rl{font-family:'DM Mono',monospace;font-size:8px;color:var(--mu)}.to-rv{font-family:'DM Mono',monospace;font-size:8px;color:var(--tx)}
-.sc-lbl{font-family:'DM Mono',monospace;font-size:7px;letter-spacing:.14em;text-transform:uppercase;color:var(--mu);margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--b1)}
-.sclist{display:flex;flex-direction:column;gap:2px;margin-bottom:20px}
-.sc{background:var(--s1);border-left:2px solid transparent;transition:border-color .12s}.sc.open{border-left-color:var(--ac)}
-.sch{display:grid;grid-template-columns:76px 1fr 96px 28px;align-items:center;gap:8px;padding:10px 12px;cursor:pointer;transition:background .1s}
-.sch:hover{background:var(--s2)}.sc-id{font-family:'DM Mono',monospace;font-size:7px;color:var(--mu);letter-spacing:.06em}
-.sc-name{font-size:11px;color:var(--tx)}.sc-val{font-family:'Syne',sans-serif;font-weight:700;font-size:12px;text-align:right;color:var(--green);transition:color .2s}
-.sc-val.z{color:var(--mu2)}.sc-arr{font-size:9px;color:var(--mu);text-align:center;transition:transform .2s}.sc.open .sc-arr{transform:rotate(180deg)}
-.sc.dim .sch{opacity:.35}.sc.dim .sc-val{color:var(--mu2);opacity:.35}
-.scb{display:none;padding:0 12px 14px;border-top:1px solid var(--b1)}.sc.open .scb{display:block}
-.insight{margin:10px 0 12px;padding:10px 12px;font-size:10px;color:var(--tx);line-height:1.6}
-.insight.convince{border-left:2px solid var(--cv);background:rgba(200,75,47,.04)}
-.insight.measure{border-left:2px solid var(--mv);background:rgba(30,92,58,.04)}
-.insight.justify{border-left:2px solid var(--jv);background:rgba(29,78,216,.04)}
-.insight-lbl{font-family:'DM Mono',monospace;font-size:7px;letter-spacing:.1em;text-transform:uppercase;margin-bottom:5px}
-.insight.convince .insight-lbl{color:var(--cv)}.insight.measure .insight-lbl{color:var(--mv)}.insight.justify .insight-lbl{color:var(--jv)}
-.insight-big{font-family:'Syne',sans-serif;font-weight:800;font-size:18px}
-.insight.measure .insight-big{color:var(--mv)}.insight.justify .insight-big{color:var(--jv)}
-.sc-2col{display:grid;grid-template-columns:1fr 220px;gap:16px;align-items:start}
-.sc-inps{display:flex;flex-direction:column;gap:8px}
-.irow{display:flex;flex-direction:column;gap:3px}.itop{display:flex;justify-content:space-between;align-items:baseline}
-.iname{font-family:'DM Mono',monospace;font-size:8px;color:var(--mu)}.ival{font-family:'DM Mono',monospace;font-size:9px;color:var(--tx)}
-input[type=range]{-webkit-appearance:none;width:100%;height:2px;background:var(--b2);border-radius:1px;outline:none;cursor:pointer;margin-top:1px}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:9px;height:9px;border-radius:50%;background:var(--ac);transition:transform .1s}
-input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.5)}
-.chart-wrap{position:relative}.chart-lbl{font-family:'DM Mono',monospace;font-size:7px;letter-spacing:.1em;text-transform:uppercase;color:var(--mu);margin-bottom:5px}
-canvas.cv{display:block;width:100%;height:110px}
-@media(max-width:700px){
-  .intent-row,.op-grid{grid-template-columns:1fr}.trio{grid-template-columns:1fr}
-  .sch{grid-template-columns:60px 1fr 76px 24px}.sc-2col{grid-template-columns:1fr}
-  nav,.op-header,.dpanel,.mtop,.dtabs,.ibanner{padding-left:16px;padding-right:16px}
-  .hero{padding:44px 16px 36px}
+
+html.dark {
+  --ink:    #F0EDE6;
+  --sand:   #111111;
+  --accent: #E05A36;
+  --green:  #3A9B62;
+  --muted:  #8A8278;
+  --rule:   #2A2A2A;
+  --surf:   #1A1A1A;
+  --bg:     #111111;
+  --tile-bg: #1A1A1A;
+  --tile-hover: #222222;
+  --calc-bg: #1A1A1A;
+  --calc-ctx: #141414;
+  --input-bg: #141414;
+  --prod-bg: #1A1A1A;
+  --chat-bg: #1A1A1A;
+  --canvas-r: 240; --canvas-g: 237; --canvas-b: 230;
+  color-scheme: dark;
+}
+
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg) !important;
+  color: var(--ink) !important;
+  font-family: 'DM Sans', sans-serif;
+  font-weight: 300;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  transition: background 0.4s ease, color 0.4s ease;
+}
+
+/* LOADER */
+#ldr {
+  position: fixed; inset: 0;
+  background: #0A0A0A;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 9999;
+  transition: opacity 0.7s ease;
+}
+#ldr.out { opacity: 0; pointer-events: none; }
+.lm { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+.lsvg { width: 48px; height: 48px; }
+.lc { stroke: rgba(255,255,255,0.06); stroke-width: 1.2; fill: none; }
+.lca {
+  stroke: #C84B2F; stroke-width: 1.2; fill: none;
+  stroke-dasharray: 138; stroke-dashoffset: 138;
+  animation: ldraw 1.1s cubic-bezier(.4,0,.2,1) 0.2s forwards;
+  transform-origin: center; transform: rotate(-90deg);
+}
+.ll { stroke: rgba(255,255,255,0.04); stroke-width: 1; stroke-dasharray: 48; stroke-dashoffset: 48; }
+.lla {
+  stroke: #C84B2F; stroke-width: 1;
+  stroke-dasharray: 48; stroke-dashoffset: 48;
+  animation: ll2 0.3s ease 0.9s forwards;
+}
+@keyframes ldraw { to { stroke-dashoffset: 0; } }
+@keyframes ll2 { to { stroke-dashoffset: 0; } }
+.lword {
+  font-family: 'Syne', sans-serif; font-weight: 800;
+  font-size: 22px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: #F0EDE6;
+  opacity: 0; animation: lf 0.3s ease 1.0s forwards;
+}
+.lword b { color: #F0EDE6; font-weight: 800; }
+.lsub {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 0.18em; text-transform: uppercase;
+  color: rgba(200,75,47,0.9);
+  opacity: 0; animation: lf 0.3s ease 1.15s forwards;
+}
+@keyframes lf { to { opacity: 1; } }
+.theme-toggle {
+  width: 36px; height: 36px; border-radius: 2px;
+  border: 1px solid var(--rule);
+  background: transparent;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+.theme-toggle:hover { border-color: var(--ink); }
+.theme-toggle svg { width: 16px; height: 16px; transition: opacity 0.3s; }
+.icon-sun { display: none; }
+.icon-moon { display: block; }
+html.dark .icon-sun { display: block; }
+html.dark .icon-moon { display: none; }
+
+/* NAV */
+nav {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 0 48px; height: 56px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--rule);
+  transition: background 0.4s ease, border-color 0.4s ease;
+}
+.nav-logo {
+  font-family: 'Syne', sans-serif; font-weight: 800;
+  font-size: 15px; letter-spacing: 0.04em; color: var(--ink); text-decoration: none;
+}
+.nav-links { display: flex; gap: 32px; align-items: center; }
+.nav-links a {
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--muted); text-decoration: none; transition: color 0.2s;
+}
+.nav-links a:hover { color: var(--ink); }
+.nav-links a.nav-active {
+  color: var(--accent);
+  position: relative;
+}
+.nav-links a.nav-active::after {
+  content: '';
+  position: absolute;
+  bottom: -18px; left: 0; right: 0;
+  height: 2px;
+  background: var(--accent);
+  border-radius: 1px;
+}
+.nav-cta {
+  background: var(--ink) !important; color: var(--surf) !important;
+  padding: 8px 18px; border-radius: 2px;
+}
+.nav-cta:hover { background: var(--accent) !important; }
+
+/* HERO */
+.hero {
+  position: relative; min-height: 100vh;
+  display: flex; flex-direction: column; justify-content: center;
+  padding: 120px 48px 80px; overflow: hidden;
+  background: var(--bg);
+  transition: background 0.4s ease;
+}
+.hero-inner {
+  max-width: 1200px; margin: 0 auto; width: 100%;
+  position: relative; z-index: 2;
+}
+#hero-canvas {
+  position: absolute; top: 0; left: 0;
+  width: 100%; height: 100%; z-index: 1; pointer-events: none;
+}
+.hero-eyebrow {
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 28px;
+  opacity: 0; animation: fadeUp 0.6s ease forwards 0.1s;
+}
+.hero-headline {
+  font-family: 'Syne', sans-serif; font-weight: 800;
+  font-size: clamp(52px, 8vw, 96px); line-height: 1.0;
+  letter-spacing: -0.03em; color: var(--ink); margin-bottom: 24px;
+  opacity: 0; animation: fadeUp 0.7s ease forwards 0.2s;
+}
+.hero-sub {
+  font-size: 17px; font-weight: 300; color: var(--muted);
+  max-width: 460px; line-height: 1.65; margin-bottom: 44px;
+  opacity: 0; animation: fadeUp 0.7s ease forwards 0.35s;
+}
+.hero-sub strong { color: var(--ink); font-weight: 500; }
+.hero-actions {
+  display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
+  opacity: 0; animation: fadeUp 0.7s ease forwards 0.5s;
+}
+
+/* BUTTONS */
+.btn-primary {
+  font-family: 'DM Mono', monospace; font-size: 12px;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--surf); background: var(--ink);
+  padding: 13px 28px; border-radius: 2px;
+  text-decoration: none; border: none; cursor: pointer;
+  transition: background 0.2s; display: inline-block;
+}
+.btn-primary:hover { background: var(--accent); }
+.btn-ghost {
+  font-family: 'DM Mono', monospace; font-size: 12px;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--muted); text-decoration: none;
+  padding: 13px 0; transition: color 0.2s;
+  background: none; border: none; cursor: pointer;
+}
+.btn-ghost:hover { color: var(--ink); }
+
+/* SECTIONS */
+.section { max-width: 1200px; margin: 0 auto; padding: 96px 48px; background: var(--bg); transition: background 0.4s ease; }
+.section-rule { border: none; border-top: 1px solid var(--rule); margin: 0 48px; transition: border-color 0.4s ease; }
+.section-label {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 0.16em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 40px;
+}
+.section-headline {
+  font-family: 'Syne', sans-serif; font-weight: 700;
+  font-size: clamp(26px, 3.5vw, 40px); letter-spacing: -0.02em;
+  color: var(--ink); margin-bottom: 12px; max-width: 560px;
+}
+.section-sub {
+  font-size: 15px; color: var(--muted); margin-bottom: 44px; max-width: 460px;
+}
+
+/* TILES */
+.tiles-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 2px; background: var(--rule);
+  border: 1px solid var(--rule); border-radius: 3px;
+  overflow: hidden; margin-bottom: 2px;
+}
+.tile { background: var(--tile-bg); padding: 36px 32px; cursor: pointer; transition: background 0.3s ease, box-shadow 0.3s ease; position: relative; }
+.tile:hover { background: var(--tile-hover); }
+.tile.active { background: #0F0F0F; box-shadow: inset 0 0 0 1px rgba(200,75,47,0.4); }
+html.dark .tile.active { background: #050505; box-shadow: inset 0 0 0 1px rgba(224,90,54,0.5); }
+.tile.active .tile-num { color: rgba(255,255,255,0.3); }
+.tile.active .tile-title { color: #F0EDE6; }
+.tile.active .tile-body { color: rgba(240,237,230,0.55); }
+.tile-num {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 0.12em; color: var(--muted);
+  margin-bottom: 20px; transition: color 0.2s;
+}
+.tile-title {
+  font-family: 'Syne', sans-serif; font-weight: 700;
+  font-size: 21px; letter-spacing: -0.01em;
+  color: var(--ink); margin-bottom: 10px; line-height: 1.15;
+  transition: color 0.2s;
+}
+.tile-body { font-size: 13px; color: var(--muted); line-height: 1.6; transition: color 0.2s; }
+.tile-bar {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
+  background: var(--accent); transform: scaleX(0);
+  transition: transform 0.25s; transform-origin: left;
+}
+.tile.active .tile-bar { transform: scaleX(1); }
+
+/* CALC */
+.calc-wrap { background: var(--calc-bg); border: 1px solid var(--rule); border-top: none; border-radius: 0 0 3px 3px; overflow: hidden; transition: background 0.4s ease; }
+.calc-ctx { padding: 16px 32px; border-bottom: 1px solid var(--rule); background: var(--calc-ctx); transition: background 0.4s ease; }
+.calc-ctx-text {
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  color: var(--muted); letter-spacing: 0.04em;
+}
+.calc-ctx-text span { color: var(--accent); font-style: italic; }
+.calc-body { padding: 36px 32px; }
+.calc-inputs {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 24px 40px; margin-bottom: 36px;
+}
+.input-group label {
+  display: block; font-family: 'DM Mono', monospace;
+  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 7px;
+}
+.input-group input {
+  width: 100%; background: var(--input-bg);
+  border: 1px solid var(--rule); border-radius: 2px;
+  padding: 10px 14px; font-family: 'DM Mono', monospace;
+  font-size: 15px; color: var(--ink); outline: none;
+  transition: border-color 0.2s, background 0.4s ease, color 0.4s ease;
+}
+.input-group input:focus { border-color: var(--ink); }
+.input-hint { font-size: 11px; color: var(--muted); margin-top: 5px; line-height: 1.4; }
+.calc-output {
+  border-top: 1px solid var(--rule); padding-top: 32px;
+  display: flex; align-items: flex-start;
+  justify-content: space-between; gap: 40px; flex-wrap: wrap;
+}
+.output-label {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 8px;
+}
+.output-number {
+  font-family: 'Syne', sans-serif; font-weight: 800;
+  font-size: clamp(44px, 6vw, 72px); letter-spacing: -0.03em;
+  color: var(--accent); line-height: 1; margin-bottom: 8px;
+  transition: all 0.35s ease;
+}
+.output-sub { font-size: 13px; color: var(--muted); max-width: 340px; line-height: 1.5; }
+.output-fix {
+  font-family: 'Syne', sans-serif; font-weight: 700;
+  font-size: 18px; color: var(--ink); margin-bottom: 14px;
+}
+.output-cta { display: flex; flex-direction: column; gap: 10px; padding-top: 4px; }
+
+/* PRODUCTS */
+.products-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 2px; background: var(--rule);
+  border: 1px solid var(--rule); border-radius: 3px; overflow: hidden;
+}
+.prod-card { background: var(--prod-bg); padding: 48px 40px; transition: background 0.4s ease; }
+.prod-card.dark { background: #0F0F0F; }
+html.dark .prod-card.dark { background: #050505; }
+.prod-tag {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: var(--muted); margin-bottom: 24px;
+}
+.prod-card.dark .prod-tag { color: rgba(255,255,255,0.3); }
+.prod-name {
+  font-family: 'Syne', sans-serif; font-weight: 800;
+  font-size: 28px; letter-spacing: -0.02em; color: var(--ink);
+  margin-bottom: 12px; line-height: 1.1;
+}
+.prod-card.dark .prod-name { color: #F0EDE6; }
+.prod-desc {
+  font-size: 14px; color: var(--muted); line-height: 1.65;
+  margin-bottom: 28px; max-width: 360px;
+}
+.prod-card.dark .prod-desc { color: rgba(240,237,230,0.5); }
+.prod-features { list-style: none; margin-bottom: 32px; }
+.prod-features li {
+  font-size: 13px; color: var(--muted);
+  padding: 8px 0; border-bottom: 1px solid var(--rule);
+  display: flex; gap: 10px; align-items: flex-start;
+}
+.prod-card.dark .prod-features li {
+  color: rgba(240,237,230,0.45);
+  border-color: rgba(255,255,255,0.07);
+}
+.prod-features li::before {
+  content: ''; width: 4px; height: 4px; border-radius: 50%;
+  background: var(--accent); margin-top: 7px; flex-shrink: 0;
+}
+.prod-price {
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  letter-spacing: 0.06em; color: var(--muted); margin-bottom: 20px;
+}
+.prod-card.dark .prod-price { color: rgba(240,237,230,0.35); }
+.btn-prod {
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  padding: 12px 24px; border-radius: 2px;
+  text-decoration: none; border: 1px solid var(--rule);
+  color: var(--ink); background: transparent; cursor: pointer;
+  transition: all 0.2s; display: inline-block;
+}
+.btn-prod:hover { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.prod-card.dark .btn-prod {
+  border-color: rgba(255,255,255,0.18); color: #F0EDE6;
+  background: rgba(255,255,255,0.06);
+}
+.prod-card.dark .btn-prod:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+/* CHAT */
+.chat-wrap {
+  background: var(--chat-bg); border: 1px solid var(--rule);
+  border-radius: 3px; overflow: hidden; transition: background 0.4s ease;
+}
+.chat-head {
+  padding: 18px 28px; border-bottom: 1px solid var(--rule);
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--chat-bg); transition: background 0.4s ease;
+}
+.chat-title {
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink);
+}
+.chat-badge {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  background: var(--bg); color: var(--muted);
+  padding: 4px 10px; border-radius: 2px; border: 1px solid var(--rule);
+}
+.chat-msgs {
+  padding: 28px; min-height: 260px; max-height: 400px;
+  overflow-y: auto; display: flex; flex-direction: column; gap: 16px;
+  background: var(--chat-bg); transition: background 0.4s ease;
+}
+.msg { display: flex; gap: 12px; align-items: flex-start; animation: fadeUp 0.3s ease; }
+.msg-av {
+  width: 28px; height: 28px; border-radius: 2px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: 'DM Mono', monospace; font-size: 9px; font-weight: 500;
+  letter-spacing: 0.05em; flex-shrink: 0; margin-top: 2px;
+}
+.msg-av.am { background: var(--ink); color: var(--bg); transition: background 0.4s, color 0.4s; }
+.msg-av.you { background: var(--bg); color: var(--muted); border: 1px solid var(--rule); transition: background 0.4s; }
+.msg-body { font-size: 14px; color: var(--ink); line-height: 1.6; flex: 1; transition: color 0.4s; }
+.msg-body.dim { color: var(--muted); }
+.chat-input-wrap {
+  padding: 14px 28px; border-top: 1px solid var(--rule);
+  display: flex; gap: 10px; background: var(--chat-bg); transition: background 0.4s ease;
+}
+#chat-input {
+  flex: 1; background: var(--input-bg); border: 1px solid var(--rule);
+  border-radius: 2px; padding: 10px 14px;
+  font-family: 'DM Sans', sans-serif; font-size: 14px;
+  font-weight: 300; color: var(--ink); outline: none;
+  transition: border-color 0.2s, background 0.4s, color 0.4s;
+}
+#chat-input:focus { border-color: var(--ink); }
+#chat-input::placeholder { color: var(--muted); }
+#chat-send {
+  font-family: 'DM Mono', monospace; font-size: 11px;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  background: var(--ink); color: var(--bg);
+  border: none; padding: 10px 20px; border-radius: 2px;
+  cursor: pointer; transition: background 0.2s, color 0.2s;
+}
+#chat-send:hover { background: var(--accent); color: #fff; }
+#chat-send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* FOOTER */
+footer {
+  border-top: 1px solid var(--rule); padding: 44px 48px;
+  display: flex; justify-content: space-between;
+  align-items: center; flex-wrap: wrap; gap: 20px;
+  background: var(--bg); transition: background 0.4s ease;
+}
+.footer-mark { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 14px; letter-spacing: 0.04em; color: var(--ink); }
+.footer-tag {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 0.08em; color: var(--muted); margin-top: 3px; font-style: italic;
+}
+.footer-links { display: flex; gap: 24px; }
+.footer-links a {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--muted); text-decoration: none; transition: color 0.2s;
+}
+.footer-links a:hover { color: var(--ink); }
+
+/* CRED STRIP */
+.cred-strip {
+  background: var(--bg);
+  padding: 40px 48px;
+  transition: background 0.4s ease;
+}
+.cred-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+.cred-bar {
+  flex: 1;
+  height: 1px;
+  background: var(--rule);
+  transition: background 0.4s ease;
+}
+.cred-text {
+  font-family: 'DM Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+  text-align: center;
+  max-width: 680px;
+  line-height: 1.7;
+  flex-shrink: 0;
+  font-style: italic;
+}
+.cred-text strong {
+  color: var(--accent);
+  font-style: normal;
+  font-weight: 500;
+}
+
+@media (max-width: 768px) {
+  .cred-strip { padding: 32px 24px; }
+  .cred-bar { display: none; }
+  .cred-text { font-size: 11px; }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 768px) {
+  nav { padding: 0 24px; }
+  .nav-links { display: none; }
+  .hero, .section { padding-left: 24px; padding-right: 24px; }
+  .section-rule { margin: 0 24px; }
+  .tiles-grid, .products-grid { grid-template-columns: 1fr; }
+  .calc-inputs { grid-template-columns: 1fr; }
+  .calc-output { flex-direction: column; }
+  footer { padding: 36px 24px; flex-direction: column; align-items: flex-start; }
 }
 </style>
 </head>
 <body>
-<div id="loader">
+
+<!-- LOADER -->
+<div id="ldr">
   <div class="lm">
-    <svg class="lsvg" viewBox="0 0 56 56"><circle class="lc" cx="28" cy="28" r="20"/><circle class="lca" cx="28" cy="28" r="20"/><line class="ll" x1="28" y1="2" x2="28" y2="54"/><line class="lla" x1="28" y1="2" x2="28" y2="54"/></svg>
-    <div class="lw"><b>ALT</b> MERIDIAN</div>
-    <div class="ls2" id="lsub">Initializing…</div>
+    <svg class="lsvg" viewBox="0 0 44 44">
+      <circle class="lc" cx="22" cy="22" r="17"/>
+      <circle class="lca" cx="22" cy="22" r="17"/>
+      <line class="ll" x1="22" y1="2" x2="22" y2="42"/>
+      <line class="lla" x1="22" y1="2" x2="22" y2="42"/>
+    </svg>
+    <div class="lword"><b>ALT</b> MERIDIAN</div>
+    <div class="lsub">Value Enablement Platform</div>
   </div>
 </div>
+
 <nav>
-  <div class="nl">
-    <svg class="nsvg" viewBox="0 0 20 20"><circle class="nc" cx="10" cy="10" r="7.5"/><circle class="nca" cx="10" cy="10" r="7.5"/><line class="nln" x1="10" y1="0" x2="10" y2="20"/></svg>
-    <div class="nw">ALT <em>MERIDIAN</em></div>
-  </div>
-  <div class="nr">
-    <div class="nstat" id="nstat">Connecting…</div>
-    <button class="nback" id="nback" onclick="goHome()">← Start over</button>
+  <a class="nav-logo" href="#">ALT MERIDIAN</a>
+  <div class="nav-links">
+    <a href="#tiles" data-nav="tiles">The Problem</a>
+    <a href="#calculator" data-nav="calculator">Your Number</a>
+    <a href="#products" data-nav="products">Products</a>
+    <a href="#demo" data-nav="demo">See It Live</a>
+    <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">
+      <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </svg>
+      <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="5"/>
+        <line x1="12" y1="1" x2="12" y2="3"/>
+        <line x1="12" y1="21" x2="12" y2="23"/>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
+        <line x1="1" y1="12" x2="3" y2="12"/>
+        <line x1="21" y1="12" x2="23" y2="12"/>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
+      </svg>
+    </button>
   </div>
 </nav>
-<main>
-<div id="vLand" class="view active">
-  <div class="hero">
-    <div class="hgrid"></div><div class="hglow"></div>
-    <div class="h-eye">Value Epistemology Framework · v1.1</div>
-    <h1 class="h-h1">The number<br>behind the<br><em>decision.</em></h1>
-    <p class="h-sub">Every high-stakes decision lives or dies on whether the math holds up. What do you need?</p>
-    <div class="intent-row">
-      <button class="ic" data-i="convince" onclick="pickIntent('convince')">
-        <div class="ic-dot"></div>
-        <div class="ic-v">Convince</div>
-        <div class="ic-what">Someone needs to be convinced. A CFO, a board, a client, a budget committee. The math needs to survive a hard question.</div>
-        <div class="ic-who">Sellers · Champions · Consultants building a client case</div>
-      </button>
-      <button class="ic" data-i="measure" onclick="pickIntent('measure')">
-        <div class="ic-dot"></div>
-        <div class="ic-v">Measure</div>
-        <div class="ic-what">You don't have the number yet. You need to know what an operation is actually worth — what's leaking, what's at risk, what changes if you fix it.</div>
-        <div class="ic-who">PE analysts · Operators · Investors · Diligence teams</div>
-      </button>
-      <button class="ic" data-i="justify" onclick="pickIntent('justify')">
-        <div class="ic-dot"></div>
-        <div class="ic-v">Justify</div>
-        <div class="ic-what">You know what you want to do. You need the financial logic to be airtight before you walk into the room.</div>
-        <div class="ic-who">Decision-makers · Capital requests · Acquisitions · Build vs. buy</div>
-      </button>
+
+<!-- HERO -->
+<section class="hero">
+  <canvas id="hero-canvas"></canvas>
+  <div class="hero-inner">
+    <div class="hero-eyebrow">Value Enablement Platform</div>
+    <h1 class="hero-headline">Does your<br>value convert?</h1>
+    <p class="hero-sub">Alt Meridian is the governed infrastructure layer that makes enterprise value conversations defensible before they enter a room.</p>
+    <div class="hero-actions">
+      <a class="btn-primary" href="#calculator">Find what it's costing you</a>
+      <button class="btn-ghost" onclick="document.getElementById('tiles').scrollIntoView({behavior:'smooth'})">See how it works</button>
     </div>
-    <div class="or-row"><div class="or-line"></div><div class="or-txt">or describe your situation directly</div><div class="or-line"></div></div>
-    <div class="fi-wrap">
-      <textarea class="fi" id="fi" rows="2" placeholder="What are you selling, measuring, or trying to justify?" onkeydown="fiKey(event)" oninput="ar(this)"></textarea>
-      <button class="fi-btn" onclick="fiSend()">&#8593;</button>
-    </div>
-    <div class="fi-hint">Select a card above · or type and press Enter</div>
+  </div>
+</section>
+
+<hr class="section-rule">
+
+<!-- CREDIBILITY STRIP -->
+<div class="cred-strip">
+  <div class="cred-inner">
+    <div class="cred-bar"></div>
+    <p class="cred-text">Deployed in Fortune 500 sales conversations across retail, logistics, healthcare, and technology verticals. In the rooms where value cases go to die.</p>
+    <div class="cred-bar"></div>
   </div>
 </div>
-<div id="vOp" class="view">
-  <div class="op-header">
-    <div class="op-ibar" id="opIBar"></div>
-    <h2 class="op-q">What kind of operation are you working with?</h2>
-    <p class="op-sub">Pick everything that applies. The engine loads scenarios relevant to your situation — not the technology, the operation.</p>
-  </div>
-  <div class="op-grid">
-    <div class="oc2" data-ops="WH-RFD" onclick="toggleOp(this)">
-      <div class="oc2-chk">&#10003;</div>
-      <div class="oc2-icon">&#128230;</div>
-      <div class="oc2-title">A facility that moves physical goods</div>
-      <div class="oc2-desc">Inventory flows in and out. People, equipment, and product are in motion across a space that's hard to see all at once.</div>
-      <div class="oc2-eg">Warehouse · Distribution center · 3PL · Carrier yard · Retail backroom</div>
+
+<hr class="section-rule">
+<section class="section" id="tiles">
+  <div class="section-label">The problem</div>
+  <h2 class="section-headline">Where does your value motion break down?</h2>
+  <p class="section-sub">Pick the one that sounds like your business.</p>
+
+  <div class="tiles-grid">
+    <div class="tile active" id="tile-0" onclick="selectTile(0)">
+      <div class="tile-num">01</div>
+      <div class="tile-title">No infrastructure</div>
+      <div class="tile-body">No ROI motion built. Sellers wing the value conversation. Every deal is different and none of it holds up under scrutiny.</div>
+      <div class="tile-bar"></div>
     </div>
-    <div class="oc2" data-ops="RET-RFD" onclick="toggleOp(this)">
-      <div class="oc2-chk">&#10003;</div>
-      <div class="oc2-icon">&#127978;</div>
-      <div class="oc2-title">A business built on selling to end customers</div>
-      <div class="oc2-desc">Revenue depends on product being in the right place at the right time. Shrink, stockouts, and markdowns all compound silently.</div>
-      <div class="oc2-eg">Retail chain · Apparel · Footwear · Omnichannel · Consumer goods</div>
+    <div class="tile" id="tile-1" onclick="selectTile(1)">
+      <div class="tile-num">02</div>
+      <div class="tile-title">No credibility</div>
+      <div class="tile-body">Something exists. Finance pushes back. The champion gets destroyed in the budget meeting. Deals stall at procurement.</div>
+      <div class="tile-bar"></div>
     </div>
-    <div class="oc2" data-ops="HC-RFD" onclick="toggleOp(this)">
-      <div class="oc2-chk">&#10003;</div>
-      <div class="oc2-icon">&#127963;</div>
-      <div class="oc2-title">A regulated organization where errors have consequences</div>
-      <div class="oc2-desc">Operations run under compliance requirements. A missed process, a lost asset, or a wrong item has costs that extend far beyond the immediate event.</div>
-      <div class="oc2-eg">Hospital · Clinical network · Regulated manufacturer · Financial institution</div>
-    </div>
-    <div class="oc2" data-ops="MTL-RFD" onclick="toggleOp(this)">
-      <div class="oc2-chk">&#10003;</div>
-      <div class="oc2-icon">&#9881;&#65039;</div>
-      <div class="oc2-title">A team that makes things</div>
-      <div class="oc2-desc">Physical production. Tools, materials, and work-in-progress move through a process. Quality, yield, and cycle time determine the economics.</div>
-      <div class="oc2-eg">Discrete manufacturer · Assembly · Automotive · Electronics · Food production</div>
-    </div>
-    <div class="oc2" data-ops="TL-RFD" onclick="toggleOp(this)">
-      <div class="oc2-chk">&#10003;</div>
-      <div class="oc2-icon">&#128665;</div>
-      <div class="oc2-title">A fleet, carrier, or yard operation</div>
-      <div class="oc2-desc">Assets move between locations. Trailers sit, loads get detained, miles run empty. The cost of poor visibility compounds across every lane and every shift.</div>
-      <div class="oc2-eg">Carrier · 3PL fleet · Yard management · TL / LTL · Last mile</div>
-    </div>
-    <div class="oc2" data-ops="VEN-VEF" onclick="toggleOp(this)">
-      <div class="oc2-chk">&#10003;</div>
-      <div class="oc2-icon">&#127919;</div>
-      <div class="oc2-title">A technology vendor's sales or GTM motion</div>
-      <div class="oc2-desc">You sell a solution and need to quantify its value to buyers. The question isn't what you built — it's what the buyer gets when they commit.</div>
-      <div class="oc2-eg">Enterprise software · SaaS · Analytics platform · IoT · Data product vendor</div>
+    <div class="tile" id="tile-2" onclick="selectTile(2)">
+      <div class="tile-num">03</div>
+      <div class="tile-title">No scale</div>
+      <div class="tile-body">Works when one person runs it. Can't replicate it across the team or through a channel. The methodology walks out when they do.</div>
+      <div class="tile-bar"></div>
     </div>
   </div>
-  <div class="bnav" id="bnav">
-    <div class="bnav-info" id="bnavInfo">Select an operation type</div>
-    <div class="bnav-btns">
-      <button class="bbk" onclick="backToLand()">&#8592; Back</button>
-      <button class="bnxt" id="bnxt" onclick="buildFromCards()" disabled>Build the case &#8594;</button>
+
+  <div class="calc-wrap" id="calculator">
+    <div class="calc-ctx">
+      <div class="calc-ctx-text">Situation: <span id="ctx-text">No ROI infrastructure — sellers are winging the value conversation</span></div>
+    </div>
+    <div class="calc-body">
+      <div class="calc-inputs">
+        <div class="input-group">
+          <label>Deals that didn't close last year</label>
+          <input type="number" id="inp-deals" value="12" min="0" oninput="recalc()">
+          <div class="input-hint">Deals that stalled or were lost where value was a factor</div>
+        </div>
+        <div class="input-group">
+          <label>Typical deal size</label>
+          <input type="number" id="inp-size" value="85000" min="0" oninput="recalc()">
+          <div class="input-hint">Average contract value for a won deal in your business</div>
+        </div>
+        <div class="input-group">
+          <label>People carrying this conversation</label>
+          <input type="number" id="inp-people" value="8" min="1" oninput="recalc()">
+          <div class="input-hint">Sellers, SEs, or CSMs who run value conversations</div>
+        </div>
+        <div class="input-group">
+          <label>Win rate once finance is involved (%)</label>
+          <input type="number" id="inp-wr" value="28" min="1" max="100" oninput="recalc()">
+          <div class="input-hint">% of deals that close after reaching procurement or finance</div>
+        </div>
+      </div>
+      <div class="calc-output">
+        <div>
+          <div class="output-label">Annual cost of ungoverned value conversations</div>
+          <div class="output-number" id="out-num">$1,020,000</div>
+          <div class="output-sub" id="out-sub">Across 8 people running ungoverned value conversations, with 12 lost deals averaging $85K and a 28% finance close rate.</div>
+        </div>
+        <div class="output-cta">
+          <div class="output-fix">This is what we fix.</div>
+          <a class="btn-primary" href="mailto:josh@altmeridian.com?subject=Alt Meridian — value conversation">Book a conversation</a>
+          <button class="btn-ghost" onclick="document.getElementById('products').scrollIntoView({behavior:'smooth'})">See the products</button>
+        </div>
+      </div>
     </div>
   </div>
-</div>
-<div id="vChat" class="view">
-  <div class="chat-area" id="chatArea"></div>
-  <div class="cbar">
-    <textarea class="cin" id="cin" placeholder="Describe your situation…" rows="1" onkeydown="ck(event)" oninput="ar(this)"></textarea>
-    <button class="cbtn" id="cbtn" onclick="sendChat()">&#8593;</button>
+</section>
+
+<hr class="section-rule">
+
+<!-- PRODUCTS -->
+<section class="section" id="products">
+  <div class="section-label">Two products. One platform.</div>
+  <div class="products-grid">
+    <div class="prod-card">
+      <div class="prod-tag">Platform — Self-serve</div>
+      <div class="prod-name">The Platform</div>
+      <div class="prod-desc">Access the Alt Meridian governed value database. Run defensible value conversations today against engines already built across 12+ B2B domains.</div>
+      <ul class="prod-features">
+        <li>Governed lever library across 44 value mechanisms</li>
+        <li>Evidence-anchored scenario database</li>
+        <li>Value calculator with cost of inaction output</li>
+        <li>Session analytics — what lands, where deals stall</li>
+        <li>Champion-ready shareable output</li>
+      </ul>
+      <div class="prod-price">Monthly subscription — tiered by team size</div>
+      <a class="btn-prod" href="mailto:josh@altmeridian.com?subject=Platform inquiry">Get access</a>
+    </div>
+    <div class="prod-card dark">
+      <div class="prod-tag">Forward Deployed — Bespoke</div>
+      <div class="prod-name">Forward<br>Deployed</div>
+      <div class="prod-desc">Alt Meridian builds a domain-specific engine for your solution, your buyer, your evidence. Your sellers carry a defensible number into every deal.</div>
+      <ul class="prod-features">
+        <li>Full VEF engine build — custom signals, evidence, scenarios</li>
+        <li>HTML Value Accelerator — runs in any discovery conversation</li>
+        <li>Team analytics — how sellers run it, where champions need support</li>
+        <li>Platform seat — updated over time, not a one-time deliverable</li>
+        <li>2 to 4 week engagement, permanent asset</li>
+      </ul>
+      <div class="prod-price">Builds from $25K + monthly platform license</div>
+      <a class="btn-prod" href="mailto:josh@altmeridian.com?subject=Forward Deployed inquiry">Start the conversation</a>
+    </div>
   </div>
-</div>
-<div id="vModel" class="view">
-  <div class="mtop"><div class="mctx" id="mctx"></div><div class="msrc" id="msrc"></div></div>
-  <div class="ibanner" id="ibanner"></div>
-  <div class="dtabs" id="dtabs"></div>
-  <div class="recalc" id="recalc">Recalculating…</div>
-  <div id="dpanels"></div>
-</div>
-</main>
+</section>
+
+<hr class="section-rule">
+
+<!-- CHAT -->
+<section class="section" id="demo">
+  <div class="section-label">See it work</div>
+  <h2 class="section-headline">What does this look like for your business?</h2>
+  <p class="section-sub">Describe what you sell. Get a governed value scenario back — with evidence — in seconds.</p>
+  <div class="chat-wrap">
+    <div class="chat-head">
+      <div class="chat-title">Alt Meridian — Value Intelligence</div>
+      <div class="chat-badge">Powered by VEF</div>
+    </div>
+    <div class="chat-msgs" id="chat-msgs">
+      <div class="msg">
+        <div class="msg-av am">AM</div>
+        <div class="msg-body">Tell me what your business sells and who your buyer is. I'll show you one governed value scenario with real evidence that applies to your situation.</div>
+      </div>
+    </div>
+    <div class="chat-input-wrap">
+      <input type="text" id="chat-input" placeholder="e.g. We sell WMS software to 3PL operators..." maxlength="300">
+      <button id="chat-send" onclick="sendChat()">Send</button>
+    </div>
+  </div>
+</section>
+
+<hr class="section-rule">
+
+<footer>
+  <div>
+    <div class="footer-mark">ALT MERIDIAN</div>
+    <div class="footer-tag">Value belongs to mechanisms, not solutions.</div>
+  </div>
+  <div class="footer-links">
+    <a href="mailto:josh@altmeridian.com">josh@altmeridian.com</a>
+    <a href="https://linkedin.com/in/joshua-k-willis/" target="_blank">LinkedIn</a>
+    <a href="https://substack.com/@jkw910" target="_blank">Substack</a>
+  </div>
+</footer>
+
 <script>
-const SB='https://kpecdezcolcycgpuqbgs.supabase.co';
-const KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwZWNkZXpjb2xjeWNncHVxYmdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2ODIyMDYsImV4cCI6MjA5MTI1ODIwNn0.rKHzdjjkYToEZWdS0ngg3Kgigh_gDWt5cRbLBCE44rg';
-const DEPLOY=85000;
-const ICFG={
-  convince:{color:'#C84B2F',verb:'Convince',desc:'Lead with cost of delay — what it costs every month without action.',lbl:'Cost of delay',sub:'Every month without action',show:'cfo'},
-  measure:{color:'#1E5C3A',verb:'Measure',desc:'Lead with cost of doing nothing — the annual status quo bleed.',lbl:'Cost of doing nothing',sub:'Annual status quo',show:'bleed'},
-  justify:{color:'#1D4ED8',verb:'Justify',desc:'Lead with value of acting — NPV, payback, and benefit-to-cost.',lbl:'Value of acting',sub:'Annual · first-order',show:'npv'},
-};
-const DMETA={'WH-RFD':'Facility moving goods','RET-RFD':'Customer-facing retail','HC-RFD':'Regulated / healthcare','TL-RFD':'Transport & logistics','MTL-RFD':'Production operation','VEN-VEF':'Technology vendor GTM'};
-let DB={domains:[],scenarios:{},inputs:{}},vals={},intent=null,selOps=new Set(),chatHist=[],chatRouted=false;
-async function sbGet(t,q=''){const r=await fetch(`${SB}/rest/v1/${t}?${q}`,{headers:{'apikey':KEY,'Authorization':`Bearer ${KEY}`}});if(!r.ok)throw new Error(`${t}:${r.status}`);return r.json();}
-async function boot(){
-  const sub=document.getElementById('lsub'),ns=document.getElementById('nstat');
-  try{
-    sub.textContent='Loading domains…';
-    const builds=await sbGet('vef_builds','select=domain_id,engine_status&engine_status=in.(Active,Production)');
-    const ids=builds.map(b=>b.domain_id);
-    DB.domains=await sbGet('vef_domains',`select=domain_id,domain_name&domain_id=in.(${ids.join(',')})`);
-    sub.textContent='Loading scenarios…';
-    const scens=await sbGet('vef_value_scenarios',`select=scenario_id,domain_id,one_liner,value_scenario_formula,cost_of_inaction_formula,value_theme,value_order,active_by_default,print_priority,cfo_challenge,inputs_required&domain_id=in.(${ids.join(',')})&order=print_priority.asc`);
-    scens.forEach(s=>{if(!DB.scenarios[s.domain_id])DB.scenarios[s.domain_id]=[];DB.scenarios[s.domain_id].push(s);});
-    sub.textContent='Loading inputs…';
-    const inps=await sbGet('vef_input_definitions',`select=id,domain_id,input_key,label,default_value,unit,min_value,max_value,conservative_value,typical_value,aggressive_value&domain_id=in.(${ids.join(',')})&order=id.asc`);
-    inps.forEach(i=>{if(!DB.inputs[i.domain_id])DB.inputs[i.domain_id]=[];DB.inputs[i.domain_id].push(i);});
-    DB.domains.forEach(d=>{vals[d.domain_id]={};(DB.inputs[d.domain_id]||[]).forEach(i=>{vals[d.domain_id][i.input_key]=parseFloat(i.typical_value??i.default_value)||0;});});
-    ns.textContent=`● LIVE · ${DB.domains.length} engines · ${scens.length} scenarios`;ns.className='nstat live';
-    setTimeout(()=>document.getElementById('loader').classList.add('out'),300);
-  }catch(e){console.error(e);ns.textContent='● ERROR';ns.className='nstat err';sub.textContent='Failed: '+e.message;setTimeout(()=>document.getElementById('loader').classList.add('out'),800);}
+// LOADER DISMISS
+window.addEventListener('load', function() {
+  setTimeout(function() {
+    document.getElementById('ldr').classList.add('out');
+  }, 1600);
+});
+
+// DEFAULT DARK MODE — apply before paint
+(function() {
+  const saved = localStorage.getItem('theme');
+  if (saved === 'light') return;
+  document.documentElement.classList.add('dark');
+})();
+
+// THEME TOGGLE
+function toggleTheme() {
+  document.documentElement.classList.toggle('dark');
+  localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+  drawChart();
 }
-function show(id){document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));document.getElementById(id).classList.add('active');window.scrollTo(0,0);document.getElementById('nback').classList.toggle('vis',id!=='vLand');}
-function goHome(){intent=null;selOps.clear();chatRouted=false;chatHist=[];document.querySelectorAll('.ic').forEach(c=>c.classList.remove('sel'));document.querySelectorAll('.oc2').forEach(c=>c.classList.remove('sel'));document.getElementById('bnav').classList.remove('up');document.getElementById('chatArea').innerHTML='';show('vLand');}
-function backToLand(){selOps.clear();document.querySelectorAll('.oc2').forEach(c=>c.classList.remove('sel'));document.getElementById('bnav').classList.remove('up');show('vLand');}
-function ar(el){el.style.height='auto';el.style.height=Math.min(el.scrollHeight,130)+'px';}
-function pickIntent(i){
-  intent=i;const cfg=ICFG[i];
-  document.querySelectorAll('.ic').forEach(c=>c.classList.toggle('sel',c.dataset.i===i));
-  const bar=document.getElementById('opIBar');bar.className=`op-ibar ${i}`;bar.textContent=`● ${cfg.verb.toUpperCase()}`;
-  selOps.clear();document.querySelectorAll('.oc2').forEach(c=>c.classList.remove('sel'));
-  updateBnav();show('vOp');
+
+// GHOST CHART
+const canvas = document.getElementById('hero-canvas');
+const ctx2 = canvas.getContext('2d');
+
+function resizeCanvas() {
+  canvas.width = canvas.offsetWidth;
+  canvas.height = canvas.offsetHeight;
+  drawChart();
 }
-function toggleOp(el){
-  const ops=(el.dataset.ops||'').split(',').map(s=>s.trim()).filter(Boolean);
-  const any=ops.some(o=>selOps.has(o));
-  if(any){ops.forEach(o=>selOps.delete(o));el.classList.remove('sel');}
-  else{ops.forEach(o=>{if(DB.domains.some(d=>d.domain_id===o))selOps.add(o);});el.classList.add('sel');}
-  updateBnav();
+
+function getChartColor() {
+  return document.documentElement.classList.contains('dark')
+    ? { r: 240, g: 237, b: 230 }
+    : { r: 15, g: 15, b: 15 };
 }
-function updateBnav(){
-  const nav=document.getElementById('bnav'),info=document.getElementById('bnavInfo'),nxt=document.getElementById('bnxt');
-  if(selOps.size>0){nav.classList.add('up');info.innerHTML=`<b>${selOps.size}</b> engine${selOps.size>1?'s':''} selected`;nxt.disabled=false;}
-  else{nav.classList.remove('up');nxt.disabled=true;}
-}
-function buildFromCards(){
-  const labels=[];document.querySelectorAll('.oc2.sel').forEach(el=>labels.push(el.querySelector('.oc2-title').textContent.trim().split(' ').slice(0,4).join(' ')));
-  const ctx=ICFG[intent].verb+' · '+labels.join(' · ');
-  buildModel([...selOps],'cards',ctx);
-}
-function fiKey(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();fiSend();}}
-function fiSend(){const txt=document.getElementById('fi').value.trim();if(!txt)return;initChat(txt,intent);}
-function initChat(seedText,seedIntent){
-  intent=seedIntent;chatRouted=false;chatHist=[];
-  document.getElementById('chatArea').innerHTML='';
-  const openers={convince:"You need the math to hold up in the room. What are you selling, and who needs convincing?",measure:"You need to know what the operation is actually worth. Describe what you're analyzing.",justify:"You need the financial logic airtight. What's the decision, and what's the investment?",def:"What are you selling, measuring, or trying to justify?"};
-  addMsg(openers[seedIntent||'def'],'am');show('vChat');
-  if(seedText){document.getElementById('cin').value=seedText;sendChat();}
-}
-function ck(e){if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat();}}
-async function sendChat(){
-  const inp=document.getElementById('cin'),txt=inp.value.trim();if(!txt)return;
-  inp.value='';inp.style.height='40px';document.getElementById('cbtn').disabled=true;
-  addMsg(txt,'u');chatHist.push({role:'user',content:txt});
-  const tid='t'+Date.now();addThink(tid);
-  try{
-    const domList=DB.domains.map(d=>`- ${d.domain_id}: ${DMETA[d.domain_id]||d.domain_name}`).join('\n');
-    const iCtx=intent?`User goal: "${ICFG[intent].verb}" — ${ICFG[intent].desc}`:'User goal not yet specified.';
-    const sys=`You are a value engineering assistant for Alt Meridian. Route to the right engine(s).\n\n${iCtx}\n\nLive engines:\n${domList}\n\nWhen confident respond 1-2 sentences then:\nROUTE:domain1,domain2\nCONTEXT:sharp label\nINTENT:convince|measure|justify\n\nIf unclear, ask ONE question only.`;
-    const r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:'claude-haiku-4-5-20251001',max_tokens:500,system:sys,messages:chatHist})});
-    const data=await r.json();const reply=data.content?.[0]?.text||'';
-    removeThink(tid);chatHist.push({role:'assistant',content:reply});
-    const rm=reply.match(/ROUTE:([^\n]+)/),cm=reply.match(/CONTEXT:([^\n]+)/),im=reply.match(/INTENT:([^\n]+)/);
-    const display=reply.replace(/ROUTE:[^\n]+/g,'').replace(/CONTEXT:[^\n]+/g,'').replace(/INTENT:[^\n]+/g,'').trim();
-    if(display)addMsg(display,'am');
-    if(rm&&!chatRouted){
-      chatRouted=true;
-      const doms=rm[1].split(',').map(s=>s.trim()).filter(d=>DB.domains.some(dd=>dd.domain_id===d));
-      const ctx=cm?cm[1].trim():'Analysis';
-      if(im&&!intent)intent=im[1].trim();if(!intent)intent='justify';
-      if(doms.length)setTimeout(()=>buildModel(doms,'chat',ctx),600);
-    }
-  }catch(e){removeThink(tid);addMsg('Connection issue — please try again.','am');}
-  document.getElementById('cbtn').disabled=false;
-}
-function addMsg(txt,role){const a=document.getElementById('chatArea'),d=document.createElement('div');d.className=`msg ${role}`;d.innerHTML=`<div class="ava">${role==='u'?'You':'AM'}</div><div class="bubble">${txt}</div>`;a.appendChild(d);a.scrollTop=a.scrollHeight;}
-function addThink(id){const a=document.getElementById('chatArea'),d=document.createElement('div');d.className='msg am';d.id=id;d.innerHTML='<div class="ava">AM</div><div class="bubble thinking"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';a.appendChild(d);a.scrollTop=a.scrollHeight;}
-function removeThink(id){document.getElementById(id)?.remove();}
-function buildModel(domains,source,ctxLabel){
-  show('vModel');const cfg=ICFG[intent||'justify'];
-  const cx=document.getElementById('mctx');cx.innerHTML='';
-  ctxLabel.split('·').map(s=>s.trim()).filter(Boolean).forEach(c=>{const ch=document.createElement('div');ch.className=`chip ${intent||'justify'}`;ch.textContent=c;cx.appendChild(ch);});
-  document.getElementById('msrc').textContent=source==='cards'?'via guided selection':source==='chat'?'via conversation':'';
-  const ib=document.getElementById('ibanner');
-  ib.innerHTML=`<div class="ib-l"><div class="ib-verb" style="color:${cfg.color}">${cfg.verb}</div><div class="ib-desc">${cfg.desc}</div></div><div class="ib-r"><button class="pb" onclick="applyPreset('conservative')">Conservative</button><button class="pb act" onclick="applyPreset('typical')">Typical</button><button class="pb" onclick="applyPreset('aggressive')">Aggressive</button></div>`;
-  const tabs=document.getElementById('dtabs'),panels=document.getElementById('dpanels');
-  tabs.innerHTML='';panels.innerHTML='';
-  domains.forEach(d=>{
-    const tab=document.createElement('button');tab.className='dtab';tab.textContent=DMETA[d]||d;tab.dataset.d=d;tab.addEventListener('click',()=>switchTab(d));tabs.appendChild(tab);
-    const leadCls=intent==='convince'?'lc':intent==='measure'?'lm':'lj';
-    const panel=document.createElement('div');panel.className='dpanel';panel.id=`dp-${d}`;
-    panel.innerHTML=`<div class="trio"><div class="to ${leadCls}"><div class="to-lbl">${cfg.lbl}</div><div class="to-big" id="lead-${d}">—</div><div class="to-sub">${cfg.sub}</div><div class="to-rows" id="leadrows-${d}"></div></div><div class="to sec"><div class="to-lbl" id="s1lbl-${d}"></div><div class="to-big" id="s1-${d}">—</div><div class="to-sub" id="s1sub-${d}"></div></div><div class="to sec"><div class="to-lbl" id="s2lbl-${d}"></div><div class="to-big" id="s2-${d}">—</div><div class="to-sub" id="s2sub-${d}"></div></div></div><div class="sc-lbl">Scenarios — expand to adjust inputs to your situation</div><div class="sclist" id="sl-${d}"></div>`;
-    panels.appendChild(panel);
-    buildScenarios(d,cfg);calcAll(d,cfg);
-  });
-  if(domains.length)switchTab(domains[0]);
-}
-function buildScenarios(d,cfg){
-  const list=document.getElementById(`sl-${d}`);if(!list)return;list.innerHTML='';
-  const scens=DB.scenarios[d]||[];
-  const pri=scens.filter(s=>s.value_order!=='Second'&&s.value_order!=='Third');
-  const sec=scens.filter(s=>s.value_order==='Second'||s.value_order==='Third');
-  [...pri,...sec].forEach(s=>{
-    const isDim=s.value_order==='Second'||s.value_order==='Third';
-    const usedKeys=(s.inputs_required||'').split(',').map(k=>k.trim()).filter(Boolean);
-    const usedInps=(DB.inputs[d]||[]).filter(i=>usedKeys.includes(i.input_key));
-    let insight='';
-    if(!isDim){
-      if(cfg.show==='cfo'&&s.cfo_challenge)insight=`<div class="insight convince"><div class="insight-lbl">Objection to prepare for</div>${s.cfo_challenge}</div>`;
-      else if(cfg.show==='bleed')insight=`<div class="insight measure"><div class="insight-lbl">Annual status quo bleed</div><div class="insight-big" id="bleed-${s.scenario_id}">—</div></div>`;
-      else if(cfg.show==='npv')insight=`<div class="insight justify"><div class="insight-lbl">Contribution to financial case</div><span id="jval-${s.scenario_id}">—</span> annual · included in NPV &amp; payback</div>`;
-    }
-    const card=document.createElement('div');card.className=`sc${isDim?' dim':''}`;card.id=`sc-${s.scenario_id}`;
-    card.innerHTML=`<div class="sch" onclick="toggleSC('${s.scenario_id}','${d}')"><div class="sc-id">${s.scenario_id}</div><div class="sc-name">${s.one_liner||s.scenario_id}</div><div class="sc-val z" id="sv-${s.scenario_id}">—</div><div class="sc-arr">&#9662;</div></div><div class="scb" id="sb-${s.scenario_id}">${insight}<div class="sc-2col"><div class="sc-inps" id="si-${s.scenario_id}"></div><div class="chart-wrap"><div class="chart-lbl">Sensitivity</div><canvas class="cv" id="cv-${s.scenario_id}" width="220" height="110"></canvas></div></div></div>`;
-    list.appendChild(card);
-    buildInputs(s,d,usedInps);
-  });
-}
-function buildInputs(s,d,inps){
-  const cont=document.getElementById(`si-${s.scenario_id}`);if(!cont)return;
-  inps.forEach(def=>{
-    const isP=def.unit&&(def.unit==='rate'||def.unit==='decimal'||def.unit.includes('%'));
-    const isC=def.unit&&def.unit.includes('$');
-    const disp=v=>isP?(v*100).toFixed(1)+'%':isC?'$'+Number(v).toLocaleString():Number(v).toLocaleString()+(def.unit&&!isC&&!isP?' '+def.unit:'');
-    const mn=parseFloat(def.min_value)||0,mx=parseFloat(def.max_value)||(parseFloat(def.default_value)*3)||100;
-    const st=isP?0.001:(mx-mn)/200,cur=vals[d][def.input_key]??parseFloat(def.default_value)??0;
-    const row=document.createElement('div');row.className='irow';
-    row.innerHTML=`<div class="itop"><span class="iname">${def.label}</span><span class="ival" id="iv-${d}-${def.input_key}-${s.scenario_id}">${disp(cur)}</span></div><input type="range" min="${mn}" max="${mx}" step="${st}" value="${cur}" id="ir-${d}-${def.input_key}-${s.scenario_id}">`;
-    cont.appendChild(row);
-    setTimeout(()=>{
-      const sl=document.getElementById(`ir-${d}-${def.input_key}-${s.scenario_id}`),vl=document.getElementById(`iv-${d}-${def.input_key}-${s.scenario_id}`),rb=document.getElementById('recalc');
-      if(!sl)return;
-      sl.addEventListener('input',()=>{
-        const v=parseFloat(sl.value);vals[d][def.input_key]=v;if(vl)vl.textContent=disp(v);
-        syncKey(d,def.input_key,v,s.scenario_id,disp);rb.classList.add('on');clearTimeout(sl._t);
-        sl._t=setTimeout(()=>{calcAll(d,ICFG[intent||'justify']);drawChart(s.scenario_id,d,def.input_key);rb.classList.remove('on');},80);
-      });
-    },0);
-  });
-}
-function syncKey(d,key,val,excl,disp){(DB.scenarios[d]||[]).forEach(s=>{if(s.scenario_id===excl)return;const sl=document.getElementById(`ir-${d}-${key}-${s.scenario_id}`),vl=document.getElementById(`iv-${d}-${key}-${s.scenario_id}`);if(sl)sl.value=val;if(vl)vl.textContent=disp(val);});}
-function toggleSC(sid,d){const card=document.getElementById(`sc-${sid}`),wasOpen=card.classList.contains('open');card.classList.toggle('open',!wasOpen);if(!wasOpen){const s=(DB.scenarios[d]||[]).find(x=>x.scenario_id===sid);if(s){const keys=(s.inputs_required||'').split(',').map(k=>k.trim()).filter(Boolean);if(keys.length)setTimeout(()=>drawChart(sid,d,keys[0]),40);}}}
-function evalF(f,inp){try{const fn=new Function(...Object.keys(inp),`return(${f});`);const v=fn(...Object.values(inp));return isFinite(v)&&v>0?Math.round(v):0;}catch{return 0;}}
-function calcAll(d,cfg){
-  const inp=vals[d]||{},scens=DB.scenarios[d]||[];
-  const pri=scens.filter(s=>s.value_order!=='Second'&&s.value_order!=='Third');
-  scens.forEach(s=>{
-    const v=evalF(s.value_scenario_formula||'',inp);
-    const el=document.getElementById(`sv-${s.scenario_id}`);if(el){el.textContent=v>0?fmt(v):'—';el.className=`sc-val${v===0?' z':''}`;}
-    if(cfg.show==='bleed'){const coi=evalF(s.cost_of_inaction_formula||s.value_scenario_formula||'',inp);const be=document.getElementById(`bleed-${s.scenario_id}`);if(be)be.textContent=coi>0?fmt(coi):'—';}
-    if(cfg.show==='npv'){const jv=document.getElementById(`jval-${s.scenario_id}`);if(jv)jv.textContent=v>0?fmt(v):'—';}
-  });
-  const annual=pri.reduce((a,s)=>a+evalF(s.value_scenario_formula||'',inp),0);
-  const coi=pri.reduce((a,s)=>a+evalF(s.cost_of_inaction_formula||s.value_scenario_formula||'',inp),0);
-  const mo=Math.round(annual/12),npv=Math.round(annual*2.7),pb=annual>0?Math.round(DEPLOY/(annual/12)):0,bcr=annual>0?parseFloat(((annual*3)/DEPLOY).toFixed(1)):0;
-  const S=id=>{const e=document.getElementById(id);return{set:v=>{if(e)e.textContent=v;},html:v=>{if(e)e.innerHTML=v;}};};
-  if(intent==='convince'){
-    S(`lead-${d}`).set(fmt(mo));S(`leadrows-${d}`).html(`<div class="to-row"><span class="to-rl">Per week</span><span class="to-rv">${fmt(Math.round(annual/52))}</span></div><div class="to-row"><span class="to-rl">Per quarter</span><span class="to-rv">${fmt(Math.round(annual/4))}</span></div>`);
-    S(`s1lbl-${d}`).set('Value of acting');S(`s1-${d}`).set(fmt(annual));S(`s1sub-${d}`).set('Annual · first-order');
-    S(`s2lbl-${d}`).set('3-year inaction cost');S(`s2-${d}`).set(fmt(annual*3));S(`s2sub-${d}`).set('Status quo total');
-  }else if(intent==='measure'){
-    S(`lead-${d}`).set(fmt(coi));S(`leadrows-${d}`).html(`<div class="to-row"><span class="to-rl">Per month</span><span class="to-rv">${fmt(Math.round(coi/12))}</span></div><div class="to-row"><span class="to-rl">Active scenarios</span><span class="to-rv">${pri.length}</span></div>`);
-    S(`s1lbl-${d}`).set('Recoverable value');S(`s1-${d}`).set(fmt(annual));S(`s1sub-${d}`).set('If resolved');
-    S(`s2lbl-${d}`).set('Monthly bleed');S(`s2-${d}`).set(fmt(mo));S(`s2sub-${d}`).set('Per month leaking');
-  }else{
-    S(`lead-${d}`).set(fmt(annual));S(`leadrows-${d}`).html(`<div class="to-row"><span class="to-rl">3yr NPV</span><span class="to-rv">${fmt(npv)}</span></div><div class="to-row"><span class="to-rl">Payback</span><span class="to-rv">${pb?pb+' mo':'—'}</span></div>`);
-    S(`s1lbl-${d}`).set('Payback');S(`s1-${d}`).set(pb?pb+' mo':'—');S(`s1sub-${d}`).set('Months to recover');
-    S(`s2lbl-${d}`).set('Benefit-to-cost');S(`s2-${d}`).set(bcr?bcr+'x':'—');S(`s2sub-${d}`).set('3yr BCR');
+
+function drawChart() {
+  const W = canvas.width, H = canvas.height;
+  ctx2.clearRect(0, 0, W, H);
+  const GA = 0.022, LA = 0.06;
+  const c = getChartColor();
+  const rgb = `${c.r},${c.g},${c.b}`;
+
+  // Fine grid — lighter inner lines
+  ctx2.lineWidth = 0.4;
+  for (let i = 0; i <= 32; i++) {
+    const x = (W / 32) * i;
+    ctx2.strokeStyle = i % 4 === 0 ? `rgba(${rgb},${GA * 1.6})` : `rgba(${rgb},${GA * 0.7})`;
+    ctx2.beginPath(); ctx2.moveTo(x, 0); ctx2.lineTo(x, H); ctx2.stroke();
   }
-  // Write snapshot to DB — debounced 1.2s so rapid slider changes don't spam
-  scheduleSnapshot(d, cfg);
-}
-function applyPreset(preset){
-  document.querySelectorAll('.pb').forEach(b=>b.classList.toggle('act',b.textContent.toLowerCase()===preset));
-  const cfg=ICFG[intent||'justify'];
-  DB.domains.forEach(d=>{
-    if(!document.getElementById(`dp-${d}`))return;
-    (DB.inputs[d]||[]).forEach(def=>{
-      let v;if(preset==='conservative'&&def.conservative_value!=null)v=parseFloat(def.conservative_value);else if(preset==='typical'&&def.typical_value!=null)v=parseFloat(def.typical_value);else if(preset==='aggressive'&&def.aggressive_value!=null)v=parseFloat(def.aggressive_value);else v=parseFloat(def.default_value)||0;
-      vals[d][def.input_key]=v;
-      const isP=def.unit&&(def.unit==='rate'||def.unit==='decimal'||def.unit.includes('%')),isC=def.unit&&def.unit.includes('$');
-      const disp=v=>isP?(v*100).toFixed(1)+'%':isC?'$'+Number(v).toLocaleString():Number(v).toLocaleString();
-      (DB.scenarios[d]||[]).forEach(s=>{const sl=document.getElementById(`ir-${d}-${def.input_key}-${s.scenario_id}`),vl=document.getElementById(`iv-${d}-${def.input_key}-${s.scenario_id}`);if(sl)sl.value=v;if(vl)vl.textContent=disp(v);});
-    });
-    calcAll(d,cfg);
+  for (let i = 0; i <= 20; i++) {
+    const y = (H / 20) * i;
+    ctx2.strokeStyle = i % 4 === 0 ? `rgba(${rgb},${GA * 1.6})` : `rgba(${rgb},${GA * 0.7})`;
+    ctx2.beginPath(); ctx2.moveTo(0, y); ctx2.lineTo(W, y); ctx2.stroke();
+  }
+
+  const sx = W * 0.08, ex = W * 0.94;
+  const by = H * 0.80, ch = H * 0.60;
+  const cw = ex - sx;
+
+  const curves = [
+    { a: LA, w: 1.4, f: t => t < 0.12 ? -0.04 * Math.sin(t / 0.12 * Math.PI) : Math.pow((t - 0.12) / 0.88, 1.85) * 0.84 },
+    { a: LA * 0.72, w: 1.1, f: t => t < 0.05 ? (t / 0.05) * 0.60 : 0.60 + (t - 0.05) * 0.038 },
+    { a: LA * 0.60, w: 0.95, f: t => t < 0.62 ? t * 0.10 : 0.062 + Math.pow((t - 0.62) / 0.38, 2.6) * 0.72 },
+    { a: LA * 0.50, w: 0.85, f: t => 0.82 / (1 + Math.exp(-11 * (t - 0.50))) },
+    { a: LA * 0.40, w: 0.75, f: t => t < 0.40 ? t * 0.06 : t < 0.47 ? 0.024 + (t - 0.40) / 0.07 * 0.42 : 0.444 + (t - 0.47) * 0.50 },
+    { a: LA * 0.32, w: 0.65, f: t => Math.pow(t, 0.38) * 0.72 },
+    { a: LA * 0.22, w: 0.55, f: t => t * 0.50 },
+    { a: LA * 0.18, w: 0.5, f: t => {
+      if (t < 0.25) return 0.05;
+      if (t < 0.26) return 0.05 + (t - 0.25) / 0.01 * 0.22;
+      if (t < 0.55) return 0.27;
+      if (t < 0.56) return 0.27 + (t - 0.55) / 0.01 * 0.28;
+      if (t < 0.85) return 0.55;
+      return 0.55 + (t - 0.85) / 0.15 * 0.22;
+    }},
+  ];
+
+  curves.forEach(cv => {
+    ctx2.beginPath();
+    ctx2.strokeStyle = `rgba(${rgb},${cv.a})`;
+    ctx2.lineWidth = cv.w;
+    for (let i = 0; i <= 300; i++) {
+      const t = i / 300;
+      const x = sx + t * cw;
+      const y = by - Math.max(-0.08, Math.min(1, cv.f(t))) * ch;
+      i === 0 ? ctx2.moveTo(x, y) : ctx2.lineTo(x, y);
+    }
+    ctx2.stroke();
   });
-}
-function drawChart(sid,d,key){
-  const canvas=document.getElementById(`cv-${sid}`);if(!canvas)return;
-  const ctx=canvas.getContext('2d');canvas.width=220;canvas.height=110;
-  const s=(DB.scenarios[d]||[]).find(x=>x.scenario_id===sid),def=(DB.inputs[d]||[]).find(i=>i.input_key===key);if(!s||!def)return;
-  const mn=parseFloat(def.min_value)||0,mx=parseFloat(def.max_value)||(parseFloat(def.default_value)*3)||100,cur=vals[d][key]??parseFloat(def.default_value)??0;
-  const pts=32,step=(mx-mn)/pts,inp0={...vals[d]},ys=[];
-  for(let i=0;i<=pts;i++){inp0[key]=mn+step*i;ys.push(evalF(s.value_scenario_formula||'',inp0));}
-  const maxY=Math.max(...ys,1),W=220,H=110,p={t:8,r:8,b:20,l:8},cW=W-p.l-p.r,cH=H-p.t-p.b;
-  ctx.clearRect(0,0,W,H);
-  ctx.strokeStyle='rgba(245,242,235,0.04)';ctx.lineWidth=1;
-  for(let i=0;i<=3;i++){const y=p.t+cH*(1-i/3);ctx.beginPath();ctx.moveTo(p.l,y);ctx.lineTo(W-p.r,y);ctx.stroke();}
-  const col=ICFG[intent||'justify'].color;
-  const hr=parseInt(col.slice(1,3),16),hg=parseInt(col.slice(3,5),16),hb=parseInt(col.slice(5,7),16);
-  const gr=ctx.createLinearGradient(0,p.t,0,p.t+cH);gr.addColorStop(0,`rgba(${hr},${hg},${hb},.2)`);gr.addColorStop(1,`rgba(${hr},${hg},${hb},0)`);
-  ctx.beginPath();ctx.moveTo(p.l,p.t+cH);ys.forEach((v,i)=>{const x=p.l+cW*(i/pts),y=p.t+cH*(1-v/maxY);i===0?ctx.lineTo(x,y):ctx.lineTo(x,y);});ctx.lineTo(p.l+cW,p.t+cH);ctx.closePath();ctx.fillStyle=gr;ctx.fill();
-  ctx.beginPath();ctx.strokeStyle=col;ctx.lineWidth=1.5;ys.forEach((v,i)=>{const x=p.l+cW*(i/pts),y=p.t+cH*(1-v/maxY);i===0?ctx.moveTo(x,y):ctx.lineTo(x,y);});ctx.stroke();
-  const cp=Math.max(0,Math.min(1,(cur-mn)/(mx-mn||1))),cv2=evalF(s.value_scenario_formula||'',vals[d]),cx2=p.l+cW*cp,cy2=p.t+cH*(1-cv2/maxY);
-  ctx.beginPath();ctx.arc(cx2,cy2,4,0,Math.PI*2);ctx.fillStyle='#F5F2EB';ctx.fill();ctx.strokeStyle=col;ctx.lineWidth=1.5;ctx.stroke();
-  ctx.fillStyle='rgba(107,101,96,.7)';ctx.font='7px DM Mono,monospace';ctx.textAlign='center';
-  const isP=def.unit&&(def.unit==='rate'||def.unit==='decimal'),isC=def.unit&&def.unit.includes('$');
-  const fX=v=>isP?(v*100).toFixed(0)+'%':isC?'$'+fK(v):fK(v);
-  ctx.fillText(fX(mn),p.l,H-3);ctx.fillText(fX(mx),W-p.r,H-3);ctx.fillStyle='rgba(240,237,232,.7)';ctx.fillText(fX(cur),cx2,H-3);
-}
-function fmt(n){if(!isFinite(n)||n==null)return'—';if(n>=1e6)return'$'+(n/1e6).toFixed(1)+'M';if(n>=1e3)return'$'+Math.round(n/1e3)+'K';return'$'+Math.round(n).toLocaleString();}
-function fK(n){if(n>=1e6)return(n/1e6).toFixed(1)+'M';if(n>=1e3)return(n/1e3).toFixed(0)+'K';return Math.round(n)+'';}
-function switchTab(d){document.querySelectorAll('.dtab').forEach(t=>t.classList.toggle('act',t.dataset.d===d));document.querySelectorAll('.dpanel').forEach(p=>p.classList.toggle('act',p.id===`dp-${d}`));}
-// ── SNAPSHOT WRITER ───────────────────────────────────────────────────
-// Called after every calcAll — writes output to vef_output_snapshots
-// Uses a debounce so rapid slider changes don't spam the DB
-let _snapTimers = {};
-function scheduleSnapshot(d, cfg) {
-  clearTimeout(_snapTimers[d]);
-  _snapTimers[d] = setTimeout(() => writeSnapshot(d, cfg), 1200);
+
+  // Scatter dots
+  const dots = [
+    { t: 0.15, ci: 0 }, { t: 0.35, ci: 0 }, { t: 0.60, ci: 0 }, { t: 0.85, ci: 0 },
+    { t: 0.08, ci: 1 }, { t: 0.40, ci: 1 }, { t: 0.75, ci: 1 },
+    { t: 0.70, ci: 2 }, { t: 0.88, ci: 2 },
+    { t: 0.30, ci: 3 }, { t: 0.55, ci: 3 }, { t: 0.78, ci: 3 },
+    { t: 0.45, ci: 4 }, { t: 0.50, ci: 4 },
+    { t: 0.20, ci: 5 }, { t: 0.60, ci: 5 },
+  ];
+
+  dots.forEach(d => {
+    const cv = curves[d.ci];
+    const x = sx + d.t * cw;
+    const y = by - Math.max(-0.08, Math.min(1, cv.f(d.t))) * ch;
+    ctx2.beginPath();
+    ctx2.arc(x, y, 2.2, 0, Math.PI * 2);
+    ctx2.fillStyle = `rgba(${rgb},${cv.a * 1.4})`;
+    ctx2.fill();
+  });
+
+  // Axis tick marks
+  const tickA = GA * 3;
+  ctx2.strokeStyle = `rgba(${rgb},${tickA})`;
+  ctx2.lineWidth = 0.8;
+  for (let i = 1; i <= 8; i++) {
+    const x = sx + (cw / 8) * i;
+    ctx2.beginPath(); ctx2.moveTo(x, by); ctx2.lineTo(x, by + 5); ctx2.stroke();
+  }
+  for (let i = 1; i <= 5; i++) {
+    const y = by - (ch / 5) * i;
+    ctx2.beginPath(); ctx2.moveTo(sx - 5, y); ctx2.lineTo(sx, y); ctx2.stroke();
+  }
+
+  // Axis lines
+  ctx2.strokeStyle = `rgba(${rgb},${GA * 3.5})`;
+  ctx2.lineWidth = 1.0;
+  ctx2.beginPath(); ctx2.moveTo(sx, H * 0.06); ctx2.lineTo(sx, by + 6); ctx2.stroke();
+  ctx2.beginPath(); ctx2.moveTo(sx - 6, by); ctx2.lineTo(ex + 8, by); ctx2.stroke();
+
+  // Axis arrow tips
+  ctx2.fillStyle = `rgba(${rgb},${GA * 3.5})`;
+  ctx2.beginPath();
+  ctx2.moveTo(sx, H * 0.055); ctx2.lineTo(sx - 3.5, H * 0.075); ctx2.lineTo(sx + 3.5, H * 0.075);
+  ctx2.fill();
+  ctx2.beginPath();
+  ctx2.moveTo(ex + 10, by); ctx2.lineTo(ex, by - 3.5); ctx2.lineTo(ex, by + 3.5);
+  ctx2.fill();
+
+  // Axis labels
+  ctx2.fillStyle = `rgba(${rgb},${GA * 5})`;
+  ctx2.font = `500 10px 'DM Mono', monospace`;
+  ctx2.letterSpacing = '0.1em';
+  ctx2.fillText('TIME', ex - 10, by + 20);
+  ctx2.save();
+  ctx2.translate(sx - 16, by - ch * 0.4);
+  ctx2.rotate(-Math.PI / 2);
+  ctx2.fillText('VALUE', 0, 0);
+  ctx2.restore();
+
+  // Watermark
+  ctx2.fillStyle = `rgba(${rgb},${GA * 3.2})`;
+  ctx2.font = `800 13px 'Syne', sans-serif`;
+  ctx2.letterSpacing = '0.04em';
+  ctx2.fillText('ALT MERIDIAN', W - 140, H - 28);
+  ctx2.font = `400 9px 'DM Mono', monospace`;
+  ctx2.letterSpacing = '0.12em';
+  ctx2.fillText('VALUE EPISTEMOLOGY FRAMEWORK', W - 196, H - 14);
 }
 
-async function writeSnapshot(d, cfg) {
+window.addEventListener('resize', resizeCanvas);
+resizeCanvas();
+
+// TILES
+const ctxTexts = [
+  'No ROI infrastructure — sellers are winging the value conversation',
+  'ROI exists but fails under finance scrutiny — deals stall at procurement',
+  'One person runs it well — it does not survive when they leave or scale'
+];
+
+function selectTile(idx) {
+  document.querySelectorAll('.tile').forEach((t, i) => t.classList.toggle('active', i === idx));
+  document.getElementById('ctx-text').textContent = ctxTexts[idx];
+  recalc();
+}
+
+// CALCULATOR
+function fmt(n) {
+  if (n >= 1000000) return '$' + (n / 1000000).toFixed(1) + 'M';
+  if (n >= 1000) return '$' + Math.round(n / 1000) + 'K';
+  return '$' + n.toLocaleString();
+}
+
+function recalc() {
+  const deals  = parseFloat(document.getElementById('inp-deals').value) || 0;
+  const size   = parseFloat(document.getElementById('inp-size').value) || 0;
+  const people = parseFloat(document.getElementById('inp-people').value) || 1;
+  const wr     = parseFloat(document.getElementById('inp-wr').value) || 1;
+
+  const directLoss = deals * size;
+  const wrGap = Math.max(0, 0.52 - wr / 100);
+  const peopleCost = people * size * 0.14;
+  const total = Math.round(directLoss + directLoss * wrGap * 1.35 + peopleCost);
+
+  document.getElementById('out-num').textContent = fmt(total);
+  document.getElementById('out-sub').textContent =
+    `Across ${people} ${people === 1 ? 'person' : 'people'} running ungoverned value conversations, with ${deals} lost deals averaging ${fmt(size)} and a ${wr}% finance close rate.`;
+}
+
+recalc();
+
+// CHAT
+const CHAT_ENDPOINT = 'https://kpecdezcolcycgpuqbgs.supabase.co/functions/v1/value-chat';
+const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwZWNkZXpjb2xjeWNncHVxYmdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQxNTc0MDYsImV4cCI6MjA1OTczMzQwNn0.L5DsNPKim0TFsPT0j1g_3dALEEbBR6VsK-CaHKp_lEo';
+
+async function sendChat() {
+  const inp = document.getElementById('chat-input');
+  const btn = document.getElementById('chat-send');
+  const msgs = document.getElementById('chat-msgs');
+  const text = inp.value.trim();
+  if (!text) return;
+
+  addMsg('you', text);
+  inp.value = '';
+  btn.disabled = true;
+
+  const tid = 'think-' + Date.now();
+  addMsg('am', 'Searching the database...', tid, true);
+
   try {
-    const inp = vals[d] || {};
-    const scens = DB.scenarios[d] || [];
-    const pri = scens.filter(s => s.value_order !== 'Second' && s.value_order !== 'Third');
-    const annual = pri.reduce((a, s) => a + evalF(s.value_scenario_formula || '', inp), 0);
-    const coi = pri.reduce((a, s) => a + evalF(s.cost_of_inaction_formula || s.value_scenario_formula || '', inp), 0);
-    if (annual === 0) return; // nothing to write yet
-
-    const payload = {
-      engagement_id: `anon-${d}-${Date.now()}`,
-      domain_id: d,
-      intent: intent || 'justify',
-      snapshot_version: 1,
-      annual_value: annual,
-      npv: Math.round(annual * 2.7),
-      payback_mo: annual > 0 ? Math.round(DEPLOY / (annual / 12)) : null,
-      bcr: annual > 0 ? parseFloat(((annual * 3) / DEPLOY).toFixed(2)) : null,
-      monthly_delay_cost: Math.round(annual / 12),
-      cost_of_doing_nothing: annual * 3,
-      active_scenario_ids: pri.map(s => s.scenario_id).join(','),
-      input_snapshot: inp,
-      notes: `${cfg.verb} · ${new Date().toISOString().slice(0, 10)}`
-    };
-
-    await fetch(`${SB}/rest/v1/vef_output_snapshots`, {
+    const res = await fetch(CHAT_ENDPOINT, {
       method: 'POST',
       headers: {
-        'apikey': KEY,
-        'Authorization': `Bearer ${KEY}`,
         'Content-Type': 'application/json',
-        'Prefer': 'return=minimal'
+        'Authorization': 'Bearer ' + ANON_KEY,
+        'apikey': ANON_KEY,
       },
-      body: JSON.stringify(payload)
+      body: JSON.stringify({ query: text })
     });
-  } catch (e) {
-    // Silent fail — snapshot writes are non-blocking
-    console.warn('Snapshot write failed:', e.message);
+    const data = await res.json();
+    const reply = data.response || data.error || 'Unable to generate scenario.';
+    document.getElementById(tid)?.closest('.msg')?.remove();
+    addMsg('am', reply, null, false, true);
+  } catch(e) {
+    document.getElementById(tid)?.closest('.msg')?.remove();
+    addMsg('am', 'Something went wrong. Email josh@altmeridian.com directly.', null, true);
   }
+
+  btn.disabled = false;
+  msgs.scrollTop = msgs.scrollHeight;
 }
 
-boot();
+function addMsg(role, text, id, dim = false, md = false) {
+  const msgs = document.getElementById('chat-msgs');
+  const wrap = document.createElement('div');
+  wrap.className = 'msg';
+  if (id) wrap.id = id;
+
+  const av = document.createElement('div');
+  av.className = `msg-av ${role}`;
+  av.textContent = role === 'am' ? 'AM' : 'YOU';
+
+  const body = document.createElement('div');
+  body.className = `msg-body${dim ? ' dim' : ''}`;
+
+  if (md) {
+    body.innerHTML = text
+      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+      .replace(/\n\n/g, '<br><br>')
+      .replace(/\n/g, '<br>');
+  } else {
+    body.textContent = text;
+  }
+
+  wrap.appendChild(av);
+  wrap.appendChild(body);
+  msgs.appendChild(wrap);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+document.getElementById('chat-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
+});
+
+// SCROLL NAV HIGHLIGHT
+const navSections = ['tiles', 'calculator', 'products', 'demo'];
+const navLinks = document.querySelectorAll('[data-nav]');
+
+function setActiveNav(id) {
+  navLinks.forEach(link => {
+    link.classList.toggle('nav-active', link.dataset.nav === id);
+  });
+}
+
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      setActiveNav(entry.target.id);
+    }
+  });
+}, {
+  rootMargin: '-30% 0px -60% 0px',
+  threshold: 0
+});
+
+navSections.forEach(id => {
+  const el = document.getElementById(id);
+  if (el) observer.observe(el);
+});
 </script>
 </body>
 </html>
