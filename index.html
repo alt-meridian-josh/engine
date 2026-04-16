@@ -430,16 +430,17 @@ html.dark .starter-btn:hover { border-color: var(--accent); color: var(--accent)
 
 /* Inline COI calculator card */
 .coi-card {
-  background: var(--ink);
+  background: #1A1A1A;
   border-radius: 2px;
   padding: 20px 24px;
   margin-top: 4px;
   flex: 1;
+  border: 1px solid rgba(200,75,47,0.4);
 }
 .coi-card-label {
   font-family: 'DM Mono', monospace; font-size: 9px;
   letter-spacing: 0.14em; text-transform: uppercase;
-  color: rgba(200,75,47,0.8); margin-bottom: 16px;
+  color: #C84B2F; margin-bottom: 16px;
 }
 .coi-inputs-grid {
   display: grid; grid-template-columns: 1fr 1fr;
@@ -448,50 +449,51 @@ html.dark .starter-btn:hover { border-color: var(--accent); color: var(--accent)
 .coi-input-group label {
   display: block; font-family: 'DM Mono', monospace;
   font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
-  color: rgba(240,237,230,0.4); margin-bottom: 4px;
+  color: rgba(240,237,230,0.6); margin-bottom: 4px;
 }
 .coi-input-group input {
-  width: 100%; background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.12); border-radius: 2px;
-  padding: 7px 10px; font-family: 'DM Mono', monospace;
+  width: 100%; background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2); border-radius: 2px;
+  padding: 8px 10px; font-family: 'DM Mono', monospace;
   font-size: 13px; color: #F0EDE6; outline: none;
   transition: border-color 0.2s;
+  -webkit-appearance: none;
 }
 .coi-input-group input:focus { border-color: #C84B2F; }
 .coi-output-row {
   display: flex; align-items: center;
   justify-content: space-between; flex-wrap: wrap;
-  gap: 12px; padding-top: 14px;
-  border-top: 1px solid rgba(255,255,255,0.08);
+  gap: 12px; padding-top: 16px;
+  border-top: 1px solid rgba(255,255,255,0.12);
 }
 .coi-output-num {
   font-family: 'Syne', sans-serif; font-weight: 800;
-  font-size: 32px; letter-spacing: -0.02em;
+  font-size: 36px; letter-spacing: -0.02em;
   color: #C84B2F; line-height: 1;
 }
 .coi-output-sub {
   font-family: 'DM Mono', monospace; font-size: 9px;
-  letter-spacing: 0.08em; color: rgba(240,237,230,0.35);
-  margin-top: 3px;
+  letter-spacing: 0.08em; color: rgba(240,237,230,0.4);
+  margin-top: 4px;
 }
 .coi-email-row {
   display: flex; gap: 8px; margin-top: 14px;
-  padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.08);
+  padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.12);
 }
 .coi-email-input {
-  flex: 1; background: rgba(255,255,255,0.06);
-  border: 1px solid rgba(255,255,255,0.12); border-radius: 2px;
-  padding: 8px 12px; font-family: 'DM Mono', monospace;
+  flex: 1; background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2); border-radius: 2px;
+  padding: 9px 12px; font-family: 'DM Mono', monospace;
   font-size: 12px; color: #F0EDE6; outline: none;
   transition: border-color 0.2s;
 }
 .coi-email-input:focus { border-color: #C84B2F; }
-.coi-email-input::placeholder { color: rgba(240,237,230,0.25); }
+.coi-email-input::placeholder { color: rgba(240,237,230,0.3); }
 .coi-email-btn {
   font-family: 'DM Mono', monospace; font-size: 10px;
   letter-spacing: 0.1em; text-transform: uppercase;
   background: #C84B2F; color: #fff; border: none;
-  padding: 8px 16px; border-radius: 2px; cursor: pointer;
+  padding: 9px 18px; border-radius: 2px; cursor: pointer;
   transition: opacity 0.2s; white-space: nowrap;
 }
 .coi-email-btn:hover { opacity: 0.85; }
