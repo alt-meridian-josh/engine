@@ -427,6 +427,75 @@ html.dark .prod-card.dark { background: #050505; }
 html.dark .starter-btn { color: rgba(240,237,230,0.7); border-color: rgba(255,255,255,0.15); }
 html.dark .starter-btn:hover { border-color: var(--accent); color: var(--accent); }
 .chat-starters.hidden { display: none; }
+
+/* Inline COI calculator card */
+.coi-card {
+  background: var(--ink);
+  border-radius: 2px;
+  padding: 20px 24px;
+  margin-top: 4px;
+  flex: 1;
+}
+.coi-card-label {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  letter-spacing: 0.14em; text-transform: uppercase;
+  color: rgba(200,75,47,0.8); margin-bottom: 16px;
+}
+.coi-inputs-grid {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 12px; margin-bottom: 16px;
+}
+.coi-input-group label {
+  display: block; font-family: 'DM Mono', monospace;
+  font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
+  color: rgba(240,237,230,0.4); margin-bottom: 4px;
+}
+.coi-input-group input {
+  width: 100%; background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12); border-radius: 2px;
+  padding: 7px 10px; font-family: 'DM Mono', monospace;
+  font-size: 13px; color: #F0EDE6; outline: none;
+  transition: border-color 0.2s;
+}
+.coi-input-group input:focus { border-color: #C84B2F; }
+.coi-output-row {
+  display: flex; align-items: center;
+  justify-content: space-between; flex-wrap: wrap;
+  gap: 12px; padding-top: 14px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+.coi-output-num {
+  font-family: 'Syne', sans-serif; font-weight: 800;
+  font-size: 32px; letter-spacing: -0.02em;
+  color: #C84B2F; line-height: 1;
+}
+.coi-output-sub {
+  font-family: 'DM Mono', monospace; font-size: 9px;
+  letter-spacing: 0.08em; color: rgba(240,237,230,0.35);
+  margin-top: 3px;
+}
+.coi-email-row {
+  display: flex; gap: 8px; margin-top: 14px;
+  padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.08);
+}
+.coi-email-input {
+  flex: 1; background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12); border-radius: 2px;
+  padding: 8px 12px; font-family: 'DM Mono', monospace;
+  font-size: 12px; color: #F0EDE6; outline: none;
+  transition: border-color 0.2s;
+}
+.coi-email-input:focus { border-color: #C84B2F; }
+.coi-email-input::placeholder { color: rgba(240,237,230,0.25); }
+.coi-email-btn {
+  font-family: 'DM Mono', monospace; font-size: 10px;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  background: #C84B2F; color: #fff; border: none;
+  padding: 8px 16px; border-radius: 2px; cursor: pointer;
+  transition: opacity 0.2s; white-space: nowrap;
+}
+.coi-email-btn:hover { opacity: 0.85; }
+.coi-email-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .chat-spinner {
   display: flex; align-items: center; gap: 10px;
 }
@@ -971,6 +1040,7 @@ recalc();
 
 // CHAT
 const CHAT_ENDPOINT = 'https://kpecdezcolcycgpuqbgs.supabase.co/functions/v1/value-chat';
+const NOTIFY_ENDPOINT = 'https://kpecdezcolcycgpuqbgs.supabase.co/functions/v1/notify';
 const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwZWNkZXpjb2xjeWNncHVxYmdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQxNTc0MDYsImV4cCI6MjA1OTczMzQwNn0.L5DsNPKim0TFsPT0j1g_3dALEEbBR6VsK-CaHKp_lEo';
 
 // Session state
@@ -978,6 +1048,114 @@ let chatHistory = [];
 let chatSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
 let solutionContext = '';
 let leadCaptured = false;
+let matchedDomainsLast = [];
+let lastScenarioText = '';
+let coiCardShown = false;
+
+// COI CARD
+function calcCOIVal(d, s, p, w) {
+  const deals = parseFloat(d) || 0;
+  const size = parseFloat(s) || 0;
+  const people = parseFloat(p) || 1;
+  const wr = parseFloat(w) || 30;
+  const directLoss = deals * size;
+  const wrGap = Math.max(0, 0.52 - wr / 100);
+  const peopleCost = people * size * 0.14;
+  return Math.round(directLoss + directLoss * wrGap * 1.35 + peopleCost);
+}
+
+function fmtCOI(n) {
+  if (n >= 1000000) return '$' + (n / 1000000).toFixed(1) + 'M';
+  if (n >= 1000) return '$' + Math.round(n / 1000) + 'K';
+  return '$' + n.toLocaleString();
+}
+
+function renderCOICard(scenarioText) {
+  if (coiCardShown) return;
+  coiCardShown = true;
+  const cardId = 'coi-' + Date.now();
+  const card = document.createElement('div');
+  card.className = 'msg';
+  card.id = cardId;
+  const av = document.createElement('div');
+  av.className = 'msg-av am';
+  av.textContent = 'AM';
+  const body = document.createElement('div');
+  body.className = 'msg-body';
+  body.style.flex = '1';
+  body.innerHTML = `<div class="coi-card">
+    <div class="coi-card-label">Your cost of inaction</div>
+    <div class="coi-inputs-grid">
+      <div class="coi-input-group"><label>Deals lost last year</label><input type="number" id="${cardId}-deals" value="12" min="0" oninput="updateCOI('${cardId}')"></div>
+      <div class="coi-input-group"><label>Average deal size</label><input type="number" id="${cardId}-size" value="85000" min="0" oninput="updateCOI('${cardId}')"></div>
+      <div class="coi-input-group"><label>Sellers carrying this</label><input type="number" id="${cardId}-people" value="8" min="1" oninput="updateCOI('${cardId}')"></div>
+      <div class="coi-input-group"><label>Finance win rate %</label><input type="number" id="${cardId}-wr" value="28" min="1" max="100" oninput="updateCOI('${cardId}')"></div>
+    </div>
+    <div class="coi-output-row">
+      <div><div id="${cardId}-num" class="coi-output-num">$1.0M</div><div class="coi-output-sub">Annual cost — adjust inputs above</div></div>
+    </div>
+    <div class="coi-email-row">
+      <input class="coi-email-input" id="${cardId}-email" type="email" placeholder="your@email.com">
+      <button class="coi-email-btn" id="${cardId}-btn" onclick="sendOutput('${cardId}')">Email me this</button>
+    </div>
+  </div>`;
+  card.appendChild(av);
+  card.appendChild(body);
+  const msgs = document.getElementById('chat-msgs');
+  msgs.appendChild(card);
+  msgs.scrollTop = msgs.scrollHeight;
+  updateCOI(cardId);
+  // Store scenario for email
+  lastScenarioText = scenarioText;
+}
+
+function updateCOI(cardId) {
+  const d = document.getElementById(cardId + '-deals')?.value;
+  const s = document.getElementById(cardId + '-size')?.value;
+  const p = document.getElementById(cardId + '-people')?.value;
+  const w = document.getElementById(cardId + '-wr')?.value;
+  const num = calcCOIVal(d, s, p, w);
+  const el = document.getElementById(cardId + '-num');
+  if (el) el.textContent = fmtCOI(num);
+}
+
+async function sendOutput(cardId) {
+  const emailEl = document.getElementById(cardId + '-email');
+  const btn = document.getElementById(cardId + '-btn');
+  const email = emailEl?.value?.trim();
+  if (!email || !email.includes('@')) {
+    emailEl.style.borderColor = '#C84B2F';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+  const d = parseFloat(document.getElementById(cardId + '-deals')?.value) || 0;
+  const s = parseFloat(document.getElementById(cardId + '-size')?.value) || 0;
+  const p = parseFloat(document.getElementById(cardId + '-people')?.value) || 1;
+  const w = parseFloat(document.getElementById(cardId + '-wr')?.value) || 30;
+  const coiNum = calcCOIVal(d, s, p, w);
+  try {
+    await fetch(NOTIFY_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + ANON_KEY, 'apikey': ANON_KEY },
+      body: JSON.stringify({
+        email, solution: solutionContext,
+        domains: matchedDomainsLast.join(', '),
+        coi_number: coiNum,
+        coi_inputs: { deals: d, dealSize: s, people: p, winRate: w },
+        scenario_text: lastScenarioText,
+        session_id: chatSessionId,
+      })
+    });
+    btn.textContent = 'Sent';
+    btn.style.background = '#1E5C3A';
+    addMsg('am', 'Sent. Check your inbox. Want to talk through what a full engine looks like for your business? Reply to that email or reach out at josh@altmeridian.com.', null, false, false);
+  } catch(e) {
+    btn.disabled = false;
+    btn.textContent = 'Email me this';
+    addMsg('am', 'Something went wrong. Email josh@altmeridian.com directly.', null, true);
+  }
+}
 
 function spinnerHTML() {
   return `<div class="chat-spinner">
@@ -1045,6 +1223,9 @@ async function sendChat() {
     const data = await res.json();
     const reply = data.response || data.error || 'Unable to generate scenario.';
 
+    // Track matched domains
+    if (data.domains_matched?.length) matchedDomainsLast = data.domains_matched;
+
     // Update history
     chatHistory.push({ role: 'user', content: text });
     chatHistory.push({ role: 'assistant', content: reply });
@@ -1056,7 +1237,12 @@ async function sendChat() {
     document.getElementById(tid)?.remove();
     addMsg('am', reply, null, false, true);
 
-    // If lead captured, disable input gracefully
+    // Show COI card after first scenario (turn 1 response that has a Signal in it)
+    if (!coiCardShown && chatHistory.length >= 2 && reply.includes('Signal:')) {
+      setTimeout(() => renderCOICard(reply), 600);
+    }
+
+    // If lead captured, update placeholder
     if (leadCaptured) {
       inp.placeholder = 'Email captured. Reach out at josh@altmeridian.com anytime.';
     }
