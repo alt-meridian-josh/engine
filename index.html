@@ -6,6 +6,7 @@
 <title>Alt Meridian — Does Your Value Convert?</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:ital,wght@0,400;0,500;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 :root {
@@ -24,11 +25,9 @@
   --input-bg: #F5F2EB;
   --prod-bg: #FFFFFF;
   --chat-bg: #FFFFFF;
-  --canvas-r: 15; --canvas-g: 15; --canvas-b: 15;
   color-scheme: light;
   transition: background 0.4s ease, color 0.4s ease;
 }
-
 html.dark {
   --ink:    #F0EDE6;
   --sand:   #111111;
@@ -45,10 +44,8 @@ html.dark {
   --input-bg: #141414;
   --prod-bg: #1A1A1A;
   --chat-bg: #1A1A1A;
-  --canvas-r: 240; --canvas-g: 237; --canvas-b: 230;
   color-scheme: dark;
 }
-
 html { scroll-behavior: smooth; }
 body {
   background: var(--bg) !important;
@@ -79,42 +76,13 @@ body {
   transform-origin: center; transform: rotate(-90deg);
 }
 .ll { stroke: rgba(255,255,255,0.04); stroke-width: 1; stroke-dasharray: 48; stroke-dashoffset: 48; }
-.lla {
-  stroke: #C84B2F; stroke-width: 1;
-  stroke-dasharray: 48; stroke-dashoffset: 48;
-  animation: ll2 0.25s ease 0.7s forwards;
-}
+.lla { stroke: #C84B2F; stroke-width: 1; stroke-dasharray: 48; stroke-dashoffset: 48; animation: ll2 0.25s ease 0.7s forwards; }
 @keyframes ldraw { to { stroke-dashoffset: 0; } }
 @keyframes ll2 { to { stroke-dashoffset: 0; } }
-.lword {
-  font-family: 'Syne', sans-serif; font-weight: 800;
-  font-size: 22px; letter-spacing: 0.08em; text-transform: uppercase;
-  color: #F0EDE6;
-  opacity: 0; animation: lf 0.3s ease 0.75s forwards;
-}
-.lword b { color: #F0EDE6; font-weight: 800; }
-.lsub {
-  font-family: 'DM Mono', monospace; font-size: 10px;
-  letter-spacing: 0.18em; text-transform: uppercase;
-  color: rgba(200,75,47,0.9);
-  opacity: 0; animation: lf 0.3s ease 0.9s forwards;
-}
+.lword { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 22px; letter-spacing: 0.08em; text-transform: uppercase; color: #F0EDE6; opacity: 0; animation: lf 0.3s ease 0.75s forwards; }
+.lword b { color: #E05A36; font-weight: 800; }
+.lsub { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: rgba(200,75,47,0.9); opacity: 0; animation: lf 0.3s ease 0.9s forwards; }
 @keyframes lf { to { opacity: 1; } }
-.theme-toggle {
-  width: 36px; height: 36px; border-radius: 2px;
-  border: 1px solid var(--rule);
-  background: transparent;
-  cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: all 0.2s;
-  flex-shrink: 0;
-}
-.theme-toggle:hover { border-color: var(--ink); }
-.theme-toggle svg { width: 16px; height: 16px; transition: opacity 0.3s; }
-.icon-sun { display: none; }
-.icon-moon { display: block; }
-html.dark .icon-sun { display: block; }
-html.dark .icon-moon { display: none; }
 
 /* NAV */
 nav {
@@ -125,117 +93,56 @@ nav {
   border-bottom: 1px solid var(--rule);
   transition: background 0.4s ease, border-color 0.4s ease;
 }
-.nav-logo {
-  font-family: 'Syne', sans-serif; font-weight: 800;
-  font-size: 15px; letter-spacing: 0.04em; color: var(--ink); text-decoration: none;
-}
+.nav-logo { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 15px; letter-spacing: 0.04em; color: var(--ink); text-decoration: none; }
 .nav-links { display: flex; gap: 32px; align-items: center; }
-.nav-links a {
-  font-family: 'DM Mono', monospace; font-size: 11px;
-  letter-spacing: 0.1em; text-transform: uppercase;
-  color: var(--muted); text-decoration: none; transition: color 0.2s;
-}
+.nav-links a { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); text-decoration: none; transition: color 0.2s; }
 .nav-links a:hover { color: var(--ink); }
-.nav-links a.nav-active {
-  color: var(--accent);
-  position: relative;
-}
-.nav-links a.nav-active::after {
-  content: '';
-  position: absolute;
-  bottom: -18px; left: 0; right: 0;
-  height: 2px;
-  background: var(--accent);
-  border-radius: 1px;
-}
-.nav-cta {
-  background: var(--ink) !important; color: var(--surf) !important;
-  padding: 8px 18px; border-radius: 2px;
-}
+.nav-links a.nav-active { color: var(--accent); position: relative; }
+.nav-links a.nav-active::after { content: ''; position: absolute; bottom: -18px; left: 0; right: 0; height: 2px; background: var(--accent); border-radius: 1px; }
+.nav-cta { background: var(--ink) !important; color: var(--surf) !important; padding: 8px 18px; border-radius: 2px; }
 .nav-cta:hover { background: var(--accent) !important; }
+.theme-toggle {
+  width: 36px; height: 36px; border-radius: 2px;
+  border: 1px solid var(--rule); background: transparent; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: all 0.2s; flex-shrink: 0;
+}
+.theme-toggle:hover { border-color: var(--ink); }
+.theme-toggle svg { width: 16px; height: 16px; transition: opacity 0.3s; }
+.icon-sun { display: none; }
+.icon-moon { display: block; }
+html.dark .icon-sun { display: block; }
+html.dark .icon-moon { display: none; }
 
 /* HERO */
 .hero {
   position: relative; min-height: 100vh;
   display: flex; flex-direction: column; justify-content: center;
   padding: 120px 48px 80px; overflow: hidden;
-  background: var(--bg);
-  transition: background 0.4s ease;
+  background: var(--bg); transition: background 0.4s ease;
 }
-.hero-inner {
-  max-width: 1200px; margin: 0 auto; width: 100%;
-  position: relative; z-index: 2;
-}
-#hero-canvas {
-  position: absolute; top: 0; left: 0;
-  width: 100%; height: 100%; z-index: 1; pointer-events: none;
-}
-.hero-eyebrow {
-  font-family: 'DM Mono', monospace; font-size: 11px;
-  letter-spacing: 0.14em; text-transform: uppercase;
-  color: var(--accent); margin-bottom: 28px;
-  opacity: 0; animation: fadeUp 0.6s ease forwards 0.1s;
-}
-.hero-headline {
-  font-family: 'Syne', sans-serif; font-weight: 800;
-  font-size: clamp(52px, 8vw, 96px); line-height: 1.0;
-  letter-spacing: -0.03em; color: var(--ink); margin-bottom: 24px;
-  opacity: 0; animation: fadeUp 0.7s ease forwards 0.2s;
-}
-.hero-sub {
-  font-size: 17px; font-weight: 300; color: var(--muted);
-  max-width: 460px; line-height: 1.65; margin-bottom: 44px;
-  opacity: 0; animation: fadeUp 0.7s ease forwards 0.35s;
-}
+.hero-inner { max-width: 1200px; margin: 0 auto; width: 100%; position: relative; z-index: 2; }
+#hero-canvas { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; pointer-events: none; }
+.hero-eyebrow { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--accent); margin-bottom: 28px; opacity: 0; animation: fadeUp 0.6s ease forwards 0.1s; }
+.hero-headline { font-family: 'Syne', sans-serif; font-weight: 800; font-size: clamp(52px, 8vw, 96px); line-height: 1.0; letter-spacing: -0.03em; color: var(--ink); margin-bottom: 24px; opacity: 0; animation: fadeUp 0.7s ease forwards 0.2s; }
+.hero-sub { font-size: 17px; font-weight: 300; color: var(--muted); max-width: 460px; line-height: 1.65; margin-bottom: 44px; opacity: 0; animation: fadeUp 0.7s ease forwards 0.35s; }
 .hero-sub strong { color: var(--ink); font-weight: 500; }
-.hero-actions {
-  display: flex; gap: 16px; align-items: center; flex-wrap: wrap;
-  opacity: 0; animation: fadeUp 0.7s ease forwards 0.5s;
-}
+.hero-actions { display: flex; gap: 16px; align-items: center; flex-wrap: wrap; opacity: 0; animation: fadeUp 0.7s ease forwards 0.5s; }
 
 /* BUTTONS */
-.btn-primary {
-  font-family: 'DM Mono', monospace; font-size: 12px;
-  letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--surf); background: var(--ink);
-  padding: 13px 28px; border-radius: 2px;
-  text-decoration: none; border: none; cursor: pointer;
-  transition: background 0.2s; display: inline-block;
-}
+.btn-primary { font-family: 'DM Mono', monospace; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--surf); background: var(--ink); padding: 13px 28px; border-radius: 2px; text-decoration: none; border: none; cursor: pointer; transition: background 0.2s; display: inline-block; }
 .btn-primary:hover { background: var(--accent); }
-.btn-ghost {
-  font-family: 'DM Mono', monospace; font-size: 12px;
-  letter-spacing: 0.08em; text-transform: uppercase;
-  color: var(--muted); text-decoration: none;
-  padding: 13px 0; transition: color 0.2s;
-  background: none; border: none; cursor: pointer;
-}
+.btn-ghost { font-family: 'DM Mono', monospace; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); text-decoration: none; padding: 13px 0; transition: color 0.2s; background: none; border: none; cursor: pointer; }
 .btn-ghost:hover { color: var(--ink); }
 
 /* SECTIONS */
 .section { max-width: 1200px; margin: 0 auto; padding: 96px 48px; background: var(--bg); transition: background 0.4s ease; }
 .section-rule { border: none; border-top: 1px solid var(--rule); margin: 0 48px; transition: border-color 0.4s ease; }
-.section-label {
-  font-family: 'DM Mono', monospace; font-size: 10px;
-  letter-spacing: 0.16em; text-transform: uppercase;
-  color: var(--muted); margin-bottom: 40px;
-}
-.section-headline {
-  font-family: 'Syne', sans-serif; font-weight: 700;
-  font-size: clamp(26px, 3.5vw, 40px); letter-spacing: -0.02em;
-  color: var(--ink); margin-bottom: 12px; max-width: 560px;
-}
-.section-sub {
-  font-size: 15px; color: var(--muted); margin-bottom: 44px; max-width: 460px;
-}
+.section-label { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--muted); margin-bottom: 40px; }
+.section-headline { font-family: 'Syne', sans-serif; font-weight: 700; font-size: clamp(26px, 3.5vw, 40px); letter-spacing: -0.02em; color: var(--ink); margin-bottom: 12px; max-width: 560px; }
+.section-sub { font-size: 15px; color: var(--muted); margin-bottom: 44px; max-width: 460px; }
 
 /* TILES */
-.tiles-grid {
-  display: grid; grid-template-columns: repeat(3, 1fr);
-  gap: 2px; background: var(--rule);
-  border: 1px solid var(--rule); border-radius: 3px;
-  overflow: hidden; margin-bottom: 2px;
-}
+.tiles-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; background: var(--rule); border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; margin-bottom: 2px; }
 .tile { background: var(--tile-bg); padding: 36px 32px; cursor: pointer; transition: background 0.3s ease, box-shadow 0.3s ease; position: relative; }
 .tile:hover { background: var(--tile-hover); }
 .tile.active { background: #0F0F0F; box-shadow: inset 0 0 0 1px rgba(200,75,47,0.4); }
@@ -243,370 +150,313 @@ html.dark .tile.active { background: #050505; box-shadow: inset 0 0 0 1px rgba(2
 .tile.active .tile-num { color: rgba(255,255,255,0.3); }
 .tile.active .tile-title { color: #F0EDE6; }
 .tile.active .tile-body { color: rgba(240,237,230,0.55); }
-.tile-num {
-  font-family: 'DM Mono', monospace; font-size: 10px;
-  letter-spacing: 0.12em; color: var(--muted);
-  margin-bottom: 20px; transition: color 0.2s;
-}
-.tile-title {
-  font-family: 'Syne', sans-serif; font-weight: 700;
-  font-size: 21px; letter-spacing: -0.01em;
-  color: var(--ink); margin-bottom: 10px; line-height: 1.15;
-  transition: color 0.2s;
-}
+.tile-num { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.12em; color: var(--muted); margin-bottom: 20px; transition: color 0.2s; }
+.tile-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 21px; letter-spacing: -0.01em; color: var(--ink); margin-bottom: 10px; line-height: 1.15; transition: color 0.2s; }
 .tile-body { font-size: 13px; color: var(--muted); line-height: 1.6; transition: color 0.2s; }
-.tile-bar {
-  position: absolute; bottom: 0; left: 0; right: 0; height: 3px;
-  background: var(--accent); transform: scaleX(0);
-  transition: transform 0.25s; transform-origin: left;
-}
+.tile-bar { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: var(--accent); transform: scaleX(0); transition: transform 0.25s; transform-origin: left; }
 .tile.active .tile-bar { transform: scaleX(1); }
 
-/* CALC */
+/* CALCULATOR */
 .calc-wrap { background: var(--calc-bg); border: 1px solid var(--rule); border-top: none; border-radius: 0 0 3px 3px; overflow: hidden; transition: background 0.4s ease; }
 .calc-ctx { padding: 16px 32px; border-bottom: 1px solid var(--rule); background: var(--calc-ctx); transition: background 0.4s ease; }
-.calc-ctx-text {
-  font-family: 'DM Mono', monospace; font-size: 11px;
-  color: var(--muted); letter-spacing: 0.04em;
-}
+.calc-ctx-text { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: 0.04em; }
 .calc-ctx-text span { color: var(--accent); font-style: italic; }
 .calc-body { padding: 36px 32px; }
-.calc-inputs {
-  display: grid; grid-template-columns: 1fr 1fr;
-  gap: 24px 40px; margin-bottom: 36px;
-}
-.input-group label {
-  display: block; font-family: 'DM Mono', monospace;
-  font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase;
-  color: var(--muted); margin-bottom: 7px;
-}
-.input-group input {
-  width: 100%; background: var(--input-bg);
-  border: 1px solid var(--rule); border-radius: 2px;
-  padding: 10px 14px; font-family: 'DM Mono', monospace;
-  font-size: 15px; color: var(--ink); outline: none;
-  transition: border-color 0.2s, background 0.4s ease, color 0.4s ease;
-}
+.calc-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 24px 40px; margin-bottom: 36px; }
+.input-group label { display: block; font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-bottom: 7px; }
+.input-group input { width: 100%; background: var(--input-bg); border: 1px solid var(--rule); border-radius: 2px; padding: 10px 14px; font-family: 'DM Mono', monospace; font-size: 15px; color: var(--ink); outline: none; transition: border-color 0.2s, background 0.4s ease, color 0.4s ease; }
 .input-group input:focus { border-color: var(--ink); }
 .input-hint { font-size: 11px; color: var(--muted); margin-top: 5px; line-height: 1.4; }
-.calc-output {
-  border-top: 1px solid var(--rule); padding-top: 32px;
-  display: flex; align-items: flex-start;
-  justify-content: space-between; gap: 40px; flex-wrap: wrap;
-}
-.output-label {
-  font-family: 'DM Mono', monospace; font-size: 10px;
-  letter-spacing: 0.14em; text-transform: uppercase;
-  color: var(--muted); margin-bottom: 8px;
-}
-.output-number {
-  font-family: 'Syne', sans-serif; font-weight: 800;
-  font-size: clamp(44px, 6vw, 72px); letter-spacing: -0.03em;
-  color: var(--accent); line-height: 1; margin-bottom: 8px;
-  transition: all 0.35s ease;
-}
+.calc-output { border-top: 1px solid var(--rule); padding-top: 32px; display: flex; align-items: flex-start; justify-content: space-between; gap: 40px; flex-wrap: wrap; }
+.output-label { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.output-number { font-family: 'Syne', sans-serif; font-weight: 800; font-size: clamp(44px, 6vw, 72px); letter-spacing: -0.03em; color: var(--accent); line-height: 1; margin-bottom: 8px; transition: all 0.35s ease; }
 .output-sub { font-size: 13px; color: var(--muted); max-width: 340px; line-height: 1.5; }
-.output-fix {
-  font-family: 'Syne', sans-serif; font-weight: 700;
-  font-size: 18px; color: var(--ink); margin-bottom: 14px;
-}
+.output-fix { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 18px; color: var(--ink); margin-bottom: 14px; }
 .output-cta { display: flex; flex-direction: column; gap: 10px; padding-top: 4px; }
 
 /* PRODUCTS */
-.products-grid {
-  display: grid; grid-template-columns: 1fr 1fr;
-  gap: 2px; background: var(--rule);
-  border: 1px solid var(--rule); border-radius: 3px; overflow: hidden;
-}
+.products-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; background: var(--rule); border: 1px solid var(--rule); border-radius: 3px; overflow: hidden; }
 .prod-card { background: var(--prod-bg); padding: 48px 40px; transition: background 0.4s ease; }
 .prod-card.dark { background: #0F0F0F; }
 html.dark .prod-card.dark { background: #050505; }
-.prod-tag {
-  font-family: 'DM Mono', monospace; font-size: 10px;
-  letter-spacing: 0.14em; text-transform: uppercase;
-  color: var(--muted); margin-bottom: 24px;
-}
+.prod-tag { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.14em; text-transform: uppercase; color: var(--muted); margin-bottom: 24px; }
 .prod-card.dark .prod-tag { color: rgba(255,255,255,0.3); }
-.prod-name {
-  font-family: 'Syne', sans-serif; font-weight: 800;
-  font-size: 28px; letter-spacing: -0.02em; color: var(--ink);
-  margin-bottom: 12px; line-height: 1.1;
-}
+.prod-name { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 28px; letter-spacing: -0.02em; color: var(--ink); margin-bottom: 12px; line-height: 1.1; }
 .prod-card.dark .prod-name { color: #F0EDE6; }
-.prod-desc {
-  font-size: 14px; color: var(--muted); line-height: 1.65;
-  margin-bottom: 28px; max-width: 360px;
-}
+.prod-desc { font-size: 14px; color: var(--muted); line-height: 1.65; margin-bottom: 28px; max-width: 360px; }
 .prod-card.dark .prod-desc { color: rgba(240,237,230,0.5); }
 .prod-features { list-style: none; margin-bottom: 32px; }
-.prod-features li {
-  font-size: 13px; color: var(--muted);
-  padding: 8px 0; border-bottom: 1px solid var(--rule);
-  display: flex; gap: 10px; align-items: flex-start;
-}
-.prod-card.dark .prod-features li {
-  color: rgba(240,237,230,0.45);
-  border-color: rgba(255,255,255,0.07);
-}
-.prod-features li::before {
-  content: ''; width: 4px; height: 4px; border-radius: 50%;
-  background: var(--accent); margin-top: 7px; flex-shrink: 0;
-}
-.prod-price {
-  font-family: 'DM Mono', monospace; font-size: 11px;
-  letter-spacing: 0.06em; color: var(--muted); margin-bottom: 20px;
-}
+.prod-features li { font-size: 13px; color: var(--muted); padding: 8px 0; border-bottom: 1px solid var(--rule); display: flex; gap: 10px; align-items: flex-start; }
+.prod-card.dark .prod-features li { color: rgba(240,237,230,0.45); border-color: rgba(255,255,255,0.07); }
+.prod-features li::before { content: ''; width: 4px; height: 4px; border-radius: 50%; background: var(--accent); margin-top: 7px; flex-shrink: 0; }
+.prod-price { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 20px; }
 .prod-card.dark .prod-price { color: rgba(240,237,230,0.35); }
-.btn-prod {
-  font-family: 'DM Mono', monospace; font-size: 11px;
-  letter-spacing: 0.1em; text-transform: uppercase;
-  padding: 12px 24px; border-radius: 2px;
-  text-decoration: none; border: 1px solid var(--rule);
-  color: var(--ink); background: transparent; cursor: pointer;
-  transition: all 0.2s; display: inline-block;
-}
+.btn-prod { font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; padding: 12px 24px; border-radius: 2px; text-decoration: none; border: 1px solid var(--rule); color: var(--ink); background: transparent; cursor: pointer; transition: all 0.2s; display: inline-block; }
 .btn-prod:hover { background: var(--ink); color: var(--bg); border-color: var(--ink); }
-.prod-card.dark .btn-prod {
-  border-color: rgba(255,255,255,0.18); color: #F0EDE6;
-  background: rgba(255,255,255,0.06);
-}
+.prod-card.dark .btn-prod { border-color: rgba(255,255,255,0.18); color: #F0EDE6; background: rgba(255,255,255,0.06); }
 .prod-card.dark .btn-prod:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
 
-/* CHAT */
-.chat-wrap {
-  background: var(--chat-bg); border: 1px solid var(--rule);
-  border-radius: 3px; overflow: hidden; transition: background 0.4s ease;
+/* ══════════════════════════════════════════
+   DEMO / VALUE TOOL SECTION
+   Full-width split: chat left, analysis right
+══════════════════════════════════════════ */
+.demo-section {
+  background: var(--bg);
+  padding: 96px 0 0;
+  transition: background 0.4s ease;
 }
-.chat-head {
-  padding: 18px 28px; border-bottom: 1px solid var(--rule);
-  display: flex; align-items: center; justify-content: space-between;
-  background: var(--chat-bg); transition: background 0.4s ease;
+.demo-section-header {
+  max-width: 1200px; margin: 0 auto;
+  padding: 0 48px 48px;
 }
-.chat-title {
-  font-family: 'DM Mono', monospace; font-size: 11px;
-  letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink);
-}
-.chat-badge {
-  font-family: 'DM Mono', monospace; font-size: 9px;
-  letter-spacing: 0.1em; text-transform: uppercase;
-  background: var(--bg); color: var(--muted);
-  padding: 4px 10px; border-radius: 2px; border: 1px solid var(--rule);
-}
-.chat-msgs {
-  padding: 28px; min-height: 260px; max-height: 400px;
-  overflow-y: auto; display: flex; flex-direction: column; gap: 16px;
-  background: var(--chat-bg); transition: background 0.4s ease;
-}
-.msg { display: flex; gap: 12px; align-items: flex-start; animation: fadeUp 0.3s ease; }
-.msg-av {
-  width: 28px; height: 28px; border-radius: 2px;
-  display: flex; align-items: center; justify-content: center;
-  font-family: 'DM Mono', monospace; font-size: 9px; font-weight: 500;
-  letter-spacing: 0.05em; flex-shrink: 0; margin-top: 2px;
-}
-.msg-av.am { background: var(--ink); color: var(--bg); transition: background 0.4s, color 0.4s; }
-.msg-av.you { background: var(--bg); color: var(--muted); border: 1px solid var(--rule); transition: background 0.4s; }
-.msg-body { font-size: 14px; color: var(--ink); line-height: 1.6; flex: 1; transition: color 0.4s; }
-.msg-body.dim { color: var(--muted); }
-
-/* Chat starters */
-.chat-starters {
-  padding: 16px 28px;
-  display: flex; gap: 8px; flex-wrap: wrap;
-  background: var(--chat-bg); transition: background 0.4s;
+.demo-tool-wrap {
+  display: flex;
+  height: 620px;
   border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
+  background: var(--calc-bg);
+  transition: background 0.4s ease;
 }
-.starter-btn {
-  font-family: 'DM Mono', monospace; font-size: 10px;
-  letter-spacing: 0.06em; color: var(--ink);
-  background: transparent; border: 1px solid var(--rule);
-  border-radius: 2px; padding: 7px 14px; cursor: pointer;
-  transition: all 0.2s; text-align: left; line-height: 1.4;
-}
-.starter-btn:hover { border-color: var(--accent); color: var(--accent); background: transparent; }
-html.dark .starter-btn { color: rgba(240,237,230,0.7); border-color: rgba(255,255,255,0.15); }
-html.dark .starter-btn:hover { border-color: var(--accent); color: var(--accent); }
-.chat-starters.hidden { display: none; }
 
-/* Inline COI calculator card */
-.coi-card {
-  background: #1A1A1A;
-  border-radius: 2px;
-  padding: 20px 24px;
-  margin-top: 4px;
-  flex: 1;
-  border: 1px solid rgba(200,75,47,0.4);
+/* mode tabs inside the tool header */
+.tool-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--rule);
+  background: var(--calc-ctx);
+  flex-shrink: 0;
+  transition: background 0.4s ease;
 }
-.coi-card-label {
-  font-family: 'DM Mono', monospace; font-size: 9px;
-  letter-spacing: 0.14em; text-transform: uppercase;
-  color: #C84B2F; margin-bottom: 16px;
+.tool-mode-tabs {
+  display: flex; gap: 2px;
+  background: var(--input-bg);
+  border: 1px solid var(--rule);
+  border-radius: 2px; padding: 3px;
 }
-.coi-inputs-grid {
-  display: grid; grid-template-columns: 1fr 1fr;
-  gap: 12px; margin-bottom: 16px;
+.tool-tab {
+  padding: 5px 14px; border-radius: 1px;
+  font-family: 'DM Mono', monospace;
+  font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+  cursor: pointer; border: none; background: transparent;
+  color: var(--muted); transition: all 0.15s;
 }
-.coi-input-group label {
-  display: block; font-family: 'DM Mono', monospace;
-  font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase;
-  color: rgba(240,237,230,0.6); margin-bottom: 4px;
-}
-.coi-input-group input {
-  width: 100%; background: rgba(255,255,255,0.1);
-  border: 1px solid rgba(255,255,255,0.2); border-radius: 2px;
-  padding: 8px 10px; font-family: 'DM Mono', monospace;
-  font-size: 13px; color: #F0EDE6; outline: none;
-  transition: border-color 0.2s;
-  -webkit-appearance: none;
-}
-.coi-input-group input:focus { border-color: #C84B2F; }
-.coi-output-row {
-  display: flex; align-items: center;
-  justify-content: space-between; flex-wrap: wrap;
-  gap: 12px; padding-top: 16px;
-  border-top: 1px solid rgba(255,255,255,0.12);
-}
-.coi-output-num {
-  font-family: 'Syne', sans-serif; font-weight: 800;
-  font-size: 36px; letter-spacing: -0.02em;
-  color: #C84B2F; line-height: 1;
-}
-.coi-output-sub {
-  font-family: 'DM Mono', monospace; font-size: 9px;
-  letter-spacing: 0.08em; color: rgba(240,237,230,0.4);
-  margin-top: 4px;
-}
-.coi-email-row {
-  display: flex; gap: 8px; margin-top: 14px;
-  padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.12);
-}
-.coi-email-input {
-  flex: 1; background: rgba(255,255,255,0.1);
-  border: 1px solid rgba(255,255,255,0.2); border-radius: 2px;
-  padding: 9px 12px; font-family: 'DM Mono', monospace;
-  font-size: 12px; color: #F0EDE6; outline: none;
-  transition: border-color 0.2s;
-}
-.coi-email-input:focus { border-color: #C84B2F; }
-.coi-email-input::placeholder { color: rgba(240,237,230,0.3); }
-.coi-email-btn {
+.tool-tab.active { background: var(--tile-bg); color: var(--ink); }
+.tool-engine-badge {
   font-family: 'DM Mono', monospace; font-size: 10px;
-  letter-spacing: 0.1em; text-transform: uppercase;
-  background: #C84B2F; color: #fff; border: none;
-  padding: 9px 18px; border-radius: 2px; cursor: pointer;
-  transition: opacity 0.2s; white-space: nowrap;
+  letter-spacing: 0.08em; color: var(--muted);
+  display: flex; align-items: center; gap: 6px;
 }
-.coi-email-btn:hover { opacity: 0.85; }
-.coi-email-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-.chat-spinner {
-  display: flex; align-items: center; gap: 10px;
+.tool-status-dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--accent);
+  animation: pulse 2s infinite;
 }
-.chat-spinner svg {
-  width: 22px; height: 22px; flex-shrink: 0;
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+/* CHAT PANEL — left 54% */
+.tool-chat-panel {
+  width: 54%; display: flex; flex-direction: column;
+  border-right: 1px solid var(--rule);
+  background: var(--chat-bg);
+  transition: background 0.4s ease;
 }
-.spinner-c { stroke: rgba(200,75,47,0.2); stroke-width: 1.2; fill: none; }
-.spinner-a {
-  stroke: #C84B2F; stroke-width: 1.2; fill: none;
-  stroke-dasharray: 44; stroke-dashoffset: 44;
-  animation: spinDraw 1s cubic-bezier(.4,0,.2,1) infinite;
-  transform-origin: center; transform: rotate(-90deg);
+.tool-messages {
+  flex: 1; overflow-y: auto; padding: 20px;
+  display: flex; flex-direction: column; gap: 14px;
+  scroll-behavior: smooth;
 }
-@keyframes spinDraw {
-  0%   { stroke-dashoffset: 44; opacity: 1; }
-  60%  { stroke-dashoffset: 0;  opacity: 1; }
-  80%  { stroke-dashoffset: 0;  opacity: 0.3; }
-  100% { stroke-dashoffset: 44; opacity: 1; }
+.tool-messages::-webkit-scrollbar { width: 4px; }
+.tool-messages::-webkit-scrollbar-track { background: transparent; }
+.tool-messages::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 2px; }
+
+.tmsg { display: flex; flex-direction: column; gap: 3px; animation: fadeUp 0.2s ease; }
+.tmsg.user { align-items: flex-end; }
+.tmsg.assistant { align-items: flex-start; }
+.tmsg-label { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.1em; color: var(--muted); padding: 0 2px; text-transform: uppercase; }
+.tbubble {
+  max-width: 84%; padding: 9px 13px;
+  border-radius: 6px; font-size: 13px; line-height: 1.65;
 }
-.chat-input-wrap {
-  padding: 14px 28px; border-top: 1px solid var(--rule);
-  display: flex; gap: 10px; background: var(--chat-bg); transition: background 0.4s ease;
+.tmsg.user .tbubble { background: var(--calc-ctx); border: 1px solid var(--rule); color: var(--ink); border-bottom-right-radius: 2px; }
+.tmsg.assistant .tbubble { background: var(--tile-bg); border: 1px solid var(--rule); color: var(--ink); border-bottom-left-radius: 2px; }
+html.dark .tmsg.user .tbubble { background: rgba(200,75,47,0.1); border-color: rgba(200,75,47,0.2); }
+html.dark .tmsg.assistant .tbubble { background: #1A1A1A; }
+
+.tquick-replies { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; max-width: 84%; }
+.tqr {
+  padding: 4px 11px; border: 1px solid var(--rule); border-radius: 16px;
+  background: transparent; color: var(--muted); font-size: 11px;
+  cursor: pointer; transition: all 0.15s;
+  font-family: 'DM Mono', monospace; letter-spacing: 0.04em;
 }
-#chat-input {
-  flex: 1; background: var(--input-bg); border: 1px solid var(--rule);
-  border-radius: 2px; padding: 10px 14px;
-  font-family: 'DM Sans', sans-serif; font-size: 14px;
-  font-weight: 300; color: var(--ink); outline: none;
+.tqr:hover { border-color: var(--accent); color: var(--accent); }
+
+.typing-dots { display: flex; gap: 4px; align-items: center; padding: 9px 13px; background: var(--tile-bg); border: 1px solid var(--rule); border-radius: 6px; border-bottom-left-radius: 2px; width: fit-content; }
+.typing-dots span { width: 5px; height: 5px; border-radius: 50%; background: var(--muted); animation: tdot 1.2s infinite; }
+.typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+.typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes tdot { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-5px)} }
+
+.tool-input-area {
+  padding: 12px 16px; border-top: 1px solid var(--rule);
+  background: var(--calc-ctx); flex-shrink: 0;
+  display: flex; gap: 8px; align-items: flex-end;
+  transition: background 0.4s ease;
+}
+.tool-input {
+  flex: 1; background: var(--tile-bg); border: 1px solid var(--rule);
+  border-radius: 4px; padding: 9px 13px;
+  font-family: 'DM Sans', sans-serif; font-size: 13px;
+  color: var(--ink); outline: none; resize: none;
+  min-height: 38px; max-height: 100px; line-height: 1.5;
   transition: border-color 0.2s, background 0.4s, color 0.4s;
 }
-#chat-input:focus { border-color: var(--ink); }
-#chat-input::placeholder { color: var(--muted); }
-#chat-send {
-  font-family: 'DM Mono', monospace; font-size: 11px;
-  letter-spacing: 0.08em; text-transform: uppercase;
-  background: var(--ink); color: var(--bg);
-  border: none; padding: 10px 20px; border-radius: 2px;
-  cursor: pointer; transition: background 0.2s, color 0.2s;
+.tool-input:focus { border-color: var(--ink); }
+.tool-input::placeholder { color: var(--muted); }
+.tool-send {
+  width: 38px; height: 38px; border-radius: 2px;
+  background: var(--ink); border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: background 0.2s;
 }
-#chat-send:hover { background: var(--accent); color: #fff; }
-#chat-send:disabled { opacity: 0.4; cursor: not-allowed; }
+.tool-send:hover { background: var(--accent); }
+.tool-send:disabled { background: var(--rule); cursor: not-allowed; }
+.tool-send svg { color: var(--surf); }
+html.dark .tool-send svg { color: var(--ink); }
 
-/* FOOTER */
-footer {
-  border-top: 1px solid var(--rule); padding: 44px 48px;
-  display: flex; justify-content: space-between;
-  align-items: center; flex-wrap: wrap; gap: 20px;
-  background: var(--bg); transition: background 0.4s ease;
+/* starters inside chat */
+.tool-starters { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-top: 12px; }
+.tstarter {
+  padding: 8px 10px; border: 1px solid var(--rule); border-radius: 2px;
+  cursor: pointer; background: var(--calc-ctx); font-size: 11px;
+  color: var(--muted); line-height: 1.45; transition: all 0.15s; text-align: left;
+  font-family: 'DM Mono', monospace; letter-spacing: 0.03em;
 }
-.footer-mark { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 14px; letter-spacing: 0.04em; color: var(--ink); }
-.footer-tag {
-  font-family: 'DM Mono', monospace; font-size: 10px;
-  letter-spacing: 0.08em; color: var(--muted); margin-top: 3px; font-style: italic;
+.tstarter:hover { border-color: var(--accent); color: var(--accent); }
+.tstart-label { font-size: 9px; color: var(--accent); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 2px; }
+
+/* ANALYSIS PANEL — right */
+.tool-analysis-panel {
+  flex: 1; overflow-y: auto; padding: 18px 20px;
+  display: flex; flex-direction: column; gap: 12px;
+  background: var(--bg);
+  transition: background 0.4s ease;
 }
-.footer-links { display: flex; gap: 24px; }
-.footer-links a {
-  font-family: 'DM Mono', monospace; font-size: 10px;
-  letter-spacing: 0.1em; text-transform: uppercase;
-  color: var(--muted); text-decoration: none; transition: color 0.2s;
+.tool-analysis-panel::-webkit-scrollbar { width: 4px; }
+.tool-analysis-panel::-webkit-scrollbar-track { background: transparent; }
+.tool-analysis-panel::-webkit-scrollbar-thumb { background: var(--rule); border-radius: 2px; }
+
+.apanel-header {
+  display: flex; align-items: center; justify-content: space-between;
 }
-.footer-links a:hover { color: var(--ink); }
+.apanel-title { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+
+.aempty { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 40px 20px; gap: 8px; }
+.aempty-icon { font-size: 28px; margin-bottom: 6px; opacity: 0.3; }
+.aempty-title { font-family: 'Syne', sans-serif; font-weight: 700; font-size: 16px; color: var(--muted); }
+.aempty-sub { font-size: 11px; color: var(--muted); max-width: 200px; line-height: 1.65; opacity: 0.7; }
+
+/* metric grid */
+.ametrics { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.ametric {
+  background: var(--tile-bg); border: 1px solid var(--rule);
+  border-radius: 2px; padding: 10px 12px;
+  transition: background 0.4s ease;
+}
+.ametric.hl { border-color: rgba(200,75,47,0.4); background: var(--calc-ctx); }
+.ametric-label { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+.ametric-val { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 22px; color: var(--ink); line-height: 1; }
+.ametric.hl .ametric-val { color: var(--accent); }
+.ametric-sub { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+/* COI bar */
+.acoi {
+  background: var(--tile-bg); border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent); border-radius: 2px;
+  padding: 10px 12px; transition: background 0.4s ease;
+}
+.acoi-label { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--accent); margin-bottom: 4px; }
+.acoi-val { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 20px; color: var(--accent); }
+.acoi-sub { font-size: 10px; color: var(--muted); margin-top: 2px; }
+
+/* scenario list */
+.ascenarios { display: flex; flex-direction: column; gap: 5px; }
+.ascen-row { background: var(--tile-bg); border: 1px solid var(--rule); border-radius: 2px; padding: 8px 10px; display: flex; justify-content: space-between; gap: 8px; animation: fadeUp 0.25s ease; transition: background 0.4s ease; }
+.ascen-name { font-size: 11px; color: var(--muted); line-height: 1.4; flex: 1; }
+.ascen-theme { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted); opacity: 0.6; margin-top: 2px; }
+.ascen-val { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--accent); white-space: nowrap; font-weight: 500; }
+
+/* inputs */
+.ainputs { display: flex; flex-direction: column; gap: 4px; }
+.ainput-row { display: flex; justify-content: space-between; align-items: center; padding: 5px 8px; background: var(--tile-bg); border: 1px solid var(--rule); border-radius: 2px; font-size: 11px; animation: fadeUp 0.2s ease; transition: background 0.4s ease; }
+.ainput-key { font-family: 'DM Mono', monospace; font-size: 9px; color: var(--muted); }
+.ainput-val { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--ink); }
+.ainput-src { font-size: 9px; padding: 1px 5px; border-radius: 2px; }
+.src-p { background: rgba(30,92,58,0.12); color: #1E5C3A; }
+html.dark .src-p { background: rgba(58,155,98,0.15); color: #3A9B62; }
+.src-d { background: var(--calc-ctx); color: var(--muted); }
+
+/* save row */
+.asave-btn { width: 100%; padding: 10px; border-radius: 2px; background: var(--ink); color: var(--surf); font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; border: none; cursor: pointer; transition: background 0.2s; }
+.asave-btn:hover { background: var(--accent); }
+.asave-btn:disabled { background: var(--rule); color: var(--muted); cursor: not-allowed; }
+.asave-status { font-size: 10px; color: var(--muted); text-align: center; font-family: 'DM Mono', monospace; letter-spacing: 0.06em; }
+
+/* CFO audit */
+.aaudit-summary { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.aaudit-card { padding: 10px; border-radius: 2px; text-align: center; }
+.aaudit-card.ac { background: rgba(30,92,58,0.1); border: 1px solid rgba(30,92,58,0.2); }
+.aaudit-card.aj { background: rgba(200,75,47,0.08); border: 1px solid rgba(200,75,47,0.2); }
+.aaudit-card.ar { background: rgba(180,30,30,0.08); border: 1px solid rgba(180,30,30,0.2); }
+.aaudit-num { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 20px; }
+.aaudit-card.ac .aaudit-num { color: #1E5C3A; }
+html.dark .aaudit-card.ac .aaudit-num { color: #3A9B62; }
+.aaudit-card.aj .aaudit-num { color: var(--accent); }
+.aaudit-card.ar .aaudit-num { color: #B41E1E; }
+.aaudit-lbl { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.1em; color: var(--muted); margin-top: 2px; }
+
+.aaudit-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+.aaudit-table th { font-family: 'DM Mono', monospace; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); padding: 5px 7px; text-align: left; border-bottom: 1px solid var(--rule); }
+.aaudit-table td { padding: 7px 7px; border-bottom: 1px solid var(--rule); color: var(--muted); vertical-align: top; line-height: 1.4; }
+.v-accept { color: #1E5C3A; font-weight: 500; }
+html.dark .v-accept { color: #3A9B62; }
+.v-adjust { color: var(--accent); font-weight: 500; }
+.v-remove { color: #B41E1E; font-weight: 500; }
+
+/* progress dots */
+.aprogress { display: flex; gap: 4px; align-items: center; }
+.pdot { width: 5px; height: 5px; border-radius: 50%; background: var(--rule); transition: background 0.2s; }
+.pdot.filled { background: var(--accent); }
+.pdot.active { background: var(--accent); box-shadow: 0 0 5px rgba(200,75,47,0.5); }
+
+.areset { font-family: 'DM Mono', monospace; font-size: 10px; color: var(--muted); cursor: pointer; background: none; border: none; text-decoration: underline; text-underline-offset: 2px; }
+.areset:hover { color: var(--ink); }
+
+.asep { height: 1px; background: var(--rule); }
 
 /* CRED STRIP */
-.cred-strip {
-  background: var(--bg);
-  padding: 40px 48px;
-  transition: background 0.4s ease;
-}
-.cred-inner {
-  max-width: 1200px;
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
-  gap: 32px;
-}
-.cred-bar {
-  flex: 1;
-  height: 1px;
-  background: var(--rule);
-  transition: background 0.4s ease;
-}
-.cred-text {
-  font-family: 'DM Mono', monospace;
-  font-size: 12px;
-  letter-spacing: 0.06em;
-  color: var(--muted);
-  text-align: center;
-  max-width: 680px;
-  line-height: 1.7;
-  flex-shrink: 0;
-  font-style: italic;
-}
-.cred-text strong {
-  color: var(--accent);
-  font-style: normal;
-  font-weight: 500;
-}
+.cred-strip { background: var(--bg); padding: 40px 48px; transition: background 0.4s ease; }
+.cred-inner { max-width: 1200px; margin: 0 auto; display: flex; align-items: center; gap: 32px; }
+.cred-bar { flex: 1; height: 1px; background: var(--rule); transition: background 0.4s ease; }
+.cred-text { font-family: 'DM Mono', monospace; font-size: 12px; letter-spacing: 0.06em; color: var(--muted); text-align: center; max-width: 680px; line-height: 1.7; flex-shrink: 0; font-style: italic; }
 
-@media (max-width: 768px) {
-  .cred-strip { padding: 32px 24px; }
-  .cred-bar { display: none; }
-  .cred-text { font-size: 11px; }
-}
+/* FOOTER */
+footer { border-top: 1px solid var(--rule); padding: 44px 48px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 20px; background: var(--bg); transition: background 0.4s ease; }
+.footer-mark { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 14px; letter-spacing: 0.04em; color: var(--ink); }
+.footer-tag { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.08em; color: var(--muted); margin-top: 3px; font-style: italic; }
+.footer-links { display: flex; gap: 24px; }
+.footer-links a { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); text-decoration: none; transition: color 0.2s; }
+.footer-links a:hover { color: var(--ink); }
 
-@keyframes fadeUp {
-  from { opacity: 0; transform: translateY(14px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
+/* ANIMATIONS */
+@keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 
+/* RESPONSIVE */
+@media (max-width: 900px) {
+  .demo-tool-wrap { flex-direction: column; height: auto; min-height: 800px; }
+  .tool-chat-panel { width: 100%; height: 440px; border-right: none; border-bottom: 1px solid var(--rule); }
+  .tool-analysis-panel { height: 360px; }
+}
 @media (max-width: 768px) {
   nav { padding: 0 24px; }
   .nav-links { display: none; }
@@ -616,6 +466,9 @@ footer {
   .calc-inputs { grid-template-columns: 1fr; }
   .calc-output { flex-direction: column; }
   footer { padding: 36px 24px; flex-direction: column; align-items: flex-start; }
+  .demo-section-header { padding: 0 24px 36px; }
+  .cred-strip { padding: 32px 24px; }
+  .cred-bar { display: none; }
 }
 </style>
 </head>
@@ -635,28 +488,17 @@ footer {
   </div>
 </div>
 
+<!-- NAV -->
 <nav>
   <a class="nav-logo" href="#">ALT MERIDIAN</a>
   <div class="nav-links">
     <a href="#tiles" data-nav="tiles">The Problem</a>
     <a href="#calculator" data-nav="calculator">Your Number</a>
     <a href="#products" data-nav="products">Products</a>
-    <a href="#demo" data-nav="demo">See It Live</a>
+    <a href="#demo" data-nav="demo">Try It</a>
     <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode">
-      <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-      </svg>
-      <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="5"/>
-        <line x1="12" y1="1" x2="12" y2="3"/>
-        <line x1="12" y1="21" x2="12" y2="23"/>
-        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/>
-        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-        <line x1="1" y1="12" x2="3" y2="12"/>
-        <line x1="21" y1="12" x2="23" y2="12"/>
-        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/>
-        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-      </svg>
+      <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
     </button>
   </div>
 </nav>
@@ -677,7 +519,7 @@ footer {
 
 <hr class="section-rule">
 
-<!-- CREDIBILITY STRIP -->
+<!-- CRED STRIP -->
 <div class="cred-strip">
   <div class="cred-inner">
     <div class="cred-bar"></div>
@@ -687,6 +529,8 @@ footer {
 </div>
 
 <hr class="section-rule">
+
+<!-- TILES + CALCULATOR -->
 <section class="section" id="tiles">
   <div class="section-label">The problem</div>
   <h2 class="section-headline">Where does your value motion break down?</h2>
@@ -795,33 +639,51 @@ footer {
 
 <hr class="section-rule">
 
-<!-- CHAT -->
+<!-- THREE ENTRY POINTS -->
 <section class="section" id="demo">
-  <div class="section-label">See it work</div>
-  <h2 class="section-headline">What does this look like for your business?</h2>
-  <p class="section-sub">Describe what you sell. Get a governed value scenario back, with evidence, in seconds.</p>
-  <div class="chat-wrap">
-    <div class="chat-head">
-      <div class="chat-title">Alt Meridian · Value Intelligence</div>
-      <div class="chat-badge">Powered by VEF</div>
+  <div class="section-label">Three tools. One platform.</div>
+  <h2 class="section-headline">Pick your starting point</h2>
+  <p class="section-sub" style="margin-bottom:40px;">Every tool runs live against the governed database. Defensible output in minutes, not weeks.</p>
+
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:2px;background:var(--rule);border:1px solid var(--rule);border-radius:3px;overflow:hidden;">
+
+    <!-- Seller -->
+    <div style="background:var(--prod-bg);padding:36px 32px;transition:background .4s ease;">
+      <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:16px;">For Sellers</div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--ink);margin-bottom:10px;line-height:1.15;">Value<br>Discovery</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.65;margin-bottom:24px;max-width:260px;">Describe what you sell and who your buyer is. Get a governed value case — NPV, payback, cost of inaction — built from live database scenarios.</div>
+      <a class="btn-prod" href="tool.html">Build my value case →</a>
     </div>
-    <div class="chat-msgs" id="chat-msgs">
-      <div class="msg">
-        <div class="msg-av am">AM</div>
-        <div class="msg-body">Tell me what your business sells and who your buyer is. I'll show you one governed value scenario with real evidence that applies to your situation.</div>
-      </div>
+
+    <!-- Buyer -->
+    <div style="background:#0F0F0F;padding:36px 32px;">
+      <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:rgba(255,255,255,0.3);margin-bottom:16px;">For Buyers</div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:#F0EDE6;margin-bottom:10px;line-height:1.15;">Solution<br>Discovery</div>
+      <div style="font-size:13px;color:rgba(240,237,230,0.5);line-height:1.65;margin-bottom:24px;max-width:260px;">Describe your operation. The engine surfaces which technologies would move your numbers — with ranked ROI ranges and evidence for each.</div>
+      <a class="btn-prod" href="discover.html" style="border-color:rgba(255,255,255,0.18);color:#F0EDE6;background:rgba(255,255,255,0.06);">Find my solutions →</a>
     </div>
-    <div class="chat-starters" id="chat-starters">
-      <button class="starter-btn" onclick="useStarter(this)">We sell WMS software to 3PL operators</button>
-      <button class="starter-btn" onclick="useStarter(this)">We sell a B2B SaaS sales compensation platform to CROs</button>
-      <button class="starter-btn" onclick="useStarter(this)">We sell predictive maintenance software to plant managers</button>
-      <button class="starter-btn" onclick="useStarter(this)">We sell fleet telematics to regional logistics companies</button>
+
+    <!-- CFO -->
+    <div style="background:var(--prod-bg);padding:36px 32px;transition:background .4s ease;">
+      <div style="font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:16px;">For Finance &amp; Procurement</div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:22px;color:var(--ink);margin-bottom:10px;line-height:1.15;">Claim<br>Audit</div>
+      <div style="font-size:13px;color:var(--muted);line-height:1.65;margin-bottom:24px;max-width:260px;">A vendor gave you an ROI number. Paste it here. Get a component-by-component verdict — Accept / Adjust / Remove — with evidence tiers and a defensible range.</div>
+      <a class="btn-prod" href="tool.html?mode=cfo">Audit this claim →</a>
     </div>
-    <div class="chat-input-wrap">
-      <input type="text" id="chat-input" placeholder="e.g. We sell WMS software to 3PL operators..." maxlength="300">
-      <button id="chat-send" onclick="sendChat()">Send</button>
-    </div>
+
   </div>
+</section>
+
+<hr class="section-rule">
+
+<!-- SAMPLE DOWNLOAD -->
+<section class="section" style="text-align:center;padding:40px 24px;">
+  <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;">See what it looks like</div>
+  <h3 style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:var(--ink);margin-bottom:8px;">Download a sample leave-behind</h3>
+  <p style="font-size:13px;color:var(--muted);max-width:420px;margin:0 auto 20px;line-height:1.65;">A real governed value analysis for RFID in retail apparel — the same format your sellers will use in the field.</p>
+  <button onclick="downloadSamplePDF()" style="display:inline-flex;align-items:center;gap:8px;padding:11px 22px;border-radius:2px;border:1px solid var(--rule);background:transparent;color:var(--ink);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.1em;cursor:pointer;transition:all .2s;" onmouseover="this.style.background='var(--ink)';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='var(--ink)'">
+    ↓ DOWNLOAD SAMPLE PDF
+  </button>
 </section>
 
 <hr class="section-rule">
@@ -839,482 +701,633 @@ footer {
 </footer>
 
 <script>
-// LOADER DISMISS — immediate, no event dependency
-setTimeout(function() {
-  var ldr = document.getElementById('ldr');
-  if (ldr) { ldr.classList.add('out'); }
-}, 1400);
+// ─── CONFIG ──────────────────────────────────────────────────────────────────
+const SB_URL  = 'https://kpecdezcolcycgpuqbgs.supabase.co';
+const SB_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwZWNkZXpjb2xjeWNncHVxYmdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2ODIyMDYsImV4cCI6MjA5MTI1ODIwNn0.rKHzdjjkYToEZWdS0ngg3Kgigh_gDWt5cRbLBCE44rg';
+const AM_URL  = 'https://api.anthropic.com/v1/messages';
+const MODEL   = 'claude-sonnet-4-20250514';
+// Legacy edge function endpoint (marketing chat on old demo — kept for reference but not used in new tool)
+const EDGE_CHAT   = `${SB_URL}/functions/v1/value-chat`;
+const EDGE_NOTIFY = `${SB_URL}/functions/v1/notify`;
 
-// DEFAULT DARK MODE — apply before paint
-(function() {
-  const saved = localStorage.getItem('theme');
-  if (saved === 'light') return;
-  document.documentElement.classList.add('dark');
-})();
-
-// THEME TOGGLE
+// ─── THEME ────────────────────────────────────────────────────────────────────
+(function(){ const s = localStorage.getItem('theme'); if (s === 'light') return; document.documentElement.classList.add('dark'); })();
 function toggleTheme() {
   document.documentElement.classList.toggle('dark');
   localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
   drawChart();
 }
 
-// GHOST CHART
+// ─── LOADER ───────────────────────────────────────────────────────────────────
+setTimeout(function(){ var l = document.getElementById('ldr'); if(l) l.classList.add('out'); }, 1400);
+
+// ─── GHOST CHART (HERO) ───────────────────────────────────────────────────────
 const canvas = document.getElementById('hero-canvas');
 const ctx2 = canvas.getContext('2d');
-
-function resizeCanvas() {
-  canvas.width = canvas.offsetWidth;
-  canvas.height = canvas.offsetHeight;
-  drawChart();
-}
-
-function getChartColor() {
-  return document.documentElement.classList.contains('dark')
-    ? { r: 240, g: 237, b: 230 }
-    : { r: 15, g: 15, b: 15 };
-}
-
-function drawChart() {
+function resizeCanvas(){ canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; drawChart(); }
+function getChartColor(){ return document.documentElement.classList.contains('dark') ? {r:240,g:237,b:230} : {r:15,g:15,b:15}; }
+function drawChart(){
   const W = canvas.width, H = canvas.height;
-  ctx2.clearRect(0, 0, W, H);
+  ctx2.clearRect(0,0,W,H);
   const GA = 0.022, LA = 0.06;
-  const c = getChartColor();
-  const rgb = `${c.r},${c.g},${c.b}`;
-
-  // Fine grid — lighter inner lines
+  const c = getChartColor(), rgb = `${c.r},${c.g},${c.b}`;
   ctx2.lineWidth = 0.4;
-  for (let i = 0; i <= 32; i++) {
-    const x = (W / 32) * i;
-    ctx2.strokeStyle = i % 4 === 0 ? `rgba(${rgb},${GA * 1.6})` : `rgba(${rgb},${GA * 0.7})`;
-    ctx2.beginPath(); ctx2.moveTo(x, 0); ctx2.lineTo(x, H); ctx2.stroke();
-  }
-  for (let i = 0; i <= 20; i++) {
-    const y = (H / 20) * i;
-    ctx2.strokeStyle = i % 4 === 0 ? `rgba(${rgb},${GA * 1.6})` : `rgba(${rgb},${GA * 0.7})`;
-    ctx2.beginPath(); ctx2.moveTo(0, y); ctx2.lineTo(W, y); ctx2.stroke();
-  }
-
-  const sx = W * 0.08, ex = W * 0.94;
-  const by = H * 0.80, ch = H * 0.60;
-  const cw = ex - sx;
-
-  const curves = [
-    { a: LA, w: 1.4, f: t => t < 0.12 ? -0.04 * Math.sin(t / 0.12 * Math.PI) : Math.pow((t - 0.12) / 0.88, 1.85) * 0.84 },
-    { a: LA * 0.72, w: 1.1, f: t => t < 0.05 ? (t / 0.05) * 0.60 : 0.60 + (t - 0.05) * 0.038 },
-    { a: LA * 0.60, w: 0.95, f: t => t < 0.62 ? t * 0.10 : 0.062 + Math.pow((t - 0.62) / 0.38, 2.6) * 0.72 },
-    { a: LA * 0.50, w: 0.85, f: t => 0.82 / (1 + Math.exp(-11 * (t - 0.50))) },
-    { a: LA * 0.40, w: 0.75, f: t => t < 0.40 ? t * 0.06 : t < 0.47 ? 0.024 + (t - 0.40) / 0.07 * 0.42 : 0.444 + (t - 0.47) * 0.50 },
-    { a: LA * 0.32, w: 0.65, f: t => Math.pow(t, 0.38) * 0.72 },
-    { a: LA * 0.22, w: 0.55, f: t => t * 0.50 },
-    { a: LA * 0.18, w: 0.5, f: t => {
-      if (t < 0.25) return 0.05;
-      if (t < 0.26) return 0.05 + (t - 0.25) / 0.01 * 0.22;
-      if (t < 0.55) return 0.27;
-      if (t < 0.56) return 0.27 + (t - 0.55) / 0.01 * 0.28;
-      if (t < 0.85) return 0.55;
-      return 0.55 + (t - 0.85) / 0.15 * 0.22;
-    }},
+  for(let i=0;i<=32;i++){ const x=(W/32)*i; ctx2.strokeStyle=i%4===0?`rgba(${rgb},${GA*1.6})`:`rgba(${rgb},${GA*0.7})`; ctx2.beginPath(); ctx2.moveTo(x,0); ctx2.lineTo(x,H); ctx2.stroke(); }
+  for(let i=0;i<=20;i++){ const y=(H/20)*i; ctx2.strokeStyle=i%4===0?`rgba(${rgb},${GA*1.6})`:`rgba(${rgb},${GA*0.7})`; ctx2.beginPath(); ctx2.moveTo(0,y); ctx2.lineTo(W,y); ctx2.stroke(); }
+  const sx=W*0.08,ex=W*0.94,by=H*0.80,ch=H*0.60,cw=ex-sx;
+  const curves=[
+    {a:LA,w:1.4,f:t=>t<0.12?-0.04*Math.sin(t/0.12*Math.PI):Math.pow((t-0.12)/0.88,1.85)*0.84},
+    {a:LA*0.72,w:1.1,f:t=>t<0.05?(t/0.05)*0.60:0.60+(t-0.05)*0.038},
+    {a:LA*0.60,w:0.95,f:t=>t<0.62?t*0.10:0.062+Math.pow((t-0.62)/0.38,2.6)*0.72},
+    {a:LA*0.50,w:0.85,f:t=>0.82/(1+Math.exp(-11*(t-0.50)))},
+    {a:LA*0.40,w:0.75,f:t=>t<0.40?t*0.06:t<0.47?0.024+(t-0.40)/0.07*0.42:0.444+(t-0.47)*0.50},
+    {a:LA*0.32,w:0.65,f:t=>Math.pow(t,0.38)*0.72},
+    {a:LA*0.22,w:0.55,f:t=>t*0.50},
   ];
-
-  curves.forEach(cv => {
-    ctx2.beginPath();
-    ctx2.strokeStyle = `rgba(${rgb},${cv.a})`;
-    ctx2.lineWidth = cv.w;
-    for (let i = 0; i <= 300; i++) {
-      const t = i / 300;
-      const x = sx + t * cw;
-      const y = by - Math.max(-0.08, Math.min(1, cv.f(t))) * ch;
-      i === 0 ? ctx2.moveTo(x, y) : ctx2.lineTo(x, y);
-    }
+  curves.forEach(cv=>{
+    ctx2.beginPath(); ctx2.strokeStyle=`rgba(${rgb},${cv.a})`; ctx2.lineWidth=cv.w;
+    for(let i=0;i<=300;i++){ const t=i/300,x=sx+t*cw,y=by-Math.max(-0.08,Math.min(1,cv.f(t)))*ch; i===0?ctx2.moveTo(x,y):ctx2.lineTo(x,y); }
     ctx2.stroke();
   });
-
-  // Scatter dots
-  const dots = [
-    { t: 0.15, ci: 0 }, { t: 0.35, ci: 0 }, { t: 0.60, ci: 0 }, { t: 0.85, ci: 0 },
-    { t: 0.08, ci: 1 }, { t: 0.40, ci: 1 }, { t: 0.75, ci: 1 },
-    { t: 0.70, ci: 2 }, { t: 0.88, ci: 2 },
-    { t: 0.30, ci: 3 }, { t: 0.55, ci: 3 }, { t: 0.78, ci: 3 },
-    { t: 0.45, ci: 4 }, { t: 0.50, ci: 4 },
-    { t: 0.20, ci: 5 }, { t: 0.60, ci: 5 },
-  ];
-
-  dots.forEach(d => {
-    const cv = curves[d.ci];
-    const x = sx + d.t * cw;
-    const y = by - Math.max(-0.08, Math.min(1, cv.f(d.t))) * ch;
-    ctx2.beginPath();
-    ctx2.arc(x, y, 2.2, 0, Math.PI * 2);
-    ctx2.fillStyle = `rgba(${rgb},${cv.a * 1.4})`;
-    ctx2.fill();
-  });
-
-  // Axis tick marks
-  const tickA = GA * 3;
-  ctx2.strokeStyle = `rgba(${rgb},${tickA})`;
-  ctx2.lineWidth = 0.8;
-  for (let i = 1; i <= 8; i++) {
-    const x = sx + (cw / 8) * i;
-    ctx2.beginPath(); ctx2.moveTo(x, by); ctx2.lineTo(x, by + 5); ctx2.stroke();
-  }
-  for (let i = 1; i <= 5; i++) {
-    const y = by - (ch / 5) * i;
-    ctx2.beginPath(); ctx2.moveTo(sx - 5, y); ctx2.lineTo(sx, y); ctx2.stroke();
-  }
-
-  // Axis lines
-  ctx2.strokeStyle = `rgba(${rgb},${GA * 3.5})`;
-  ctx2.lineWidth = 1.0;
-  ctx2.beginPath(); ctx2.moveTo(sx, H * 0.06); ctx2.lineTo(sx, by + 6); ctx2.stroke();
-  ctx2.beginPath(); ctx2.moveTo(sx - 6, by); ctx2.lineTo(ex + 8, by); ctx2.stroke();
-
-  // Axis arrow tips
-  ctx2.fillStyle = `rgba(${rgb},${GA * 3.5})`;
-  ctx2.beginPath();
-  ctx2.moveTo(sx, H * 0.055); ctx2.lineTo(sx - 3.5, H * 0.075); ctx2.lineTo(sx + 3.5, H * 0.075);
-  ctx2.fill();
-  ctx2.beginPath();
-  ctx2.moveTo(ex + 10, by); ctx2.lineTo(ex, by - 3.5); ctx2.lineTo(ex, by + 3.5);
-  ctx2.fill();
-
-  // Axis labels
-  ctx2.fillStyle = `rgba(${rgb},${GA * 5})`;
-  ctx2.font = `500 10px 'DM Mono', monospace`;
-  ctx2.letterSpacing = '0.1em';
-  ctx2.fillText('TIME', ex - 10, by + 20);
-  ctx2.save();
-  ctx2.translate(sx - 16, by - ch * 0.4);
-  ctx2.rotate(-Math.PI / 2);
-  ctx2.fillText('VALUE', 0, 0);
-  ctx2.restore();
-
-  // Watermark
-  ctx2.fillStyle = `rgba(${rgb},${GA * 3.2})`;
-  ctx2.font = `800 13px 'Syne', sans-serif`;
-  ctx2.letterSpacing = '0.04em';
-  ctx2.fillText('ALT MERIDIAN', W - 140, H - 28);
-  ctx2.font = `400 9px 'DM Mono', monospace`;
-  ctx2.letterSpacing = '0.12em';
-  ctx2.fillText('VALUE EPISTEMOLOGY FRAMEWORK', W - 196, H - 14);
+  const tickA=GA*3;
+  ctx2.strokeStyle=`rgba(${rgb},${tickA})`; ctx2.lineWidth=0.8;
+  for(let i=1;i<=8;i++){ const x=sx+(cw/8)*i; ctx2.beginPath(); ctx2.moveTo(x,by); ctx2.lineTo(x,by+5); ctx2.stroke(); }
+  for(let i=1;i<=5;i++){ const y=by-(ch/5)*i; ctx2.beginPath(); ctx2.moveTo(sx-5,y); ctx2.lineTo(sx,y); ctx2.stroke(); }
+  ctx2.strokeStyle=`rgba(${rgb},${GA*3.5})`; ctx2.lineWidth=1.0;
+  ctx2.beginPath(); ctx2.moveTo(sx,H*0.06); ctx2.lineTo(sx,by+6); ctx2.stroke();
+  ctx2.beginPath(); ctx2.moveTo(sx-6,by); ctx2.lineTo(ex+8,by); ctx2.stroke();
+  ctx2.fillStyle=`rgba(${rgb},${GA*3.5})`;
+  ctx2.beginPath(); ctx2.moveTo(sx,H*0.055); ctx2.lineTo(sx-3.5,H*0.075); ctx2.lineTo(sx+3.5,H*0.075); ctx2.fill();
+  ctx2.beginPath(); ctx2.moveTo(ex+10,by); ctx2.lineTo(ex,by-3.5); ctx2.lineTo(ex,by+3.5); ctx2.fill();
+  ctx2.fillStyle=`rgba(${rgb},${GA*5})`; ctx2.font=`500 10px 'DM Mono', monospace`; ctx2.letterSpacing='0.1em';
+  ctx2.fillText('TIME',ex-10,by+20);
+  ctx2.save(); ctx2.translate(sx-16,by-ch*0.4); ctx2.rotate(-Math.PI/2); ctx2.fillText('VALUE',0,0); ctx2.restore();
+  ctx2.fillStyle=`rgba(${rgb},${GA*3.2})`; ctx2.font=`800 13px 'Syne', sans-serif`; ctx2.letterSpacing='0.04em';
+  ctx2.fillText('ALT MERIDIAN',W-140,H-28);
+  ctx2.font=`400 9px 'DM Mono', monospace`; ctx2.letterSpacing='0.12em';
+  ctx2.fillText('VALUE EPISTEMOLOGY FRAMEWORK',W-196,H-14);
 }
+window.addEventListener('resize', resizeCanvas); resizeCanvas();
 
-window.addEventListener('resize', resizeCanvas);
-resizeCanvas();
-
-// TILES
+// ─── TILES + CALCULATOR ───────────────────────────────────────────────────────
 const ctxTexts = [
   'No ROI infrastructure — sellers are winging the value conversation',
   'ROI exists but fails under finance scrutiny — deals stall at procurement',
   'One person runs it well — it does not survive when they leave or scale'
 ];
-
-function selectTile(idx) {
-  document.querySelectorAll('.tile').forEach((t, i) => t.classList.toggle('active', i === idx));
+function selectTile(idx){
+  document.querySelectorAll('.tile').forEach((t,i)=>t.classList.toggle('active',i===idx));
   document.getElementById('ctx-text').textContent = ctxTexts[idx];
   recalc();
 }
-
-// CALCULATOR
-function fmt(n) {
-  if (n >= 1000000) return '$' + (n / 1000000).toFixed(1) + 'M';
-  if (n >= 1000) return '$' + Math.round(n / 1000) + 'K';
-  return '$' + n.toLocaleString();
+function fmtN(n){ if(n>=1000000)return'$'+(n/1000000).toFixed(1)+'M'; if(n>=1000)return'$'+Math.round(n/1000)+'K'; return'$'+n.toLocaleString(); }
+function recalc(){
+  const deals=parseFloat(document.getElementById('inp-deals').value)||0;
+  const size=parseFloat(document.getElementById('inp-size').value)||0;
+  const people=parseFloat(document.getElementById('inp-people').value)||1;
+  const wr=parseFloat(document.getElementById('inp-wr').value)||1;
+  const directLoss=deals*size;
+  const wrGap=Math.max(0,0.52-wr/100);
+  const peopleCost=people*size*0.14;
+  const total=Math.round(directLoss+directLoss*wrGap*1.35+peopleCost);
+  document.getElementById('out-num').textContent=fmtN(total);
+  document.getElementById('out-sub').textContent=`Across ${people} ${people===1?'person':'people'} running ungoverned value conversations, with ${deals} lost deals averaging ${fmtN(size)} and a ${wr}% finance close rate.`;
 }
-
-function recalc() {
-  const deals  = parseFloat(document.getElementById('inp-deals').value) || 0;
-  const size   = parseFloat(document.getElementById('inp-size').value) || 0;
-  const people = parseFloat(document.getElementById('inp-people').value) || 1;
-  const wr     = parseFloat(document.getElementById('inp-wr').value) || 1;
-
-  const directLoss = deals * size;
-  const wrGap = Math.max(0, 0.52 - wr / 100);
-  const peopleCost = people * size * 0.14;
-  const total = Math.round(directLoss + directLoss * wrGap * 1.35 + peopleCost);
-
-  document.getElementById('out-num').textContent = fmt(total);
-  document.getElementById('out-sub').textContent =
-    `Across ${people} ${people === 1 ? 'person' : 'people'} running ungoverned value conversations, with ${deals} lost deals averaging ${fmt(size)} and a ${wr}% finance close rate.`;
-}
-
 recalc();
 
-// CHAT
-const CHAT_ENDPOINT = 'https://kpecdezcolcycgpuqbgs.supabase.co/functions/v1/value-chat';
-const NOTIFY_ENDPOINT = 'https://kpecdezcolcycgpuqbgs.supabase.co/functions/v1/notify';
-const ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwZWNkZXpjb2xjeWNncHVxYmdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQxNTc0MDYsImV4cCI6MjA1OTczMzQwNn0.L5DsNPKim0TFsPT0j1g_3dALEEbBR6VsK-CaHKp_lEo';
+// ─── SCROLL NAV HIGHLIGHT ─────────────────────────────────────────────────────
+const navLinks2 = document.querySelectorAll('[data-nav]');
+function setActiveNav(id){ navLinks2.forEach(l=>l.classList.toggle('nav-active',l.dataset.nav===id)); }
+const navObs = new IntersectionObserver(entries=>{
+  entries.forEach(e=>{ if(e.isIntersecting) setActiveNav(e.target.id); });
+},{ rootMargin:'-30% 0px -60% 0px', threshold:0 });
+['tiles','calculator','products','demo'].forEach(id=>{ const el=document.getElementById(id); if(el) navObs.observe(el); });
 
-// Session state
-let chatHistory = [];
-let chatSessionId = 'sess_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
-let solutionContext = '';
-let leadCaptured = false;
-let matchedDomainsLast = [];
-let lastScenarioText = '';
-let coiCardShown = false;
+// ─────────────────────────────────────────────────────────────────────────────
+// VALUE TOOL STATE
+// ─────────────────────────────────────────────────────────────────────────────
+const tool = {
+  mode: 'discovery',
+  engines: [], scenarios: [], inputDefs: {}, signals: [], evidence: [],
+  collectedInputs: {}, history: [], turnCount: 0,
+  detectedEngine: null, isLoading: false, loaded: false,
+  sessionId: 'sess_' + Date.now(),
+};
 
-// COI CARD
-function calcCOIVal(d, s, p, w) {
-  const deals = parseFloat(d) || 0;
-  const size = parseFloat(s) || 0;
-  const people = parseFloat(p) || 1;
-  const wr = parseFloat(w) || 30;
-  const directLoss = deals * size;
-  const wrGap = Math.max(0, 0.52 - wr / 100);
-  const peopleCost = people * size * 0.14;
-  return Math.round(directLoss + directLoss * wrGap * 1.35 + peopleCost);
+// ─── SUPABASE ─────────────────────────────────────────────────────────────────
+async function sbGet(table, params=''){
+  const r = await fetch(`${SB_URL}/rest/v1/${table}?${params}`,{
+    headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`}
+  });
+  if(!r.ok) throw new Error(`SB ${table} ${r.status}`);
+  return r.json();
+}
+async function sbPost(table, data){
+  const r = await fetch(`${SB_URL}/rest/v1/${table}`,{
+    method:'POST',
+    headers:{'apikey':SB_KEY,'Authorization':`Bearer ${SB_KEY}`,'Content-Type':'application/json','Prefer':'return=representation'},
+    body:JSON.stringify(data)
+  });
+  if(!r.ok) throw new Error(`SB insert ${table} ${r.status} ${await r.text()}`);
+  return r.json();
 }
 
-function fmtCOI(n) {
-  if (n >= 1000000) return '$' + (n / 1000000).toFixed(1) + 'M';
-  if (n >= 1000) return '$' + Math.round(n / 1000) + 'K';
-  return '$' + n.toLocaleString();
-}
-
-function renderCOICard(scenarioText) {
-  if (coiCardShown) return;
-  coiCardShown = true;
-  const cardId = 'coi-' + Date.now();
-  const card = document.createElement('div');
-  card.className = 'msg';
-  card.id = cardId;
-  const av = document.createElement('div');
-  av.className = 'msg-av am';
-  av.textContent = 'AM';
-  const body = document.createElement('div');
-  body.className = 'msg-body';
-  body.style.flex = '1';
-  body.innerHTML = `<div class="coi-card">
-    <div class="coi-card-label">Your cost of inaction</div>
-    <div class="coi-inputs-grid">
-      <div class="coi-input-group"><label>Deals lost last year</label><input type="number" id="${cardId}-deals" value="12" min="0" oninput="updateCOI('${cardId}')"></div>
-      <div class="coi-input-group"><label>Average deal size</label><input type="number" id="${cardId}-size" value="85000" min="0" oninput="updateCOI('${cardId}')"></div>
-      <div class="coi-input-group"><label>Sellers carrying this</label><input type="number" id="${cardId}-people" value="8" min="1" oninput="updateCOI('${cardId}')"></div>
-      <div class="coi-input-group"><label>Finance win rate %</label><input type="number" id="${cardId}-wr" value="28" min="1" max="100" oninput="updateCOI('${cardId}')"></div>
-    </div>
-    <div class="coi-output-row">
-      <div><div id="${cardId}-num" class="coi-output-num">$1.0M</div><div class="coi-output-sub">Annual cost — adjust inputs above</div></div>
-    </div>
-    <div class="coi-email-row">
-      <input class="coi-email-input" id="${cardId}-email" type="email" placeholder="your@email.com">
-      <button class="coi-email-btn" id="${cardId}-btn" onclick="sendOutput('${cardId}')">Email me this</button>
-    </div>
-  </div>`;
-  card.appendChild(av);
-  card.appendChild(body);
-  const msgs = document.getElementById('chat-msgs');
-  msgs.appendChild(card);
-  msgs.scrollTop = msgs.scrollHeight;
-  updateCOI(cardId);
-  // Store scenario for email
-  lastScenarioText = scenarioText;
-}
-
-function updateCOI(cardId) {
-  const d = document.getElementById(cardId + '-deals')?.value;
-  const s = document.getElementById(cardId + '-size')?.value;
-  const p = document.getElementById(cardId + '-people')?.value;
-  const w = document.getElementById(cardId + '-wr')?.value;
-  const num = calcCOIVal(d, s, p, w);
-  const el = document.getElementById(cardId + '-num');
-  if (el) el.textContent = fmtCOI(num);
-}
-
-async function sendOutput(cardId) {
-  const emailEl = document.getElementById(cardId + '-email');
-  const btn = document.getElementById(cardId + '-btn');
-  const email = emailEl?.value?.trim();
-  if (!email || !email.includes('@')) {
-    emailEl.style.borderColor = '#C84B2F';
-    return;
-  }
-  btn.disabled = true;
-  btn.textContent = 'Sending...';
-  const d = parseFloat(document.getElementById(cardId + '-deals')?.value) || 0;
-  const s = parseFloat(document.getElementById(cardId + '-size')?.value) || 0;
-  const p = parseFloat(document.getElementById(cardId + '-people')?.value) || 1;
-  const w = parseFloat(document.getElementById(cardId + '-wr')?.value) || 30;
-  const coiNum = calcCOIVal(d, s, p, w);
+// ─── LOAD ENGINE DATA ─────────────────────────────────────────────────────────
+async function loadTool(){
   try {
-    await fetch(NOTIFY_ENDPOINT, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + ANON_KEY, 'apikey': ANON_KEY },
-      body: JSON.stringify({
-        email, solution: solutionContext,
-        domains: matchedDomainsLast.join(', '),
-        coi_number: coiNum,
-        coi_inputs: { deals: d, dealSize: s, people: p, winRate: w },
-        scenario_text: lastScenarioText,
-        session_id: chatSessionId,
-      })
-    });
-    btn.textContent = 'Sent';
-    btn.style.background = '#1E5C3A';
-    addMsg('am', 'Sent. Check your inbox. Want to talk through what a full engine looks like for your business? Reply to that email or reach out at josh@altmeridian.com.', null, false, false);
-  } catch(e) {
-    btn.disabled = false;
-    btn.textContent = 'Email me this';
-    addMsg('am', 'Something went wrong. Email josh@altmeridian.com directly.', null, true);
+    tool.engines = await sbGet('vef_builds','engine_status=in.(Active,Production)&select=*');
+    const ids = tool.engines.map(e=>e.engine_id).join(',');
+    tool.scenarios = await sbGet('vef_value_scenarios',`engine_id=in.(${ids})&active_by_default=eq.true&select=*&order=print_priority.asc`);
+    const defs = await sbGet('vef_input_definitions',`engine_id=in.(${ids})&select=*`);
+    tool.inputDefs = {}; defs.forEach(d=>{ tool.inputDefs[d.input_key]=d; });
+    tool.signals = await sbGet('vef_value_signals',`engine_id=in.(${ids})&select=*`);
+    tool.evidence = await sbGet('vef_evidence_registry',`engine_id=in.(${ids})&select=*`);
+    document.getElementById('tool-engine-label').textContent = tool.engines.map(e=>e.vendor_category).join(' · ');
+    document.getElementById('tool-send').disabled = false;
+    tool.loaded = true;
+  } catch(err) {
+    console.error('Tool load error:',err);
+    document.getElementById('tool-engine-label').textContent = 'Load error';
   }
 }
 
-function spinnerHTML() {
-  return `<div class="chat-spinner">
-    <svg viewBox="0 0 16 16">
-      <circle class="spinner-c" cx="8" cy="8" r="6"/>
-      <circle class="spinner-a" cx="8" cy="8" r="6"/>
-    </svg>
-  </div>`;
+// ─── MODE SWITCH ──────────────────────────────────────────────────────────────
+function switchToolMode(mode){
+  tool.mode = mode;
+  document.getElementById('ttab-discovery').classList.toggle('active', mode==='discovery');
+  document.getElementById('ttab-cfo').classList.toggle('active', mode==='cfo');
+  document.getElementById('apanel-title').textContent = mode==='discovery' ? 'Value Analysis' : 'Claim Audit';
+  toolReset(false);
+  if(mode==='cfo'){
+    document.getElementById('tool-input').placeholder = "Paste the vendor's ROI claim or describe what they're asserting...";
+    toolAppendAssistant(`**CFO Audit Mode**
+
+Paste or describe the vendor's ROI claim. I'll evaluate each component against the evidence database: Accept / Adjust / Remove with a defensible verified range.`);
+  }
 }
 
-function useStarter(btn) {
-  document.getElementById('chat-input').value = btn.textContent;
-  document.getElementById('chat-starters').classList.add('hidden');
-  sendChat();
-}
+// ─── CHAT INPUT ───────────────────────────────────────────────────────────────
+function toolKey(e){ if(e.key==='Enter'&&!e.shiftKey){ e.preventDefault(); toolSend(); } }
+function toolResize(el){ el.style.height='auto'; el.style.height=Math.min(el.scrollHeight,100)+'px'; }
+function toolStarter(msg){ document.getElementById('tool-input').value=msg; toolResize(document.getElementById('tool-input')); toolSend(); }
 
-async function sendChat() {
-  const inp = document.getElementById('chat-input');
-  const btn = document.getElementById('chat-send');
-  const msgs = document.getElementById('chat-msgs');
-  const starters = document.getElementById('chat-starters');
-  if (starters) starters.classList.add('hidden');
+async function toolSend(){
+  const inp = document.getElementById('tool-input');
   const text = inp.value.trim();
-  if (!text) return;
+  if(!text || tool.isLoading) return;
+  inp.value=''; inp.style.height='auto';
+  const starters = document.getElementById('tool-starters');
+  if(starters) starters.remove();
+  toolAppendUser(text);
+  tool.history.push({role:'user',content:text});
+  tool.turnCount++;
+  if(tool.mode==='discovery') await toolDiscoveryTurn(text);
+  else await toolCFOTurn(text);
+}
 
-  // Capture solution context on first message
-  if (chatHistory.length === 0) solutionContext = text;
+// ─── DISCOVERY TURN ───────────────────────────────────────────────────────────
+async function toolDiscoveryTurn(text){
+  toolSetLoading(true);
+  if(!tool.detectedEngine && tool.turnCount===1) detectEngine(text);
+  const domainScenarios = tool.detectedEngine
+    ? tool.scenarios.filter(s=>s.engine_id===tool.detectedEngine)
+    : tool.scenarios;
+  const collectedKeys = Object.keys(tool.collectedInputs);
+  const priorityInputs = getPriorityInputs(domainScenarios, collectedKeys, 5);
+  const inputCtx = priorityInputs.map(i=>`- ${i.input_key}: "${i.label}" (${i.unit||''}) — ask: "${i.discovery_prompt||i.label}"`).join('\n');
+  const scenCtx = domainScenarios.slice(0,10).map(s=>`[${s.scenario_id}] ${s.description.substring(0,70)}... | formula: ${s.value_scenario_formula} | inputs: ${s.inputs_required}`).join('\n');
+  const evCtx = tool.evidence.slice(0,6).map(e=>`[${e.evidence_id}] ${e.evidence_title} (${e.evidence_publisher},${e.evidence_year}): "${e.quantified_claim_summary}"`).join('\n');
+  const collectedStr = collectedKeys.length ? collectedKeys.map(k=>`${k}=${tool.collectedInputs[k].value}`).join(', ') : 'none';
 
-  addMsg('you', text);
-  inp.value = '';
-  btn.disabled = true;
+  const sys = `You are the Alt Meridian value analysis engine. Run structured, evidence-based value discovery conversations for enterprise technology sellers.
 
-  // Spinner
-  const tid = 'think-' + Date.now();
-  const spinWrap = document.createElement('div');
-  spinWrap.className = 'msg';
-  spinWrap.id = tid;
-  const spinAv = document.createElement('div');
-  spinAv.className = 'msg-av am';
-  spinAv.textContent = 'AM';
-  const spinBody = document.createElement('div');
-  spinBody.className = 'msg-body';
-  spinBody.innerHTML = spinnerHTML();
-  spinWrap.appendChild(spinAv);
-  spinWrap.appendChild(spinBody);
-  msgs.appendChild(spinWrap);
-  msgs.scrollTop = msgs.scrollHeight;
+RULES:
+- Value belongs to mechanisms, not solutions. Every claim must trace to a specific mechanism.
+- Ask ONE question per turn, using the exact discovery_prompt from the input definitions when possible.
+- Extract numeric values and output: INPUT_EXTRACTED:{"key":"input_key","value":123}
+- After 3+ inputs: comment on the emerging value picture, then ask the next question.
+- Keep responses to 3-5 sentences. One question per turn. No bullet lists.
+- For quick-reply chips output: QUICK_REPLIES:["Option A","Option B"]
+- Speak as a peer, not a chatbot.
+
+ENGINE: ${tool.detectedEngine||'detecting'}
+COLLECTED: ${collectedStr}
+TURN: ${tool.turnCount}
+
+PRIORITY INPUTS TO COLLECT NEXT:
+${inputCtx||'None — identify solution/vertical first.'}
+
+EVIDENCE:
+${evCtx}
+
+SCENARIOS:
+${scenCtx}`;
 
   try {
-    const res = await fetch(CHAT_ENDPOINT, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + ANON_KEY,
-        'apikey': ANON_KEY,
-      },
-      body: JSON.stringify({
-        query: text,
-        history: chatHistory,
-        session_id: chatSessionId,
-        solution_context: solutionContext,
-      })
+    const reply = await callClaude(sys, tool.history);
+    let clean = reply;
+    const extPat = /INPUT_EXTRACTED:\{"key":"([^"]+)","value":([^}]+)\}/g;
+    let m; let newInputs = false;
+    while((m=extPat.exec(reply))!==null){
+      const v=parseFloat(m[2]);
+      if(!isNaN(v)){ tool.collectedInputs[m[1]]={value:v,source:'prospect_provided'}; newInputs=true; }
+    }
+    clean = clean.replace(/INPUT_EXTRACTED:\{[^}]+\}/g,'').trim();
+    let qr=[];
+    const qrm = clean.match(/QUICK_REPLIES:\[(.*?)\]/);
+    if(qrm){ try{ qr=JSON.parse('['+qrm[1]+']'); }catch(e){} clean=clean.replace(/QUICK_REPLIES:\[.*?\]/g,'').trim(); }
+    tool.history.push({role:'assistant',content:clean});
+    toolAppendAssistant(clean, qr);
+    if(newInputs || tool.turnCount>=2) toolUpdateAnalysis(domainScenarios);
+    toolUpdateDots();
+  } catch(err) {
+    console.error(err);
+    toolAppendAssistant('Connection error — please try again.');
+  }
+  toolSetLoading(false);
+}
+
+// ─── CFO TURN ─────────────────────────────────────────────────────────────────
+async function toolCFOTurn(text){
+  toolSetLoading(true);
+  const evCtx = tool.evidence.slice(0,10).map(e=>`[${e.evidence_id}] ${e.evidence_title}: "${e.quantified_claim_summary}" (${e.evidence_publisher},${e.evidence_year})`).join('\n');
+  const sys = `You are the Alt Meridian CFO audit engine. Verify vendor ROI claims against the evidence database.
+
+Output structured results as:
+AUDIT_RESULT:{"claimed_total":0,"verified_low":0,"verified_high":0,"components":[{"name":"...","claimed":0,"verdict":"accept|adjust|remove","rationale":"...","evidence_tier":"Tier1|Tier2|Tier3","adjusted_value":0}]}
+
+RULES:
+- ACCEPT: Strong Tier 1-2 evidence, conservative assumptions, first-order mechanism
+- ADJUST: Some evidence but inflated multiplier or vendor-only source
+- REMOVE: No credible evidence, double-counting, third-order attribution
+
+EVIDENCE DATABASE:
+${evCtx}
+
+After the JSON, provide a brief CFO-grade narrative: what survives, what was inflated, defensible range.`;
+  try {
+    const reply = await callClaude(sys, tool.history);
+    let clean = reply;
+    const am = clean.match(/AUDIT_RESULT:(\{[\s\S]*?\}(?=\n|$))/);
+    if(am){ try{ toolUpdateAudit(JSON.parse(am[1])); }catch(e){ console.error('audit parse',e); } clean=clean.replace(/AUDIT_RESULT:[\s\S]*?(?=\n\n|$)/,'').trim(); }
+    tool.history.push({role:'assistant',content:clean});
+    toolAppendAssistant(clean);
+  } catch(err) { toolAppendAssistant('Connection error — please try again.'); }
+  toolSetLoading(false);
+}
+
+// ─── ENGINE DETECTION ─────────────────────────────────────────────────────────
+function detectEngine(text){
+  const lc = text.toLowerCase();
+  const map = {
+    'ENG-RFD-001':['rfid','radio frequency','item level tracking','inventory accuracy'],
+    'ENG-AIP-001':['ai platform','enterprise ai','machine learning platform','industrial ai'],
+    'VEN-VEF-001':['value engineering','value case','roi tool','value enablement'],
+  };
+  for(const [id,kws] of Object.entries(map)){
+    if(kws.some(kw=>lc.includes(kw))){ setToolEngine(id); return; }
+  }
+  if(tool.engines.length) setToolEngine(tool.engines[0].engine_id);
+}
+function setToolEngine(id){
+  tool.detectedEngine=id;
+  const e=tool.engines.find(e=>e.engine_id===id);
+  if(e) document.getElementById('tool-engine-label').textContent=`${e.engine_id} · ${e.engine_status}`;
+}
+
+// ─── PRIORITY INPUTS ──────────────────────────────────────────────────────────
+function getPriorityInputs(scenarios, collected, max){
+  const scores={}, ss={High:3,Medium:2,Low:1};
+  scenarios.forEach(s=>{
+    if(!s.inputs_required) return;
+    s.inputs_required.split(',').map(k=>k.trim()).forEach(k=>{
+      if(collected.includes(k)||!tool.inputDefs[k]) return;
+      scores[k]=(scores[k]||0)+(ss[tool.inputDefs[k].sensitivity]||1);
+    });
+  });
+  return Object.entries(scores).sort((a,b)=>b[1]-a[1]).slice(0,max).map(([k])=>tool.inputDefs[k]).filter(Boolean);
+}
+
+// ─── FORMULA EVAL ─────────────────────────────────────────────────────────────
+function evalFormula(formula){
+  if(!formula) return null;
+  let expr=formula;
+  const varKeys=Object.keys(tool.inputDefs).sort((a,b)=>b.length-a.length);
+  varKeys.forEach(k=>{
+    const def=tool.inputDefs[k];
+    const v=tool.collectedInputs[k]?.value??parseFloat(def.typical_value??def.default_value??0);
+    expr=expr.replace(new RegExp(`\\b${k}\\b`,'g'),v);
+  });
+  try{ if(/^[\d\s\+\-\*\/\(\)\.\,]+$/.test(expr)) return Function('"use strict";return('+expr+')')(); } catch(e){}
+  return null;
+}
+
+// ─── ANALYSIS PANEL ───────────────────────────────────────────────────────────
+function toolUpdateAnalysis(domainScenarios){
+  document.getElementById('tool-empty').style.display='none';
+  const content=document.getElementById('tool-analysis-content');
+  content.style.display='flex';
+
+  const computed=[];
+  domainScenarios.forEach(s=>{
+    const v=evalFormula(s.value_scenario_formula);
+    if(v&&v>0&&isFinite(v)) computed.push({s,v});
+  });
+  computed.sort((a,b)=>b.v-a.v);
+
+  const total=computed.reduce((sum,x)=>sum+x.v,0);
+  const impl=tool.collectedInputs['implementation_cost']?.value||85000;
+  const npv=total*2.487-impl;
+  const payback=total>0?(impl/total*12):null;
+  const bcr=impl>0?(npv+impl)/impl:null;
+
+  document.getElementById('am-annual').textContent=fmtN(total);
+  document.getElementById('am-npv').textContent=fmtN(npv);
+  document.getElementById('am-payback').textContent=payback?payback.toFixed(1)+'mo':'—';
+  document.getElementById('am-bcr').textContent=bcr?bcr.toFixed(1)+'x':'—';
+
+  if(total>0){
+    document.getElementById('tool-coi').style.display='block';
+    document.getElementById('tool-coi-val').textContent=fmtN(total/12);
+  }
+
+  const sList=document.getElementById('tool-scenarios');
+  sList.innerHTML='';
+  computed.slice(0,6).forEach(({s,v})=>{
+    const row=document.createElement('div'); row.className='ascen-row';
+    row.innerHTML=`<div><div class="ascen-name">${s.description.substring(0,80)}...</div><div class="ascen-theme">${s.value_theme}</div></div><div class="ascen-val">${fmtN(v)}/yr</div>`;
+    sList.appendChild(row);
+  });
+  document.getElementById('tool-scen-count').textContent=`${computed.length} active`;
+
+  const iList=document.getElementById('tool-inputs-list');
+  iList.innerHTML='';
+  Object.entries(tool.collectedInputs).forEach(([k,d])=>{
+    const def=tool.inputDefs[k];
+    const row=document.createElement('div'); row.className='ainput-row';
+    row.innerHTML=`<div class="ainput-key">${def?def.label:k}</div><div style="display:flex;gap:5px;align-items:center;"><div class="ainput-val">${d.value.toLocaleString()} ${def?.unit||''}</div><div class="ainput-src ${d.source==='prospect_provided'?'src-p':'src-d'}">${d.source==='prospect_provided'?'buyer':'default'}</div></div>`;
+    iList.appendChild(row);
+  });
+  document.getElementById('tool-inputs-count').textContent=Object.keys(tool.collectedInputs).length;
+
+  if(total>0) document.getElementById('tool-save-btn').disabled=false;
+}
+
+// ─── CFO AUDIT PANEL ──────────────────────────────────────────────────────────
+function toolUpdateAudit(audit){
+  document.getElementById('tool-empty').style.display='none';
+  const cfoContent=document.getElementById('tool-cfo-content');
+  cfoContent.style.display='flex';
+  document.getElementById('cfo-claimed').textContent=fmtN(audit.claimed_total||0);
+  document.getElementById('cfo-verified').textContent=`${fmtN(audit.verified_low||0)}–${fmtN(audit.verified_high||0)}`;
+  const comps=audit.components||[];
+  let ac=0,aj=0,ar=0;
+  comps.forEach(c=>{ if(c.verdict==='accept')ac++; else if(c.verdict==='adjust')aj++; else ar++; });
+  document.getElementById('cfo-accept').textContent=ac;
+  document.getElementById('cfo-adjust').textContent=aj;
+  document.getElementById('cfo-remove').textContent=ar;
+  const tN=parseInt((audit.components||[]).find(c=>c.evidence_tier)?.[0]?.evidence_tier?.replace(/\D/g,'')||3);
+  let html=`<table class="aaudit-table"><thead><tr><th>Component</th><th>Claimed</th><th>Verdict</th></tr></thead><tbody>`;
+  comps.forEach(c=>{
+    const vc=c.verdict==='accept'?'v-accept':c.verdict==='adjust'?'v-adjust':'v-remove';
+    html+=`<tr><td style="color:var(--ink)">${c.name}<br><span style="font-size:10px;color:var(--muted)">${c.rationale||''}</span></td><td style="font-family:'DM Mono',monospace">${fmtN(c.claimed)}</td><td class="${vc}" style="font-family:'DM Mono',monospace;font-size:10px;text-transform:uppercase">${c.verdict}${c.adjusted_value?'<br>'+fmtN(c.adjusted_value):''}</td></tr>`;
+  });
+  html+='</tbody></table>';
+  document.getElementById('cfo-table-wrap').innerHTML=html;
+}
+
+// ─── SAVE ─────────────────────────────────────────────────────────────────────
+async function toolSave(){
+  const btn=document.getElementById('tool-save-btn');
+  const status=document.getElementById('tool-save-status');
+  btn.disabled=true; btn.textContent='Saving...';
+  try {
+    const engId='ENG-CHAT-'+Date.now();
+    await sbPost('vef_engagements',[{engagement_id:engId,domain_id:tool.detectedEngine,vendor_name:'Chat Session',prospect_name:'Anonymous',engagement_status:'Active',notes:`Session ${tool.sessionId}`}]);
+    const domainScenarios=tool.detectedEngine?tool.scenarios.filter(s=>s.engine_id===tool.detectedEngine):tool.scenarios;
+    const computed=domainScenarios.map(s=>({s,v:evalFormula(s.value_scenario_formula)})).filter(x=>x.v&&x.v>0&&isFinite(x.v));
+    const total=computed.reduce((sum,x)=>sum+x.v,0);
+    const impl=tool.collectedInputs['implementation_cost']?.value||85000;
+    await sbPost('vef_output_snapshots',[{engagement_id:engId,snapshot_version:1,annual_value:total,npv:total*2.487-impl,payback_mo:total>0?(impl/total*12):null,bcr:impl>0?(total*2.487)/impl:null,monthly_delay_cost:total/12,active_scenario_ids:computed.map(x=>x.s.scenario_id).join(','),input_snapshot:tool.collectedInputs,domain_id:tool.detectedEngine,intent:'convince',notes:`Chat session ${tool.sessionId}`}]);
+    status.textContent=`✓ Saved — ${engId}`;
+    btn.textContent='Saved ✓'; btn.style.background='rgba(30,92,58,0.8)';
+  } catch(err) {
+    console.error(err); status.textContent='Save failed — see console';
+    btn.disabled=false; btn.textContent='Retry Save';
+  }
+}
+
+// ─── CLAUDE API ───────────────────────────────────────────────────────────────
+async function callClaude(sys, history){
+  const r=await fetch(AM_URL,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({model:MODEL,max_tokens:1000,system:sys,messages:history})
+  });
+  if(!r.ok) throw new Error(`Claude ${r.status}: ${await r.text()}`);
+  const d=await r.json();
+  return d.content?.[0]?.text||'';
+}
+
+// ─── UI HELPERS ───────────────────────────────────────────────────────────────
+function toolAppendUser(text){
+  const msgs=document.getElementById('tool-messages');
+  const d=document.createElement('div'); d.className='tmsg user';
+  d.innerHTML=`<div class="tmsg-label">You</div><div class="tbubble">${esc(text)}</div>`;
+  msgs.appendChild(d); msgs.scrollTop=msgs.scrollHeight;
+}
+function toolAppendAssistant(text, qr=[]){
+  const msgs=document.getElementById('tool-messages');
+  removeTool('tool-typing');
+  const d=document.createElement('div'); d.className='tmsg assistant';
+  let html=esc(text).replace(/\*\*(.*?)\*\*/g,'<strong>$1</strong>').replace(/\*(.*?)\*/g,'<em>$1</em>').replace(/\n/g,'<br>');
+  d.innerHTML=`<div class="tmsg-label">Meridian</div><div class="tbubble">${html}</div>`;
+  if(qr.length){
+    const qrDiv=document.createElement('div'); qrDiv.className='tquick-replies';
+    qr.forEach(r=>{ const b=document.createElement('button'); b.className='tqr'; b.textContent=r; b.onclick=()=>toolStarter(r); qrDiv.appendChild(b); });
+    d.appendChild(qrDiv);
+  }
+  msgs.appendChild(d); msgs.scrollTop=msgs.scrollHeight;
+}
+function toolSetLoading(on){
+  tool.isLoading=on;
+  document.getElementById('tool-send').disabled=on||!tool.loaded;
+  if(on){
+    const msgs=document.getElementById('tool-messages');
+    const d=document.createElement('div'); d.className='tmsg assistant'; d.id='tool-typing';
+    d.innerHTML=`<div class="tmsg-label">Meridian</div><div class="typing-dots"><span></span><span></span><span></span></div>`;
+    msgs.appendChild(d); msgs.scrollTop=msgs.scrollHeight;
+  } else removeTool('tool-typing');
+}
+function removeTool(id){ const el=document.getElementById(id); if(el) el.remove(); }
+function toolUpdateDots(){
+  [0,1,2,3,4].forEach(i=>{
+    const d=document.getElementById('pd'+i);
+    if(!d) return;
+    d.classList.remove('filled','active');
+    if(tool.turnCount>i+1) d.classList.add('filled');
+    else if(tool.turnCount===i+1) d.classList.add('active');
+  });
+}
+function toolReset(showWelcome=true){
+  tool.history=[]; tool.collectedInputs={}; tool.turnCount=0;
+  tool.detectedEngine=null; tool.sessionId='sess_'+Date.now();
+  document.getElementById('tool-messages').innerHTML='';
+  document.getElementById('tool-empty').style.display='flex';
+  document.getElementById('tool-analysis-content').style.display='none';
+  document.getElementById('tool-cfo-content').style.display='none';
+  [0,1,2,3,4].forEach(i=>{ const d=document.getElementById('pd'+i); if(d) d.classList.remove('filled','active'); });
+  if(showWelcome && tool.mode==='discovery'){
+    const msgs=document.getElementById('tool-messages');
+    const welcome=document.createElement('div'); welcome.className='tmsg assistant';
+    welcome.innerHTML=`<div class="tmsg-label">Meridian</div>
+    <div class="tbubble">Describe the solution you sell and who you sell to. I'll match the right engine, ask the highest-leverage questions, and build a defensible value case as we go.</div>
+    <div class="tool-starters" id="tool-starters">
+      <button class="tstarter" onclick="toolStarter(this.dataset.msg)" data-msg="We sell RFID technology to retail and distribution operations"><div class="tstart-label">RFID</div>RFID for retail inventory &amp; warehouse ops</button>
+      <button class="tstarter" onclick="toolStarter(this.dataset.msg)" data-msg="We sell enterprise AI platform software to large industrial and financial services companies"><div class="tstart-label">AI PLATFORM</div>Enterprise AI for industrials &amp; FS</button>
+      <button class="tstarter" onclick="toolStarter(this.dataset.msg)" data-msg="We are a value engineering firm that helps tech vendors build and deploy value cases"><div class="tstart-label">VALUE ENG</div>Value engineering for tech vendors</button>
+      <button class="tstarter" onclick="toolStarter(this.dataset.msg)" data-msg="We sell BLE real-time location and asset tracking to healthcare systems"><div class="tstart-label">BLE / HC</div>BLE asset tracking for healthcare</button>
+    </div>`;
+    msgs.appendChild(welcome);
+  }
+  document.getElementById('tool-engine-label').textContent = tool.engines.length ? tool.engines.map(e=>e.vendor_category).join(' · ') : 'Loading engine...';
+}
+function esc(t){ return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fmtN(n){ if(!n||!isFinite(n)) return '—'; if(Math.abs(n)>=1e6) return '$'+(n/1e6).toFixed(1)+'M'; if(Math.abs(n)>=1e3) return '$'+Math.round(n/1000)+'K'; return '$'+Math.round(n).toLocaleString(); }
+
+// ─── INIT ─────────────────────────────────────────────────────────────────────
+loadTool();
+
+// ─── SAMPLE PDF DOWNLOAD ──────────────────────────────────────────────────────
+function downloadSamplePDF() {
+  const s = {
+    type: 'analysis',
+    title: 'RFID for Retail Apparel Operators',
+    signals: [
+      { name: 'Phantom inventory gap', description: 'Items appear in system as available but are not on shelf — causing stockouts customers see while systems show stock.' },
+      { name: 'Cycle count labor drain', description: 'Associates spend 8-12 hours per week on manual counts that produce accuracy readings 30 points below actual.' },
+      { name: 'Shrink outpacing detection', description: 'Loss prevention identifies theft after the fact through end-of-period variance, not during the event.' }
+    ],
+    mechanism: { name: 'Item-level read accuracy at point of count', description: 'RFID reads every tagged SKU in a scan pass, producing 99%+ inventory accuracy versus 65-75% with barcode. Accurate inventory data eliminates phantom stock, enables automated replenishment alerts, and makes shrink visible in real time rather than at period close.' },
+    evidence: [
+      { publisher: 'Auburn RFID Lab', year: 2023, tier: 'T1', claim: 'Retailers deploying item-level RFID achieve 93-99% inventory accuracy versus 65-75% without — a 30-point improvement.' },
+      { publisher: 'Retail Industry Leaders Association', year: 2022, tier: 'T2', claim: 'Out-of-stocks cost retailers 4-8% of sales annually; RFID replenishment alerts reduce stockout events by 50-80%.' },
+      { publisher: 'ECR Community', year: 2021, tier: 'T2', claim: 'RFID item tracking reduces retail shrink by 20-55% through improved exception reporting and deterrence.' }
+    ],
+    scenarios: [
+      { name: 'Cycle count labor reduction', what: 'Labor hours recovered by replacing manual barcode counts with automated RFID passes.', formula: '100 stores x 18 associates x 2.5 hrs/week x 52 weeks x $28 loaded rate', range_low: '$660K', range_high: '$1.1M', horizon: '3-6 months' },
+      { name: 'On-shelf availability — stockout recovery', what: 'Gross margin recovered from stockout events eliminated by RFID-driven replenishment alerts.', formula: '100 stores x $4M revenue x 5% OOS x 65% improvement x 38% GM', range_low: '$494K', range_high: '$760K', horizon: '6-9 months' },
+      { name: 'Shrink reduction', what: 'Inventory loss prevented through item-level visibility and exception reporting.', formula: '100 stores x $4M revenue x 1.5% shrink x 40% reduction', range_low: '$240K', range_high: '$360K', horizon: '6-12 months' }
+    ],
+    coi: { monthly: '$116K/mo', framing: 'Every month without RFID your stores run on inventory data that is wrong 30% of the time — generating stockouts your buyers see, shrink your P&L absorbs, and labor your associates spend counting things a reader can do in minutes.' },
+    cfo_challenge: { objection: 'We already have an inventory system — why would that not solve this?', answer: 'Your inventory system tracks what was scanned. RFID tracks what is physically present. The 30-point accuracy gap between those two things is where your phantom stock, your stockouts, and your undetected shrink live. The system is not the problem — the read method is.' }
+  };
+
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+    const W=612,L=20,R=W-20,TW=W-40;
+    const ACC=[200,75,47],INK=[15,15,15],MUT=[136,128,120];
+    const RULE=[224,221,214],WHITE=[255,255,255],LTBG=[249,247,243];
+    const GREEN=[58,155,96],AMBER=[196,133,42],RED=[189,66,66];
+    const TIER_C={T1:GREEN,T2:ACC,T3:AMBER,T4:RED};
+    let y=0;
+    const C=rgb=>doc.setTextColor(...rgb);
+    const F=rgb=>doc.setFillColor(...rgb);
+    const D=rgb=>doc.setDrawColor(...rgb);
+    const px=n=>doc.setFontSize(n);
+
+    F(INK);doc.rect(0,0,W,60,'F');
+    px(11);C(ACC);doc.setFont('helvetica','bold');doc.text('ALT',L,22);
+    C(WHITE);doc.text(' MERIDIAN',L+doc.getTextWidth('ALT'),22);
+    px(7);C(MUT);doc.setFont('helvetica','normal');doc.text('GOVERNED VALUE ANALYSIS — SAMPLE',L,36);
+    px(17);C(WHITE);doc.setFont('helvetica','bold');
+    const tl=doc.splitTextToSize(s.title,TW);doc.text(tl,L,52);
+    y=60+tl.length*20+8;D(ACC);doc.setLineWidth(1.5);doc.line(L,y,R,y);y+=16;
+
+    const secHdr=label=>{
+      if(y>700){doc.addPage();y=30;}
+      D(RULE);doc.setLineWidth(0.5);doc.line(L,y,R,y);y+=8;
+      px(7);C(MUT);doc.setFont('helvetica','bold');doc.text(label.toUpperCase(),L,y);y+=12;
+    };
+    const bodyT=(text,mw,col)=>{
+      px(9.5);C(col||INK);doc.setFont('helvetica','normal');
+      const lines=doc.splitTextToSize(text,mw||TW);
+      if(y+lines.length*13>740){doc.addPage();y=30;}
+      doc.text(lines,L,y);y+=lines.length*13+4;
+    };
+
+    s.signals.forEach(sig=>{
+      if(y>700){doc.addPage();y=30;}
+      F(ACC);doc.circle(L+3,y-3,2.5,'F');
+      px(10);C(INK);doc.setFont('helvetica','bold');doc.text(sig.name,L+10,y);y+=13;
+      bodyT(sig.description,TW-10,MUT);y+=2;
     });
 
-    const data = await res.json();
-    const reply = data.response || data.error || 'Unable to generate scenario.';
+    secHdr('Primary Mechanism');
+    px(11);C(ACC);doc.setFont('helvetica','bold');doc.text(s.mechanism.name,L,y);y+=14;
+    bodyT(s.mechanism.description,TW,[58,56,50]);
 
-    // Track matched domains
-    if (data.domains_matched?.length) matchedDomainsLast = data.domains_matched;
+    secHdr('Evidence');
+    s.evidence.forEach(ev=>{
+      if(y>700){doc.addPage();y=30;}
+      const tc=TIER_C[ev.tier]||MUT;
+      F(LTBG);D(RULE);doc.setLineWidth(0.5);
+      doc.roundedRect(L,y-10,TW,36,2,2,'FD');
+      F(tc);doc.roundedRect(L+4,y-7,22,14,2,2,'F');
+      px(8);C(WHITE);doc.setFont('courier','bold');doc.text(ev.tier||'',L+6,y+3);
+      px(9);C(INK);doc.setFont('helvetica','normal');
+      doc.text(doc.splitTextToSize(ev.claim,TW-36)[0],L+32,y+3);
+      px(7.5);C(MUT);doc.setFont('courier','normal');
+      doc.text(`${ev.publisher} · ${ev.year||''}`,L+32,y+16);
+      y+=40;
+    });
 
-    // Update history
-    chatHistory.push({ role: 'user', content: text });
-    chatHistory.push({ role: 'assistant', content: reply });
-    if (chatHistory.length > 10) chatHistory = chatHistory.slice(-10);
+    secHdr('Value Scenarios');
+    s.scenarios.forEach((sc,i)=>{
+      if(y>680){doc.addPage();y=30;}
+      F(LTBG);D(RULE);doc.setLineWidth(0.5);
+      doc.roundedRect(L,y-10,TW,54,2,2,'FD');
+      D(RULE);doc.line(L+TW-140,y-10,L+TW-140,y+44);
+      px(10);C(ACC);doc.setFont('helvetica','bold');doc.text(String(i+1).padStart(2,'0'),L+6,y+4);
+      C(INK);doc.text(sc.name,L+22,y+4);
+      px(8.5);C(MUT);doc.setFont('helvetica','normal');
+      doc.text(doc.splitTextToSize(sc.what,TW-160)[0],L+22,y+18);
+      px(13);C(ACC);doc.setFont('helvetica','bold');
+      const rs=`${sc.range_low} - ${sc.range_high}`;
+      doc.text(rs,R-8-doc.getTextWidth(rs),y+6);
+      px(7.5);C(MUT);doc.setFont('courier','normal');
+      doc.text(sc.horizon||'',R-8-doc.getTextWidth(sc.horizon||''),y+22);
+      y+=62;
+    });
 
-    // Flag lead capture
-    if (data.lead_captured) leadCaptured = true;
+    if(y>660){doc.addPage();y=30;}y+=8;
+    F(INK);doc.rect(L-8,y-14,TW+16,70,'F');
+    px(7);C(MUT);doc.setFont('helvetica','normal');doc.text('COST OF INACTION',L,y-2);y+=6;
+    px(26);C(ACC);doc.setFont('helvetica','bold');doc.text(s.coi.monthly,L,y+14);y+=22;
+    px(9.5);C(WHITE);doc.setFont('helvetica','normal');
+    const fl=doc.splitTextToSize(s.coi.framing,TW);doc.text(fl,L,y+4);y+=fl.length*13+20;
 
-    document.getElementById(tid)?.remove();
-    addMsg('am', reply, null, false, true);
+    secHdr('CFO Challenge');
+    if(y>660){doc.addPage();y=30;}
+    const ol=doc.splitTextToSize(`"${s.cfo_challenge.objection}"`,TW-12);
+    const al=doc.splitTextToSize(s.cfo_challenge.answer,TW-12);
+    const bh=ol.length*13+al.length*13+28;
+    F(LTBG);D(RULE);doc.setLineWidth(0.5);doc.roundedRect(L,y-10,TW,bh,2,2,'FD');
+    F(ACC);doc.rect(L,y-10,3,bh,'F');
+    px(10);C(INK);doc.setFont('helvetica','bold');doc.text(ol,L+10,y+2);y+=ol.length*13+8;
+    px(9.5);C([58,56,50]);doc.setFont('helvetica','normal');doc.text(al,L+10,y+2);
 
-    // Show COI card after first scenario (turn 1 response that has a Signal in it)
-    if (!coiCardShown && chatHistory.length >= 2 && reply.includes('Signal:')) {
-      setTimeout(() => renderCOICard(reply), 600);
-    }
-
-    // If lead captured, update placeholder
-    if (leadCaptured) {
-      inp.placeholder = 'Email captured. Reach out at josh@altmeridian.com anytime.';
-    }
-
+    y=760;D(RULE);doc.setLineWidth(0.5);doc.line(L,y,R,y);
+    px(7.5);C(MUT);doc.setFont('helvetica','normal');
+    doc.text('Alt Meridian · Value belongs to mechanisms, not solutions. · altmeridian.com',W/2,y+12,{align:'center'});
+    doc.save('altmeridian-sample-value-analysis.pdf');
   } catch(e) {
-    document.getElementById(tid)?.remove();
-    addMsg('am', 'Something went wrong. Email josh@altmeridian.com directly.', null, true);
+    console.error('PDF error:',e);
+    alert('Could not generate PDF — please try again.');
   }
-
-  btn.disabled = false;
-  msgs.scrollTop = msgs.scrollHeight;
 }
 
-function addMsg(role, text, id, dim = false, md = false) {
-  const msgs = document.getElementById('chat-msgs');
-  const wrap = document.createElement('div');
-  wrap.className = 'msg';
-  if (id) wrap.id = id;
-
-  const av = document.createElement('div');
-  av.className = `msg-av ${role}`;
-  av.textContent = role === 'am' ? 'AM' : 'YOU';
-
-  const body = document.createElement('div');
-  body.className = `msg-body${dim ? ' dim' : ''}`;
-
-  if (md) {
-    body.innerHTML = text
-      .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-      .replace(/\n\n/g, '<br><br>')
-      .replace(/\n/g, '<br>');
-  } else {
-    body.textContent = text;
-  }
-
-  wrap.appendChild(av);
-  wrap.appendChild(body);
-  msgs.appendChild(wrap);
-  msgs.scrollTop = msgs.scrollHeight;
-}
-
-document.getElementById('chat-input').addEventListener('keydown', e => {
-  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChat(); }
-});
-
-// SCROLL NAV HIGHLIGHT
-const navSections = ['tiles', 'calculator', 'products', 'demo'];
-const navLinks = document.querySelectorAll('[data-nav]');
-
-function setActiveNav(id) {
-  navLinks.forEach(link => {
-    link.classList.toggle('nav-active', link.dataset.nav === id);
-  });
-}
-
-const observer = new IntersectionObserver((entries) => {
-  entries.forEach(entry => {
-    if (entry.isIntersecting) {
-      setActiveNav(entry.target.id);
-    }
-  });
-}, {
-  rootMargin: '-30% 0px -60% 0px',
-  threshold: 0
-});
-
-navSections.forEach(id => {
-  const el = document.getElementById(id);
-  if (el) observer.observe(el);
-});
 </script>
 </body>
 </html>

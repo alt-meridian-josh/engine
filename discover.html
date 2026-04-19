@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alt Meridian — What Should You Be Buying?</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:ital,wght@0,300;0,400;0,500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0B0B0C;--s1:#101012;--s2:#151517;--s3:#1A1A1D;--s4:#1F1F23;
+  --b1:#252528;--b2:#2F2F33;--b3:#3A3A40;
+  --acc:#C84B2F;--acc2:#A83D26;--adim:rgba(200,75,47,.10);--aline:rgba(200,75,47,.22);
+  --text:#E2DED6;--t2:#97938D;--t3:#545250;
+  --green:#3A9B60;--gdim:rgba(58,155,96,.12);--gline:rgba(58,155,96,.25);
+  --amber:#C4852A;--amdim:rgba(196,133,42,.12);
+  --red:#BD4242;--rdim:rgba(189,66,66,.12);
+  --r:3px;--r2:5px;
+}
+html,body{min-height:100%;background:var(--bg);color:var(--text);
+  font-family:'DM Sans',sans-serif;font-size:13px;font-weight:300;
+  line-height:1.6;-webkit-font-smoothing:antialiased;}
+
+/* ── TOPBAR ── */
+.topbar{height:44px;display:flex;align-items:center;justify-content:space-between;
+  padding:0 20px;border-bottom:1px solid var(--b1);background:var(--s1);
+  position:sticky;top:0;z-index:50;}
+.tbl{display:flex;align-items:center;gap:14px}
+.back{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.07em;
+  color:var(--t3);text-decoration:none;transition:color .15s;display:flex;align-items:center;gap:4px;}
+.back:hover{color:var(--t2)}
+.vr{width:1px;height:15px;background:var(--b2)}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:13px;letter-spacing:.05em}
+.logo em{color:var(--acc);font-style:normal}
+.page-badge{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--t3);
+  border:1px solid var(--b2);border-radius:2px;padding:3px 8px;}
+
+/* ── HERO ── */
+.hero{padding:56px 20px 40px;max-width:680px;margin:0 auto;text-align:center;}
+.hero-eyebrow{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--acc);margin-bottom:16px;}
+.hero-h1{font-family:'Syne',sans-serif;font-weight:800;
+  font-size:clamp(28px,5vw,44px);letter-spacing:-.02em;
+  color:var(--text);margin-bottom:12px;line-height:1.1;}
+.hero-sub{font-size:15px;color:var(--t2);max-width:480px;margin:0 auto;line-height:1.65;}
+
+/* ── INTAKE FORM ── */
+.intake-wrap{max-width:720px;margin:0 auto;padding:0 20px 48px;}
+.intake-card{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r2);overflow:hidden;}
+
+.intake-section{padding:20px 24px;border-bottom:1px solid var(--b1);}
+.intake-section:last-child{border-bottom:none;}
+.isec-label{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--t3);margin-bottom:12px;}
+
+/* select inputs */
+.select-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.sel-wrap{display:flex;flex-direction:column;gap:4px;}
+.sel-lbl{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--t3);}
+select{width:100%;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);
+  padding:8px 10px;font-family:'DM Sans',sans-serif;font-size:13px;
+  color:var(--text);outline:none;cursor:pointer;transition:border-color .15s;
+  -webkit-appearance:none;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23545250'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 10px center;}
+select:focus{border-color:var(--b3)}
+select option{background:var(--s3);}
+
+/* pain point chips */
+.chips{display:flex;flex-wrap:wrap;gap:6px;}
+.chip{padding:5px 12px;border:1px solid var(--b2);border-radius:20px;
+  font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.05em;
+  color:var(--t2);cursor:pointer;transition:all .15s;user-select:none;}
+.chip:hover{border-color:var(--b3);color:var(--text)}
+.chip.on{border-color:var(--acc);color:var(--acc);background:var(--adim)}
+
+/* size slider */
+.size-row{display:flex;align-items:center;gap:12px;}
+.size-labels{display:flex;justify-content:space-between;font-family:'DM Mono',monospace;
+  font-size:9px;color:var(--t3);margin-top:4px;}
+input[type=range]{-webkit-appearance:none;width:100%;height:3px;
+  border-radius:2px;background:var(--b2);outline:none;cursor:pointer;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;
+  border-radius:50%;background:var(--acc);cursor:pointer;border:2px solid var(--bg);
+  box-shadow:0 0 0 1px var(--acc);transition:transform .15s;}
+input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2)}
+.size-val{font-family:'DM Mono',monospace;font-size:12px;color:var(--acc);
+  white-space:nowrap;min-width:80px;text-align:right;}
+
+/* run button */
+.run-row{padding:16px 24px;background:var(--s2);display:flex;align-items:center;gap:12px;}
+.run-btn{
+  padding:11px 28px;background:var(--acc);border:none;border-radius:var(--r);
+  font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.1em;
+  text-transform:uppercase;color:#fff;cursor:pointer;transition:background .15s;
+}
+.run-btn:hover{background:var(--acc2)}
+.run-btn:disabled{background:var(--s4);cursor:not-allowed}
+.run-note{font-family:'DM Mono',monospace;font-size:10px;color:var(--t3);}
+
+/* ── RESULTS ── */
+.results-wrap{max-width:720px;margin:0 auto;padding:0 20px 80px;
+  display:flex;flex-direction:column;gap:14px;}
+
+/* loading state */
+.loading-card{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r2);
+  padding:32px 24px;display:flex;align-items:center;gap:14px;}
+.loading-ring{width:20px;height:20px;border-radius:50%;border:2px solid var(--b2);
+  border-top-color:var(--acc);animation:spin .8s linear infinite;flex-shrink:0;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.loading-txt{font-family:'DM Mono',monospace;font-size:11px;color:var(--t3);letter-spacing:.06em;}
+
+/* results header */
+.results-hdr{display:flex;align-items:baseline;justify-content:space-between;
+  padding:0 2px;margin-bottom:4px;}
+.results-title{font-family:'Syne',sans-serif;font-weight:700;font-size:18px;color:var(--text)}
+.results-sub{font-family:'DM Mono',monospace;font-size:10px;color:var(--t3);}
+
+/* solution card */
+.sol-card{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r2);
+  overflow:hidden;animation:fadein .3s ease;}
+@keyframes fadein{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.sol-card.blurred .sol-body{filter:blur(4px);pointer-events:none;user-select:none;}
+
+.sol-head{padding:16px 20px;border-bottom:1px solid var(--b1);
+  display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
+.sol-rank{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;
+  color:var(--t3);margin-bottom:4px;}
+.sol-tech{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--text);
+  line-height:1.1;margin-bottom:4px;}
+.sol-vertical{font-size:11px;color:var(--t2);}
+.sol-roi{text-align:right;flex-shrink:0;}
+.sol-roi-range{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;
+  color:var(--acc);line-height:1;}
+.sol-roi-lbl{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--t3);margin-top:3px;}
+
+.sol-body{padding:16px 20px;display:flex;flex-direction:column;gap:12px;}
+
+/* COI strip */
+.coi-strip{background:var(--s2);border:1px solid var(--b1);border-left:3px solid var(--acc);
+  border-radius:var(--r);padding:10px 14px;display:flex;align-items:baseline;gap:10px;}
+.coi-lbl{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--acc);}
+.coi-num{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--acc);}
+.coi-sub{font-size:11px;color:var(--t3);}
+
+/* signals */
+.signals-row{display:flex;flex-direction:column;gap:5px;}
+.signal-pill{display:flex;align-items:flex-start;gap:8px;padding:7px 10px;
+  background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);}
+.signal-dot{width:5px;height:5px;border-radius:50%;background:var(--acc);
+  flex-shrink:0;margin-top:5px;}
+.signal-txt{font-size:12px;color:var(--t2);line-height:1.45;}
+
+/* scenarios */
+.scen-list{display:flex;flex-direction:column;gap:5px;}
+.scen-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;
+  padding:8px 10px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);}
+.scen-left{flex:1;}
+.scen-name{font-size:12px;color:var(--t2);line-height:1.4;}
+.scen-formula{font-family:'DM Mono',monospace;font-size:9px;color:var(--t3);
+  margin-top:2px;letter-spacing:.02em;}
+.scen-val{font-family:'DM Mono',monospace;font-size:12px;color:var(--acc);
+  white-space:nowrap;font-weight:500;}
+
+/* evidence */
+.evidence-list{display:flex;flex-direction:column;gap:4px;}
+.ev-row{display:flex;gap:8px;align-items:flex-start;
+  padding:6px 10px;background:var(--s2);border:1px solid var(--b1);border-radius:var(--r);}
+.ev-tier{font-family:'DM Mono',monospace;font-size:9px;padding:2px 6px;
+  border-radius:2px;white-space:nowrap;flex-shrink:0;}
+.t1{background:var(--gdim);color:var(--green);border:1px solid var(--gline);}
+.t2{background:var(--adim);color:var(--acc);border:1px solid var(--aline);}
+.t3{background:var(--amdim);color:var(--amber);}
+.ev-claim{font-size:11px;color:var(--t2);line-height:1.45;}
+
+/* cfo challenge */
+.cfo-box{background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);
+  padding:10px 12px;}
+.cfo-lbl{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--t3);margin-bottom:5px;}
+.cfo-txt{font-size:12px;color:var(--t2);line-height:1.55;}
+
+/* section label inside card */
+.slbl{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--t3);margin-bottom:6px;}
+
+/* ── GATE OVERLAY ── */
+.gate-overlay{
+  position:relative;margin-top:-8px;
+  background:linear-gradient(to bottom, transparent, var(--bg) 40%);
+  padding:60px 20px 32px;
+}
+.gate-box{
+  max-width:460px;margin:0 auto;
+  background:var(--s1);border:1px solid var(--aline);border-radius:var(--r2);
+  padding:24px;text-align:center;
+}
+.gate-h{font-family:'Syne',sans-serif;font-weight:800;font-size:18px;
+  color:var(--text);margin-bottom:8px;}
+.gate-sub{font-size:13px;color:var(--t2);margin-bottom:20px;line-height:1.6;max-width:360px;margin-left:auto;margin-right:auto;}
+.gate-row{display:flex;gap:8px;max-width:400px;margin:0 auto;}
+.gate-input{flex:1;background:var(--s2);border:1px solid var(--b2);border-radius:var(--r);
+  padding:10px 12px;font-family:'DM Mono',monospace;font-size:12px;
+  color:var(--text);outline:none;transition:border-color .15s;}
+.gate-input:focus{border-color:var(--acc)}
+.gate-input::placeholder{color:var(--t3)}
+.gate-btn{padding:10px 18px;background:var(--acc);border:none;border-radius:var(--r);
+  font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;color:#fff;cursor:pointer;transition:background .15s;white-space:nowrap;}
+.gate-btn:hover{background:var(--acc2)}
+.gate-btn:disabled{background:var(--s4);cursor:not-allowed}
+.gate-note{font-family:'DM Mono',monospace;font-size:9px;color:var(--t3);
+  margin-top:10px;letter-spacing:.04em;}
+
+/* ── EMPTY / ERROR ── */
+.empty-state{text-align:center;padding:48px 20px;
+  font-family:'DM Mono',monospace;font-size:11px;color:var(--t3);letter-spacing:.06em;}
+
+/* ── UTIL ── */
+.sep{height:1px;background:var(--b1);}
+
+.dl-btn{display:inline-flex;align-items:center;gap:7px;margin-top:16px;
+  padding:10px 18px;border-radius:3px;border:1px solid var(--b2);
+  background:var(--s2);color:var(--t2);font-family:'DM Mono',monospace;
+  font-size:10px;letter-spacing:.08em;cursor:pointer;transition:all .15s;}
+.dl-btn:hover{background:rgba(200,75,47,.12);border-color:var(--acc);color:var(--acc);}
+.dl-btn:disabled{opacity:.3;cursor:not-allowed;}
+
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="tbl">
+    <a class="back" href="index.html">← Back</a>
+    <div class="vr"></div>
+    <div class="logo">Alt <em>Meridian</em></div>
+  </div>
+  <div class="page-badge">Solution Discovery</div>
+</div>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-eyebrow">Buyer Intelligence</div>
+  <h1 class="hero-h1">What technology should you actually be buying?</h1>
+  <p class="hero-sub">Describe your operation. The engine surfaces which solutions move your numbers — with governed ROI ranges, real evidence, and the cost of doing nothing.</p>
+</div>
+
+<!-- INTAKE -->
+<div class="intake-wrap">
+  <div class="intake-card">
+
+    <!-- Industry -->
+    <div class="intake-section">
+      <div class="isec-label">Your operation</div>
+      <div class="sel-wrap">
+        <div class="sel-lbl">Industry / Vertical</div>
+        <select id="sel-vertical" onchange="onIntakeChange()">
+          <option value="">Select your vertical...</option>
+          <optgroup label="Retail &amp; Consumer">
+            <option value="retail">Retail — Apparel &amp; Hardlines</option>
+            <option value="food_beverage">Food &amp; Beverage / Cold Chain / QSR</option>
+            <option value="hospitality">Hospitality &amp; Venues</option>
+          </optgroup>
+          <optgroup label="Supply Chain &amp; Logistics">
+            <option value="3pl">3PL / Warehouse &amp; Distribution</option>
+            <option value="transportation">Transportation &amp; Logistics / Carriers</option>
+          </optgroup>
+          <optgroup label="Healthcare &amp; Life Sciences">
+            <option value="healthcare">Healthcare — Hospital / Health System</option>
+          </optgroup>
+          <optgroup label="Industrial &amp; Manufacturing">
+            <option value="manufacturing_discrete">Manufacturing — Discrete (Auto, Aero, Electronics)</option>
+            <option value="manufacturing_process">Manufacturing — Process / Energy</option>
+            <option value="aerospace_defense">Aerospace &amp; Defense / MRO</option>
+          </optgroup>
+          <optgroup label="Financial Services">
+            <option value="insurance">P&amp;C Insurance / Reinsurance</option>
+            <option value="financial_services">Financial Services / Capital Markets</option>
+          </optgroup>
+          <optgroup label="Enterprise Technology">
+            <option value="enterprise_tech">Enterprise Technology Vendor</option>
+          </optgroup>
+        </select>
+      </div>
+    </div>
+
+    <!-- Size signal -->
+    <div class="intake-section">
+      <div class="isec-label">Scale</div>
+      <div class="sel-lbl" style="margin-bottom:8px">Annual Revenue</div>
+      <input type="range" id="rev-slider" min="0" max="6" step="1" value="2" oninput="onRevSlide(this.value)">
+      <div class="size-labels">
+        <span>Under $10M</span><span>$10-50M</span><span>$50-200M</span>
+        <span>$200M-1B</span><span>$1-5B</span><span>$5-20B</span><span>$20B+</span>
+      </div>
+      <div style="text-align:right;margin-top:4px">
+        <span class="size-val" id="rev-val">$50–200M</span>
+      </div>
+    </div>
+
+    <!-- Pain points -->
+    <div class="intake-section">
+      <div class="isec-label">Where does value leak? <span style="color:var(--t3);font-size:9px">(pick all that apply)</span></div>
+      <div class="chips" id="pain-chips">
+        <div class="chip" data-pain="labor">Labor / manual processes</div>
+        <div class="chip" data-pain="inventory">Inventory accuracy / shrink</div>
+        <div class="chip" data-pain="asset_loss">Asset loss / utilization</div>
+        <div class="chip" data-pain="compliance">Compliance / audit burden</div>
+        <div class="chip" data-pain="spoilage">Spoilage / cold chain</div>
+        <div class="chip" data-pain="downtime">Unplanned downtime</div>
+        <div class="chip" data-pain="data_quality">Data quality / AI readiness</div>
+        <div class="chip" data-pain="underwriting">Underwriting / loss ratio</div>
+      </div>
+    </div>
+
+    <!-- Run -->
+    <div class="run-row">
+      <button class="run-btn" id="run-btn" onclick="runDiscovery()" disabled>
+        Find my solutions →
+      </button>
+      <div class="run-note" id="run-note">Select your vertical to begin</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- RESULTS -->
+<div class="results-wrap" id="results-wrap" style="display:none"></div>
+
+<script>
+const SB  = 'https://kpecdezcolcycgpuqbgs.supabase.co';
+const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwZWNkZXpjb2xjeWNncHVxYmdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2ODIyMDYsImV4cCI6MjA5MTI1ODIwNn0.rKHzdjjkYToEZWdS0ngg3Kgigh_gDWt5cRbLBCE44rg';
+const CHAT = `${SB}/functions/v1/value-chat`;
+const NOTIFY = `${SB}/functions/v1/notify`;
+
+// ── VERTICAL → DOMAIN MAPPING ─────────────────────────────────────────────────
+// Maps intake selections to domain keywords the edge function recognises
+const VERTICAL_MAP = {
+  retail:                ['RFID', 'rfid retail inventory shrink apparel store'],
+  '3pl':                 ['RFID', 'WMS', 'BLE', 'rfid warehouse 3pl wms distribution'],
+  healthcare:            ['BLE', 'RFID', 'ble rfid healthcare hospital asset tracking'],
+  manufacturing_discrete:['RFID', 'IIOT', 'rfid manufacturing discrete computer vision quality'],
+  manufacturing_process: ['RFID', 'IIOT', 'rfid energy infrastructure manufacturing process'],
+  transportation:        ['RFID', 'FLEET', 'rfid carrier parcel logistics fleet telematics'],
+  food_beverage:         ['BLE', 'RFID', 'ble cold chain food beverage fsma rfid qsr'],
+  aerospace_defense:     ['RFID', 'rfid aviation aerospace mro defense'],
+  insurance:             ['CAT-RISK', 'catastrophe risk insurance reinsurance climate'],
+  enterprise_tech:       ['VEN-VEF', 'value engineering roi sales enablement'],
+  federal:               ['RFID', 'rfid federal public sector government'],
+  hospitality:           ['RFID', 'rfid hospitality hotel venue linen'],
+  financial_services:    ['AIP', 'enterprise ai financial services data analytics'],
+};
+
+const PAIN_DOMAIN_BOOST = {
+  labor:        ['RFID','WMS','BLE','IIOT'],
+  inventory:    ['RFID','WMS','BLE'],
+  downtime:     ['IIOT','RFID'],
+  compliance:   ['BLE','RFID','CAT-RISK'],
+  asset_loss:   ['BLE','RFID'],
+  data_quality: ['AIP'],
+  safety:       ['IIOT','RFID','CAT-RISK'],
+  revenue_loss: ['RFID','WMS','AIP'],
+  cycle_time:   ['WMS','RFID','IIOT'],
+  spoilage:     ['BLE'],
+  sales_velocity:['VEN-VEF'],
+  underwriting: ['CAT-RISK'],
+};
+
+const REV_LABELS = [
+  'Under $10M','$10–50M','$50–200M','$200M–1B','$1–5B','$5–20B','$20B+'
+];
+
+const REV_DEFAULTS = {
+  0: { annual_store_revenue: 3000000,  average_inventory_value: 500000 },
+  1: { annual_store_revenue: 20000000, average_inventory_value: 3000000 },
+  2: { annual_store_revenue: 80000000, average_inventory_value: 12000000 },
+  3: { annual_store_revenue: 400000000,average_inventory_value: 60000000 },
+  4: { annual_store_revenue: 2000000000,average_inventory_value:300000000 },
+  5: { annual_store_revenue: 8000000000,average_inventory_value:1200000000},
+  6: { annual_store_revenue:50000000000,average_inventory_value:8000000000},
+};
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+const D = {
+  vertical: '', role: '', revIdx: 2, pains: new Set(),
+  running: false, gateUnlocked: false, gateShown: false,
+  results: [], sid: 'd' + Date.now(), ctx: '',
+};
+
+// ── INTAKE CONTROLS ───────────────────────────────────────────────────────────
+function onRevSlide(v) {
+  D.revIdx = parseInt(v);
+  document.getElementById('rev-val').textContent = REV_LABELS[D.revIdx];
+}
+
+document.querySelectorAll('.chip').forEach(c => {
+  c.onclick = () => {
+    const p = c.dataset.pain;
+    if (D.pains.has(p)) { D.pains.delete(p); c.classList.remove('on'); }
+    else { D.pains.add(p); c.classList.add('on'); }
+    onIntakeChange();
+  };
+});
+
+function onIntakeChange() {
+  D.vertical = document.getElementById('sel-vertical').value;
+  D.role = '';
+  const btn  = document.getElementById('run-btn');
+  const note = document.getElementById('run-note');
+  if (D.vertical) {
+    btn.disabled = false;
+    const painCount = D.pains.size;
+    note.textContent = painCount > 0
+      ? `${painCount} pain point${painCount > 1 ? 's' : ''} selected`
+      : 'Ready — add pain points to refine';
+  } else {
+    btn.disabled = true;
+    note.textContent = 'Select your vertical to begin';
+  }
+}
+
+// ── DOMAIN SCORING ────────────────────────────────────────────────────────────
+function scoreDomains() {
+  const scores = {};
+  // Base from vertical
+  const vertDomains = VERTICAL_MAP[D.vertical] || [];
+  vertDomains.slice(1).forEach((kw, i) => {}); // keywords used in query
+  vertDomains.slice(0, 1).forEach(d => { scores[d] = (scores[d] || 0) + 10; });
+
+  // Boost from pain points
+  D.pains.forEach(pain => {
+    (PAIN_DOMAIN_BOOST[pain] || []).forEach(d => {
+      scores[d] = (scores[d] || 0) + 3;
+    });
+  });
+
+  return Object.entries(scores)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 4)
+    .map(([d]) => d);
+}
+
+function buildDiscoveryQuery() {
+  const vertLabel = document.getElementById('sel-vertical').selectedOptions[0]?.text || D.vertical;
+  const painList  = [...D.pains].join(', ');
+  const revLabel  = REV_LABELS[D.revIdx];
+
+  D.ctx = `${vertLabel} operation, ${revLabel} revenue`;
+
+  return `I am an operations or finance leader at a ${vertLabel} company with ${revLabel} in annual revenue.` +
+    (painList ? ` Our main pain points are: ${painList}.` : '') +
+    ` What technology solution would generate the most defensible ROI for our operation?` +
+    ` Give me a governed value analysis: signals, primary mechanism, evidence, value scenarios with ranges, cost of inaction per month, and the CFO challenge.`;
+}
+
+// ── RUN ───────────────────────────────────────────────────────────────────────
+async function runDiscovery() {
+  if (D.running) return;
+  D.running = true;
+  D.gateShown = false;
+
+  const rw = document.getElementById('results-wrap');
+  rw.style.display = 'flex';
+  rw.innerHTML = `
+    <div class="loading-card">
+      <div class="loading-ring"></div>
+      <div class="loading-txt">Running governed analysis across ${scoreDomains().length} solution domains...</div>
+    </div>`;
+
+  const query = buildDiscoveryQuery();
+  const revDefaults = REV_DEFAULTS[D.revIdx] || {};
+
+  try {
+    const res = await fetch(CHAT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${KEY}`, 'apikey': KEY },
+      body: JSON.stringify({
+        query,
+        history: [],
+        session_id: D.sid,
+        solution_context: D.ctx,
+        model_state: {
+          total: 0,
+          scenarios: 0,
+          conf: 'typical',
+          buyer_context: {
+            vertical: D.vertical,
+            role: D.role,
+            rev_idx: D.revIdx,
+            pains: [...D.pains],
+            rev_defaults: revDefaults,
+          }
+        }
+      })
+    });
+
+    const data = await res.json();
+    const structured = data.structured || { type: 'text', text: data.error || 'Unable to generate analysis.' };
+    D.results = [{ query, structured, domains: data.domains_matched || [] }];
+
+    renderResults(structured, structured.text || '');
+
+    if (!D.gateShown && !D.gateUnlocked) {
+      showGate(reply);
+    }
+
+  } catch (e) {
+    console.error(e);
+    rw.innerHTML = `<div class="empty-state">Connection error — please try again.</div>`;
+  }
+
+  D.running = false;
+  document.getElementById('run-btn').disabled = false;
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+// structured = parsed JSON from value-chat v11 { type, title, signals, ... }
+// fallback = raw response text if structured is missing/malformed
+function renderResults(structured, fallback) {
+  const rw = document.getElementById('results-wrap');
+  const vertLabel = document.getElementById('sel-vertical').selectedOptions[0]?.text || D.vertical;
+
+  let html = `<div class="results-hdr">
+    <div class="results-title">Your Solution Briefing</div>
+    <div class="results-sub">${esc(vertLabel)} · ${REV_LABELS[D.revIdx]}</div>
+  </div>`;
+
+  // Structured analysis card from v11
+  if (structured && structured.type === 'analysis') {
+    html += renderStructuredCard(structured, 0, '');
+  }
+  // Text or missing — render as single readable card
+  else {
+    const text = (structured?.text) || fallback || '';
+    html += `<div class="sol-card">
+      <div class="sol-head">
+        <div>
+          <div class="sol-rank">01 / Analysis</div>
+          <div class="sol-tech">Governed Value Analysis</div>
+        </div>
+      </div>
+      <div class="sol-body">
+        <div style="font-size:12.5px;color:var(--t2);line-height:1.7">
+          ${esc(text).replace(/\n/g,'<br>')}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  rw.innerHTML = html;
+}
+
+// Render one structured analysis card (same JSON schema as tool.html)
+function renderStructuredCard(s, idx, blurClass) {
+  let inner = `<div class="sol-card${blurClass}">`;
+
+  // Head — title + COI summary in top right
+  const coiNum = s.coi?.monthly || '';
+  inner += `<div class="sol-head">
+    <div>
+      <div class="sol-rank">${String(idx + 1).padStart(2,'0')} / Recommendation</div>
+      <div class="sol-tech">${esc(s.title || 'Analysis')}</div>
+    </div>
+    <div class="sol-roi">
+      ${s.scenarios?.[0] ? `<div class="sol-roi-range">${esc(s.scenarios[0].range_low)} – ${esc(s.scenarios[0].range_high)}</div>
+      <div class="sol-roi-lbl">annual value range</div>` : ''}
+      ${coiNum ? `<div style="font-family:'DM Mono',monospace;font-size:10px;color:var(--acc);margin-top:4px">${esc(coiNum)} / mo delay cost</div>` : ''}
+    </div>
+  </div>`;
+
+  inner += '<div class="sol-body">';
+
+  // Signals
+  if (s.signals?.length) {
+    inner += `<div><div class="slbl" style="margin-bottom:5px">Signals</div>`;
+    s.signals.forEach(sig => {
+      inner += `<div class="signal-pill" style="display:flex;gap:7px;align-items:flex-start;padding:6px 9px;background:var(--s3);border-radius:3px;margin-bottom:3px;">
+        <div style="width:5px;height:5px;border-radius:50%;background:var(--acc);flex-shrink:0;margin-top:5px;"></div>
+        <div>
+          <div style="font-size:11px;font-weight:500;color:var(--text);margin-bottom:1px">${esc(sig.name)}</div>
+          <div style="font-size:11px;color:var(--t2);line-height:1.45">${esc(sig.description)}</div>
+        </div>
+      </div>`;
+    });
+    inner += '</div>';
+  }
+
+  // Mechanism
+  if (s.mechanism) {
+    inner += `<div><div class="slbl" style="margin-bottom:5px">Primary Mechanism</div>
+      <div style="padding:8px 10px;background:var(--adim);border:1px solid var(--aline);border-radius:3px;">
+        <div style="font-size:12px;font-weight:500;color:var(--acc);margin-bottom:3px">${esc(s.mechanism.name)}</div>
+        <div style="font-size:11px;color:var(--t2);line-height:1.5">${esc(s.mechanism.description)}</div>
+      </div></div>`;
+  }
+
+  // Evidence
+  if (s.evidence?.length) {
+    inner += `<div><div class="slbl" style="margin-bottom:5px">Evidence</div>`;
+    s.evidence.forEach(ev => {
+      const tc = ev.tier==='T1'?'background:rgba(58,155,96,.15);color:#3A9B60':ev.tier==='T2'?'background:rgba(200,75,47,.1);color:#C84B2F':'background:rgba(196,133,42,.12);color:#C4852A';
+      inner += `<div style="display:flex;gap:7px;padding:5px 9px;background:var(--s3);border-radius:3px;margin-bottom:3px;">
+        <span style="font-family:'DM Mono',monospace;font-size:9px;padding:1px 5px;border-radius:2px;flex-shrink:0;margin-top:1px;${tc}">${esc(ev.tier||'')}</span>
+        <div>
+          <div style="font-family:'DM Mono',monospace;font-size:9px;color:var(--t3)">${esc(ev.publisher)} · ${esc(String(ev.year||''))}</div>
+          <div style="font-size:11px;color:var(--t2);line-height:1.45">${esc(ev.claim)}</div>
+        </div>
+      </div>`;
+    });
+    inner += '</div>';
+  }
+
+  // Scenarios
+  if (s.scenarios?.length) {
+    inner += `<div><div class="slbl" style="margin-bottom:5px">Value Scenarios</div>`;
+    s.scenarios.forEach(sc => {
+      inner += `<div style="padding:7px 10px;background:var(--s3);border-radius:3px;margin-bottom:3px;">
+        <div style="font-size:11px;font-weight:500;color:var(--text);margin-bottom:2px">${esc(sc.name)}</div>
+        <div style="font-size:11px;color:var(--t2);margin-bottom:4px">${esc(sc.what)}</div>
+        <span style="font-family:'DM Mono',monospace;font-size:12px;color:var(--acc);font-weight:500">${esc(sc.range_low)} – ${esc(sc.range_high)}</span>
+        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--t3);margin-left:8px">${esc(sc.horizon)}</span>
+      </div>`;
+    });
+    inner += '</div>';
+  }
+
+  // COI
+  if (s.coi) {
+    inner += `<div style="padding:9px 11px;background:var(--s2);border-left:2px solid var(--acc);border-radius:3px;">
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:18px;color:var(--acc);line-height:1">${esc(s.coi.monthly)}</div>
+      <div style="font-size:11px;color:var(--t2);margin-top:3px">${esc(s.coi.framing)}</div>
+    </div>`;
+  }
+
+  // CFO Challenge
+  if (s.cfo_challenge) {
+    inner += `<div><div class="slbl" style="margin-bottom:5px">CFO Challenge</div>
+      <div style="padding:8px 10px;background:var(--s3);border-radius:3px;">
+        <div style="font-size:11px;font-weight:500;color:var(--text);margin-bottom:3px">${esc(s.cfo_challenge.objection)}</div>
+        <div style="font-size:11px;color:var(--t2);line-height:1.5">${esc(s.cfo_challenge.answer)}</div>
+      </div></div>`;
+  }
+
+  inner += '</div></div>'; // sol-body, sol-card
+  return inner;
+}
+
+// ── GATE ──────────────────────────────────────────────────────────────────────
+function showGate(analysisText) {
+  D.gateShown = true;
+  const rw = document.getElementById('results-wrap');
+  const gateDiv = document.createElement('div');
+  gateDiv.id = 'gate-overlay';
+  gateDiv.className = 'gate-overlay';
+  gateDiv.innerHTML = `
+    <div class="gate-box">
+      <div class="gate-h">Want the full briefing?</div>
+      <div class="gate-sub">Drop your email and I'll send you this analysis — all solutions, full evidence, COI model — and unlock the complete session.</div>
+      <div class="gate-row">
+        <input class="gate-input" id="gate-email" type="email" placeholder="you@company.com"
+          onkeydown="if(event.key==='Enter')submitGate()">
+        <button class="gate-btn" id="gate-btn" onclick="submitGate()">Send it →</button>
+      </div>
+      <div class="gate-note">No spam. One email with your briefing. Josh may follow up.</div>
+    </div>`;
+  rw.appendChild(gateDiv);
+  setTimeout(() => { document.getElementById('gate-email')?.focus(); }, 100);
+}
+
+async function submitGate() {
+  const emailEl = document.getElementById('gate-email');
+  const btn     = document.getElementById('gate-btn');
+  const email   = emailEl?.value?.trim();
+  if (!email || !email.includes('@')) {
+    if (emailEl) { emailEl.style.borderColor = 'var(--acc)'; emailEl.focus(); }
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Sending...';
+
+  const lastReply = D.results[0]?.reply || '';
+
+  try {
+    await fetch(NOTIFY, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${KEY}`, 'apikey': KEY },
+      body: JSON.stringify({
+        email, solution: D.ctx, domains: D.results[0]?.domains?.join(', ') || '',
+        scenario_text: lastReply.slice(0, 2000), session_id: D.sid,
+      })
+    });
+
+    await fetch(`${SB}/rest/v1/vef_chat_leads`, {
+      method: 'POST',
+      headers: { 'apikey': KEY, 'Authorization': `Bearer ${KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
+      body: JSON.stringify({
+        email, solution_description: D.ctx,
+        domain_ids: D.results[0]?.domains?.join(',') || '',
+        conversation: [{ role: 'user', content: D.results[0]?.query }, { role: 'assistant', content: lastReply }],
+        session_id: D.sid, emailed: true,
+      })
+    });
+
+    D.gateUnlocked = true;
+
+    // Remove gate overlay
+    document.getElementById('gate-overlay')?.remove();
+
+    // Remove blur from all cards
+    document.querySelectorAll('.sol-card.blurred').forEach(c => c.classList.remove('blurred'));
+
+    // Show unlock confirmation
+    const rw = document.getElementById('results-wrap');
+    const conf = document.createElement('div');
+    conf.style.cssText = 'text-align:center;padding:16px;font-family:"DM Mono",monospace;font-size:11px;color:var(--green);letter-spacing:.06em;';
+    conf.textContent = `✓ Sent to ${email} — full briefing unlocked`;
+    rw.insertBefore(conf, rw.firstChild);
+
+  } catch (e) {
+    console.error(e);
+    btn.disabled = false;
+    btn.textContent = 'Send it →';
+    if (emailEl) emailEl.style.borderColor = 'var(--red)';
+  }
+}
+
+// ── UTILS ─────────────────────────────────────────────────────────────────────
+function esc(t) {
+  return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── PDF EXPORT ───────────────────────────────────────────────────────────────
+function downloadBriefingPDF() {
+  const s = D.lastStructured;
+  if (!s) return;
+  try {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: 'pt', format: 'letter' });
+    const W = 612, L = 20, R = W - 20, TW = W - 40;
+    const ACC = [200,75,47], INK = [15,15,15], MUT = [136,128,120];
+    const RULE = [224,221,214], WHITE = [255,255,255], LTBG = [249,247,243];
+    const GREEN = [58,155,96], AMBER = [196,133,42], RED = [189,66,66];
+    const TIER_C = { T1: GREEN, T2: ACC, T3: AMBER, T4: RED };
+    let y = 0;
+
+    function setC(rgb) { doc.setTextColor(...rgb); }
+    function setF(rgb) { doc.setFillColor(...rgb); }
+    function setD(rgb) { doc.setDrawColor(...rgb); }
+    function px(n) { doc.setFontSize(n); }
+
+    // Header
+    setF(INK); doc.rect(0, 0, W, 60, 'F');
+    px(11); setC(ACC); doc.setFont('helvetica','bold');
+    doc.text('ALT', L, 22);
+    setC(WHITE); doc.text(' MERIDIAN', L + doc.getTextWidth('ALT'), 22);
+    px(7); setC(MUT); doc.setFont('helvetica','normal');
+    doc.text('SOLUTION BRIEFING', L, 36);
+    px(17); setC(WHITE); doc.setFont('helvetica','bold');
+    const titleLines = doc.splitTextToSize(s.title || 'Solution Briefing', TW);
+    doc.text(titleLines, L, 52);
+    y = 60 + titleLines.length * 20 + 8;
+    setD(ACC); doc.setLineWidth(1.5); doc.line(L, y, R, y); y += 16;
+
+    function secHdr(label) {
+      if (y > 700) { doc.addPage(); y = 30; }
+      setD(RULE); doc.setLineWidth(0.5); doc.line(L, y, R, y); y += 8;
+      px(7); setC(MUT); doc.setFont('helvetica','bold');
+      doc.text(label.toUpperCase(), L, y); y += 12;
+    }
+    function body(text, mw, color) {
+      px(9.5); setC(color || INK); doc.setFont('helvetica','normal');
+      const lines = doc.splitTextToSize(text, mw || TW);
+      if (y + lines.length * 13 > 740) { doc.addPage(); y = 30; }
+      doc.text(lines, L, y); y += lines.length * 13 + 4;
+    }
+
+    if (s.signals?.length) {
+      secHdr('Signals');
+      s.signals.forEach(sig => {
+        if (y > 700) { doc.addPage(); y = 30; }
+        setF(ACC); doc.circle(L+3, y-3, 2.5, 'F');
+        px(10); setC(INK); doc.setFont('helvetica','bold');
+        doc.text(sig.name, L+10, y); y += 13;
+        body(sig.description, TW-10, MUT);
+        y += 2;
+      });
+    }
+    if (s.mechanism) {
+      secHdr('Primary Mechanism');
+      px(11); setC(ACC); doc.setFont('helvetica','bold');
+      doc.text(s.mechanism.name, L, y); y += 14;
+      body(s.mechanism.description, TW, [58,56,50]);
+    }
+    if (s.evidence?.length) {
+      secHdr('Evidence');
+      s.evidence.forEach(ev => {
+        if (y > 700) { doc.addPage(); y = 30; }
+        const tc = TIER_C[ev.tier] || MUT;
+        setF(LTBG); setD(RULE); doc.setLineWidth(0.5);
+        doc.roundedRect(L, y-10, TW, 36, 2, 2, 'FD');
+        setF(tc); doc.roundedRect(L+4, y-7, 22, 14, 2, 2, 'F');
+        px(8); setC(WHITE); doc.setFont('courier','bold');
+        doc.text(ev.tier||'', L+6, y+3);
+        px(9); setC(INK); doc.setFont('helvetica','normal');
+        const cl = doc.splitTextToSize(ev.claim, TW-36);
+        doc.text(cl[0], L+32, y+3);
+        px(7.5); setC(MUT); doc.setFont('courier','normal');
+        doc.text(`${ev.publisher} · ${ev.year||''}`, L+32, y+16);
+        y += 40;
+      });
+    }
+    if (s.scenarios?.length) {
+      secHdr('Value Scenarios');
+      s.scenarios.forEach((sc, i) => {
+        if (y > 680) { doc.addPage(); y = 30; }
+        setF(LTBG); setD(RULE); doc.setLineWidth(0.5);
+        doc.roundedRect(L, y-10, TW, 54, 2, 2, 'FD');
+        setD(RULE); doc.line(L+TW-140, y-10, L+TW-140, y+44);
+        px(10); setC(ACC); doc.setFont('helvetica','bold');
+        doc.text(String(i+1).padStart(2,'0'), L+6, y+4);
+        px(10); setC(INK); doc.text(sc.name, L+22, y+4);
+        px(8.5); setC(MUT); doc.setFont('helvetica','normal');
+        doc.text(doc.splitTextToSize(sc.what, TW-160)[0], L+22, y+18);
+        px(13); setC(ACC); doc.setFont('helvetica','bold');
+        const rs = `${sc.range_low} – ${sc.range_high}`;
+        doc.text(rs, R-8-doc.getTextWidth(rs), y+6);
+        px(7.5); setC(MUT); doc.setFont('courier','normal');
+        doc.text(sc.horizon||'', R-8-doc.getTextWidth(sc.horizon||''), y+22);
+        y += 62;
+      });
+    }
+    if (s.coi) {
+      if (y > 660) { doc.addPage(); y = 30; }
+      y += 8;
+      setF(INK); doc.rect(L-8, y-14, TW+16, 70, 'F');
+      px(7); setC(MUT); doc.setFont('helvetica','normal');
+      doc.text('COST OF INACTION', L, y-2); y += 6;
+      px(26); setC(ACC); doc.setFont('helvetica','bold');
+      doc.text(s.coi.monthly||'', L, y+14); y += 22;
+      px(9.5); setC(WHITE); doc.setFont('helvetica','normal');
+      const fl = doc.splitTextToSize(s.coi.framing||'', TW);
+      doc.text(fl, L, y+4); y += fl.length*13+20;
+    }
+    if (s.cfo_challenge) {
+      secHdr('CFO Challenge');
+      if (y > 660) { doc.addPage(); y = 30; }
+      const ol = doc.splitTextToSize(`"${s.cfo_challenge.objection}"`, TW-12);
+      const al = doc.splitTextToSize(s.cfo_challenge.answer, TW-12);
+      const bh = ol.length*13+al.length*13+28;
+      setF(LTBG); setD(RULE); doc.setLineWidth(0.5);
+      doc.roundedRect(L, y-10, TW, bh, 2, 2, 'FD');
+      setF(ACC); doc.rect(L, y-10, 3, bh, 'F');
+      px(10); setC(INK); doc.setFont('helvetica','bold');
+      doc.text(ol, L+10, y+2); y += ol.length*13+8;
+      px(9.5); setC([58,56,50]); doc.setFont('helvetica','normal');
+      doc.text(al, L+10, y+2); y += al.length*13+20;
+    }
+    y = 760;
+    setD(RULE); doc.setLineWidth(0.5); doc.line(L, y, R, y);
+    px(7.5); setC(MUT); doc.setFont('helvetica','normal');
+    doc.text('Alt Meridian · Value belongs to mechanisms, not solutions. · altmeridian.com', W/2, y+12, { align: 'center' });
+
+    const slug = (s.title||'solution-briefing').toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0,40);
+    doc.save(`${slug}-briefing.pdf`);
+  } catch(e) {
+    console.error('PDF error:', e);
+    alert('PDF generation failed.');
+  }
+}
+
+</script>
+</body>
+</html>
