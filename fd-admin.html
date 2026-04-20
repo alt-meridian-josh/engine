@@ -340,8 +340,12 @@ select.fi option{background:var(--s3)}
       </div>
 
       <div style="display:flex;align-items:center;gap:12px">
-        <button class="submit-btn" onclick="submitOutcome()">Record Outcome →</button>
+        <button class="submit-btn" id="outcome-btn" onclick="submitOutcome()">Record Outcome →</button>
         <div id="outcome-result" class="form-result"></div>
+      </div>
+      <div id="outcome-empty" class="form-result" style="display:none;margin-top:10px;color:var(--t2)">
+        No active engagements to record an outcome for.
+        <a href="#" onclick="event.preventDefault();setTab('intake')" style="color:var(--acc);text-decoration:underline;text-underline-offset:2px">Create one in New Engagement →</a>
       </div>
     </div>
   </div>
@@ -390,6 +394,7 @@ function setTab(t) {
   document.querySelectorAll('.pane').forEach(p => p.classList.remove('on'));
   document.getElementById('pane-' + t).classList.add('on');
   if (t === 'pipeline') loadEngagements();
+  if (t === 'outcomes') loadEngagements();  // refresh dropdown + empty state
   if (t === 'builds') loadBuilds();
 }
 
@@ -414,7 +419,17 @@ async function loadEngagements() {
   const activeOpts = active.map(e => `<option value="${e.engagement_id}">${e.engagement_id} — ${e.vendor_name} / ${e.prospect_name}</option>`).join('');
   oSel.innerHTML = '<option value="">— select engagement —</option>' + activeOpts;
 
-  if (!engs.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty">No engagements yet. Create one in the New Engagement tab.</td></tr>'; return; }
+  // Outcomes tab: disable submit and show empty-state when no active engagements exist.
+  const outcomeBtn = document.getElementById('outcome-btn');
+  const outcomeEmpty = document.getElementById('outcome-empty');
+  const hasActive = active.length > 0;
+  if (outcomeBtn) outcomeBtn.disabled = !hasActive;
+  if (outcomeEmpty) outcomeEmpty.style.display = hasActive ? 'none' : 'block';
+
+  if (!engs.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">No engagements yet. <a href="#" onclick="event.preventDefault();setTab(\'intake\')" style="color:var(--acc);text-decoration:underline;text-underline-offset:2px">Create one in New Engagement →</a></td></tr>';
+    return;
+  }
 
   const statusClass = s => s === 'Active' ? 's-active' : s === 'Won' ? 's-won' : s === 'Lost' ? 's-lost' : s === 'Stalled' ? 's-stalled' : 's-pending';
 
