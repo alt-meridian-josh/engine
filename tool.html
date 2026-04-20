@@ -235,6 +235,8 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.25)}
   background:#0F0F10;border:1px solid var(--aline);border-radius:var(--r2);
   padding:16px 16px 14px;max-width:92%;animation:fi .25s ease;
 }
+.gate-card.shake{animation:gshake .42s cubic-bezier(.36,.07,.19,.97) both}
+@keyframes gshake{10%,90%{transform:translateX(-1px)}20%,80%{transform:translateX(2px)}30%,50%,70%{transform:translateX(-4px)}40%,60%{transform:translateX(4px)}}
 .gate-headline{
   font-family:'Syne',sans-serif;font-weight:700;font-size:14px;
   color:var(--text);margin-bottom:4px;
@@ -771,8 +773,8 @@ function updateAnalysis() {
     <div class="savest" id="savest"></div>
   </div>
   <div class="export-row">
-    <button class="expbtn pdf" id="pdf-btn" onclick="downloadPDF()" disabled title="Download PDF leave-behind">↓ PDF</button>
-    <button class="expbtn" id="pptx-btn" onclick="downloadPPTX()" disabled title="Download 3-slide PPTX deck">↓ PPTX</button>
+    <button class="expbtn pdf" id="pdf-btn" onclick="downloadPDF()" disabled title="Run a value analysis first to enable PDF export">↓ PDF</button>
+    <button class="expbtn" id="pptx-btn" onclick="downloadPPTX()" disabled title="Run a value analysis first to enable PPTX export">↓ PPTX</button>
   </div>`;
 
   body.innerHTML = html;
@@ -861,10 +863,15 @@ async function send() {
   const el = document.getElementById('cin');
   const text = el.value.trim();
   if (!text || S.loading) return;
-  // Block if gate is shown but not yet submitted
+  // Block if gate is shown but not yet submitted — highlight card + focus email.
   if (S.gateShown && !S.gateUnlocked) {
     const emailEl = document.getElementById('gate-email');
+    const card = document.querySelector('#gate-msg .gate-card');
     if (emailEl) emailEl.focus();
+    if (card) {
+      card.classList.add('shake');
+      setTimeout(() => card.classList.remove('shake'), 500);
+    }
     return;
   }
   el.value = ''; el.style.height = 'auto';
@@ -963,9 +970,24 @@ async function discTurn(text) {
     }
   } catch (e) {
     console.error(e);
-    botMsg('Connection error — please try again.');
+    botMsgError(text, 'discovery');
   }
   setLoad(false);
+}
+
+// Render a bot error message with a working retry button that re-runs the failed turn.
+function botMsgError(failedText, mode) {
+  const m = document.getElementById('msgs');
+  rmId('typing');
+  const d = document.createElement('div'); d.className = 'msg bot';
+  d.innerHTML = `<div class="mwho">Meridian</div>
+    <div class="mbub" style="color:var(--red)">Connection error — couldn't reach the model. Check your network and retry.</div>
+    <div class="qrs"></div>`;
+  const btn = document.createElement('button');
+  btn.className = 'qr'; btn.textContent = '↻ Retry';
+  btn.onclick = () => { d.remove(); (mode === 'cfo' ? cfoTurn : discTurn)(failedText); };
+  d.querySelector('.qrs').appendChild(btn);
+  m.appendChild(d); m.scrollTop = m.scrollHeight;
 }
 
 // ─── GATE ─────────────────────────────────────────────────────────────────────
@@ -988,6 +1010,7 @@ function showGate() {
         <input class="gate-input" id="gate-email" type="email" placeholder="you@company.com" onkeydown="if(event.key==='Enter')submitGate()">
         <button class="gate-btn" id="gate-btn" onclick="submitGate()">Send it →</button>
       </div>
+      <div class="gate-err" id="gate-err" style="display:none;font-family:'DM Mono',monospace;font-size:10px;color:var(--red);margin-top:8px;letter-spacing:.04em">Enter a valid email to continue.</div>
       <div class="gate-note">No spam. One email with your analysis. Josh may follow up.</div>
     </div>`;
   msgs.appendChild(d);
@@ -999,11 +1022,16 @@ function showGate() {
 async function submitGate() {
   const emailEl = document.getElementById('gate-email');
   const btn = document.getElementById('gate-btn');
+  const err = document.getElementById('gate-err');
   const email = emailEl?.value?.trim();
-  if (!email || !email.includes('@')) {
-    if (emailEl) emailEl.style.borderColor = 'var(--acc)';
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (emailEl) emailEl.style.borderColor = 'var(--red)';
+    if (err) err.style.display = 'block';
+    emailEl?.focus();
     return;
   }
+  if (err) err.style.display = 'none';
+  if (emailEl) emailEl.style.borderColor = '';
   btn.disabled = true;
   btn.textContent = 'Sending...';
 
@@ -1075,7 +1103,7 @@ async function cfoTurn(text) {
     const cfoStructured = data.structured || { type: 'text', text: data.error || 'Unable to process.' };
     S.history.push({ role: 'assistant', structured: cfoStructured, content: JSON.stringify(cfoStructured) });
     renderStructured(cfoStructured);
-  } catch (e) { botMsg('Connection error — please try again.'); }
+  } catch (e) { console.error(e); botMsgError(text, 'cfo'); }
   setLoad(false);
 }
 
@@ -1217,8 +1245,8 @@ function renderStructured(s) {
     S.lastStructured = s;
     const pdfBtn = document.getElementById('pdf-btn');
     const pptxBtn = document.getElementById('pptx-btn');
-    if (pdfBtn) pdfBtn.disabled = false;
-    if (pptxBtn) pptxBtn.disabled = false;
+    if (pdfBtn) { pdfBtn.disabled = false; pdfBtn.title = 'Download PDF leave-behind'; }
+    if (pptxBtn) { pptxBtn.disabled = false; pptxBtn.title = 'Download 3-slide PPTX deck'; }
   }
   const m = document.getElementById('msgs');
   rmId('typing');
@@ -1384,6 +1412,12 @@ function showWelcome() {
 }
 
 function setMode(m) {
+  const prev = S.mode;
+  if (prev === m) return;
+  // Confirm if there's work in progress — mode switch wipes the chat.
+  if (S.turns > 0 && !confirm(`Switch to ${m === 'cfo' ? 'CFO Audit' : 'Value Discovery'}? The current conversation will be cleared.`)) {
+    return;
+  }
   S.mode = m;
   document.getElementById('tab-d').classList.toggle('on', m === 'discovery');
   document.getElementById('tab-c').classList.toggle('on', m === 'cfo');
@@ -1391,8 +1425,22 @@ function setMode(m) {
   document.getElementById('cin').placeholder = m === 'discovery'
     ? 'Describe your solution and buyer...'
     : "Paste the vendor's ROI claim...";
-  if (m === 'cfo')
+
+  // Switching modes clears chat + history so discovery and audit contexts don't bleed.
+  S.history = [];
+  S.turns = 0;
+  S.lastStructured = null;
+  document.getElementById('msgs').innerHTML = '';
+  const pdfBtn = document.getElementById('pdf-btn');
+  const pptxBtn = document.getElementById('pptx-btn');
+  if (pdfBtn) { pdfBtn.disabled = true; pdfBtn.title = 'Run a value analysis first to enable PDF export'; }
+  if (pptxBtn) { pptxBtn.disabled = true; pptxBtn.title = 'Run a value analysis first to enable PPTX export'; }
+
+  if (m === 'cfo') {
     renderStructured({ type: 'text', text: "CFO Audit Mode. Paste the vendor's ROI claim and I will break it down component by component — Accept, Adjust, or Remove — with evidence tiers and a defensible verified range." });
+  } else {
+    showWelcome();
+  }
 }
 
 function fullReset() {
@@ -1400,6 +1448,11 @@ function fullReset() {
   S.turns = 0; S.engine = null; S.activeScens.clear();
   S.sid = 's' + Date.now(); S.ctx = '';
   S.gateUnlocked = false; S.gateShown = false;
+  S.lastStructured = null;
+  const pdfBtn = document.getElementById('pdf-btn');
+  const pptxBtn = document.getElementById('pptx-btn');
+  if (pdfBtn) { pdfBtn.disabled = true; pdfBtn.title = 'Run a value analysis first to enable PDF export'; }
+  if (pptxBtn) { pptxBtn.disabled = true; pptxBtn.title = 'Run a value analysis first to enable PPTX export'; }
   seedDefaults();
   document.getElementById('abody').innerHTML =
     `<div class="empty" id="empty"><div class="eico">⟁</div><div class="etit">No analysis yet</div><div class="esub">Chat to describe your deal, or click scenarios on the left to activate them.</div></div>`;
