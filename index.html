@@ -133,6 +133,8 @@ html.dark .icon-moon { display: none; }
 .btn-primary:hover { background: var(--accent); }
 .btn-ghost { font-family: 'DM Mono', monospace; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); text-decoration: none; padding: 13px 0; transition: color 0.2s; background: none; border: none; cursor: pointer; }
 .btn-ghost:hover { color: var(--ink); }
+.btn-sample { display: inline-flex; align-items: center; gap: 8px; padding: 11px 22px; border-radius: 2px; border: 1px solid var(--rule); background: transparent; color: var(--ink); font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.1em; cursor: pointer; transition: background 0.2s, color 0.2s, border-color 0.2s; }
+.btn-sample:hover { background: var(--ink); color: #fff; border-color: var(--ink); }
 
 /* SECTIONS */
 .section { max-width: 1200px; margin: 0 auto; padding: 96px 48px; background: var(--bg); transition: background 0.4s ease; }
@@ -677,13 +679,11 @@ footer { border-top: 1px solid var(--rule); padding: 44px 48px; display: flex; j
 <hr class="section-rule">
 
 <!-- SAMPLE DOWNLOAD -->
-<section class="section" style="text-align:center;padding:40px 24px;">
-  <div style="font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;">See what it looks like</div>
+<section class="section" style="text-align:center;">
+  <div class="section-label" style="margin-bottom:12px;">See what it looks like</div>
   <h3 style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:var(--ink);margin-bottom:8px;">Download a sample leave-behind</h3>
   <p style="font-size:13px;color:var(--muted);max-width:420px;margin:0 auto 20px;line-height:1.65;">A real governed value analysis for RFID in retail apparel — the same format your sellers will use in the field.</p>
-  <button onclick="downloadSamplePDF()" style="display:inline-flex;align-items:center;gap:8px;padding:11px 22px;border-radius:2px;border:1px solid var(--rule);background:transparent;color:var(--ink);font-family:'DM Mono',monospace;font-size:11px;letter-spacing:.1em;cursor:pointer;transition:all .2s;" onmouseover="this.style.background='var(--ink)';this.style.color='#fff'" onmouseout="this.style.background='transparent';this.style.color='var(--ink)'">
-    ↓ DOWNLOAD SAMPLE PDF
-  </button>
+  <button class="btn-sample" onclick="downloadSamplePDF()">↓ DOWNLOAD SAMPLE PDF</button>
 </section>
 
 <hr class="section-rule">
