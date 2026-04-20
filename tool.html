@@ -49,6 +49,9 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;
 .resetbtn{font-family:'DM Mono',monospace;font-size:10px;color:var(--t3);
   background:none;border:none;cursor:pointer;text-decoration:underline;text-underline-offset:2px;}
 .resetbtn:hover{color:var(--t2)}
+.xlink{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.07em;
+  color:var(--t3);text-decoration:none;transition:color .15s;}
+.xlink:hover{color:var(--acc)}
 
 /* ── LAYOUT ────────────────────────────────────────── */
 .body{display:flex;flex:1;overflow:hidden;min-height:0}
@@ -355,7 +358,11 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.25)}
     <button class="msw on" id="tab-d" onclick="setMode('discovery')">Value Discovery</button>
     <button class="msw"    id="tab-c" onclick="setMode('cfo')">CFO Audit</button>
   </div>
-  <button class="resetbtn" onclick="fullReset()">New session</button>
+  <div style="display:flex;align-items:center;gap:14px">
+    <a class="xlink" href="discover.html" title="Buyer-side tool: find which solutions move your numbers">For buyers · Solution Discovery →</a>
+    <div class="vr"></div>
+    <button class="resetbtn" onclick="fullReset()">New session</button>
+  </div>
 </div>
 
 <!-- BODY -->
@@ -1487,7 +1494,12 @@ function rawFmt(n, unit) {
 load();
 // Auto-switch mode from URL param — ?mode=cfo opens CFO audit directly
 const urlMode = new URLSearchParams(window.location.search).get('mode');
-if (urlMode === 'cfo') setMode('cfo');
+if (urlMode === 'cfo') {
+  setMode('cfo');
+  // URL-arrival override — make it clear they landed here from the Claim Audit card.
+  document.getElementById('msgs').innerHTML = '';
+  renderStructured({ type: 'text', text: "Arrived from the Claim Audit link. Paste the vendor's ROI claim below and I'll evaluate it component by component — Accept, Adjust, or Remove — with evidence tiers and a defensible verified range." });
+}
 
 // ─── EXPORT ───────────────────────────────────────────────────────────────────
 function downloadPDF() {

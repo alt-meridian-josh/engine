@@ -37,6 +37,9 @@ html,body{min-height:100%;background:var(--bg);color:var(--text);
 .page-badge{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;
   text-transform:uppercase;color:var(--t3);
   border:1px solid var(--b2);border-radius:2px;padding:3px 8px;}
+.xlink{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.07em;
+  color:var(--t3);text-decoration:none;transition:color .15s;display:flex;align-items:center;gap:4px;}
+.xlink:hover{color:var(--acc)}
 
 /* ── HERO ── */
 .hero{padding:56px 20px 40px;max-width:680px;margin:0 auto;text-align:center;}
@@ -241,8 +244,10 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2)}
     <a class="back" href="index.html">← Back</a>
     <div class="vr"></div>
     <div class="logo">Alt <em>Meridian</em></div>
+    <div class="vr"></div>
+    <div class="page-badge">Solution Discovery</div>
   </div>
-  <div class="page-badge">Solution Discovery</div>
+  <a class="xlink" href="tool.html" title="Seller-side tool: build a value case">For sellers · Value Discovery →</a>
 </div>
 
 <!-- HERO -->
@@ -508,7 +513,7 @@ async function runDiscovery() {
     renderResults(structured, structured.text || '');
 
     if (!D.gateShown && !D.gateUnlocked) {
-      showGate(reply);
+      showGate();
     }
 
   } catch (e) {
@@ -653,7 +658,7 @@ function renderStructuredCard(s, idx, blurClass) {
 }
 
 // ── GATE ──────────────────────────────────────────────────────────────────────
-function showGate(analysisText) {
+function showGate() {
   D.gateShown = true;
   const rw = document.getElementById('results-wrap');
   const gateDiv = document.createElement('div');
