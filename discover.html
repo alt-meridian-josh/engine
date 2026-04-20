@@ -518,7 +518,9 @@ async function runDiscovery() {
 
   } catch (e) {
     console.error(e);
-    rw.innerHTML = `<div class="empty-state">Connection error — please try again.</div>`;
+    rw.innerHTML = `<div class="empty-state">Connection error — couldn't reach the model.
+      <button class="run-btn" style="margin-top:12px" onclick="runDiscovery()">↻ Retry</button>
+    </div>`;
   }
 
   D.running = false;
@@ -683,10 +685,11 @@ async function submitGate() {
   const emailEl = document.getElementById('gate-email');
   const btn     = document.getElementById('gate-btn');
   const email   = emailEl?.value?.trim();
-  if (!email || !email.includes('@')) {
-    if (emailEl) { emailEl.style.borderColor = 'var(--acc)'; emailEl.focus(); }
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (emailEl) { emailEl.style.borderColor = 'var(--red)'; emailEl.focus(); }
     return;
   }
+  if (emailEl) emailEl.style.borderColor = '';
   btn.disabled = true;
   btn.textContent = 'Sending...';
 
