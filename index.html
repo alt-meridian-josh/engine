@@ -133,8 +133,6 @@ html.dark .icon-moon { display: none; }
 .btn-primary:hover { background: var(--accent); }
 .btn-ghost { font-family: 'DM Mono', monospace; font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); text-decoration: none; padding: 13px 0; transition: color 0.2s; background: none; border: none; cursor: pointer; }
 .btn-ghost:hover { color: var(--ink); }
-.btn-sample { display: inline-flex; align-items: center; gap: 8px; padding: 11px 22px; border-radius: 2px; border: 1px solid var(--rule); background: transparent; color: var(--ink); font-family: 'DM Mono', monospace; font-size: 11px; letter-spacing: 0.1em; cursor: pointer; transition: background 0.2s, color 0.2s, border-color 0.2s; }
-.btn-sample:hover { background: var(--ink); color: #fff; border-color: var(--ink); }
 
 /* SECTIONS */
 .section { max-width: 1200px; margin: 0 auto; padding: 96px 48px; background: var(--bg); transition: background 0.4s ease; }
@@ -678,16 +676,6 @@ footer { border-top: 1px solid var(--rule); padding: 44px 48px; display: flex; j
 
 <hr class="section-rule">
 
-<!-- SAMPLE DOWNLOAD -->
-<section class="section" style="text-align:center;">
-  <div class="section-label" style="margin-bottom:12px;">See what it looks like</div>
-  <h3 style="font-family:'Syne',sans-serif;font-weight:800;font-size:20px;color:var(--ink);margin-bottom:8px;">Download a sample leave-behind</h3>
-  <p style="font-size:13px;color:var(--muted);max-width:420px;margin:0 auto 20px;line-height:1.65;">A real governed value analysis for RFID in retail apparel — the same format your sellers will use in the field.</p>
-  <button class="btn-sample" onclick="downloadSamplePDF()">↓ DOWNLOAD SAMPLE PDF</button>
-</section>
-
-<hr class="section-rule">
-
 <footer>
   <div>
     <div class="footer-mark">ALT MERIDIAN</div>
@@ -1198,135 +1186,6 @@ function fmtN(n){ if(!n||!isFinite(n)) return '—'; if(Math.abs(n)>=1e6) return
 // ─── INIT ─────────────────────────────────────────────────────────────────────
 loadTool();
 
-// ─── SAMPLE PDF DOWNLOAD ──────────────────────────────────────────────────────
-function downloadSamplePDF() {
-  const s = {
-    type: 'analysis',
-    title: 'RFID for Retail Apparel Operators',
-    signals: [
-      { name: 'Phantom inventory gap', description: 'Items appear in system as available but are not on shelf — causing stockouts customers see while systems show stock.' },
-      { name: 'Cycle count labor drain', description: 'Associates spend 8-12 hours per week on manual counts that produce accuracy readings 30 points below actual.' },
-      { name: 'Shrink outpacing detection', description: 'Loss prevention identifies theft after the fact through end-of-period variance, not during the event.' }
-    ],
-    mechanism: { name: 'Item-level read accuracy at point of count', description: 'RFID reads every tagged SKU in a scan pass, producing 99%+ inventory accuracy versus 65-75% with barcode. Accurate inventory data eliminates phantom stock, enables automated replenishment alerts, and makes shrink visible in real time rather than at period close.' },
-    evidence: [
-      { publisher: 'Auburn RFID Lab', year: 2023, tier: 'T1', claim: 'Retailers deploying item-level RFID achieve 93-99% inventory accuracy versus 65-75% without — a 30-point improvement.' },
-      { publisher: 'Retail Industry Leaders Association', year: 2022, tier: 'T2', claim: 'Out-of-stocks cost retailers 4-8% of sales annually; RFID replenishment alerts reduce stockout events by 50-80%.' },
-      { publisher: 'ECR Community', year: 2021, tier: 'T2', claim: 'RFID item tracking reduces retail shrink by 20-55% through improved exception reporting and deterrence.' }
-    ],
-    scenarios: [
-      { name: 'Cycle count labor reduction', what: 'Labor hours recovered by replacing manual barcode counts with automated RFID passes.', formula: '100 stores x 18 associates x 2.5 hrs/week x 52 weeks x $28 loaded rate', range_low: '$660K', range_high: '$1.1M', horizon: '3-6 months' },
-      { name: 'On-shelf availability — stockout recovery', what: 'Gross margin recovered from stockout events eliminated by RFID-driven replenishment alerts.', formula: '100 stores x $4M revenue x 5% OOS x 65% improvement x 38% GM', range_low: '$494K', range_high: '$760K', horizon: '6-9 months' },
-      { name: 'Shrink reduction', what: 'Inventory loss prevented through item-level visibility and exception reporting.', formula: '100 stores x $4M revenue x 1.5% shrink x 40% reduction', range_low: '$240K', range_high: '$360K', horizon: '6-12 months' }
-    ],
-    coi: { monthly: '$116K/mo', framing: 'Every month without RFID your stores run on inventory data that is wrong 30% of the time — generating stockouts your buyers see, shrink your P&L absorbs, and labor your associates spend counting things a reader can do in minutes.' },
-    cfo_challenge: { objection: 'We already have an inventory system — why would that not solve this?', answer: 'Your inventory system tracks what was scanned. RFID tracks what is physically present. The 30-point accuracy gap between those two things is where your phantom stock, your stockouts, and your undetected shrink live. The system is not the problem — the read method is.' }
-  };
-
-  try {
-    const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ unit: 'pt', format: 'letter' });
-    const W=612,L=20,R=W-20,TW=W-40;
-    const ACC=[200,75,47],INK=[15,15,15],MUT=[136,128,120];
-    const RULE=[224,221,214],WHITE=[255,255,255],LTBG=[249,247,243];
-    const GREEN=[58,155,96],AMBER=[196,133,42],RED=[189,66,66];
-    const TIER_C={T1:GREEN,T2:ACC,T3:AMBER,T4:RED};
-    let y=0;
-    const C=rgb=>doc.setTextColor(...rgb);
-    const F=rgb=>doc.setFillColor(...rgb);
-    const D=rgb=>doc.setDrawColor(...rgb);
-    const px=n=>doc.setFontSize(n);
-
-    F(INK);doc.rect(0,0,W,60,'F');
-    px(11);C(ACC);doc.setFont('helvetica','bold');doc.text('ALT',L,22);
-    C(WHITE);doc.text(' MERIDIAN',L+doc.getTextWidth('ALT'),22);
-    px(7);C(MUT);doc.setFont('helvetica','normal');doc.text('GOVERNED VALUE ANALYSIS — SAMPLE',L,36);
-    px(17);C(WHITE);doc.setFont('helvetica','bold');
-    const tl=doc.splitTextToSize(s.title,TW);doc.text(tl,L,52);
-    y=60+tl.length*20+8;D(ACC);doc.setLineWidth(1.5);doc.line(L,y,R,y);y+=16;
-
-    const secHdr=label=>{
-      if(y>700){doc.addPage();y=30;}
-      D(RULE);doc.setLineWidth(0.5);doc.line(L,y,R,y);y+=8;
-      px(7);C(MUT);doc.setFont('helvetica','bold');doc.text(label.toUpperCase(),L,y);y+=12;
-    };
-    const bodyT=(text,mw,col)=>{
-      px(9.5);C(col||INK);doc.setFont('helvetica','normal');
-      const lines=doc.splitTextToSize(text,mw||TW);
-      if(y+lines.length*13>740){doc.addPage();y=30;}
-      doc.text(lines,L,y);y+=lines.length*13+4;
-    };
-
-    s.signals.forEach(sig=>{
-      if(y>700){doc.addPage();y=30;}
-      F(ACC);doc.circle(L+3,y-3,2.5,'F');
-      px(10);C(INK);doc.setFont('helvetica','bold');doc.text(sig.name,L+10,y);y+=13;
-      bodyT(sig.description,TW-10,MUT);y+=2;
-    });
-
-    secHdr('Primary Mechanism');
-    px(11);C(ACC);doc.setFont('helvetica','bold');doc.text(s.mechanism.name,L,y);y+=14;
-    bodyT(s.mechanism.description,TW,[58,56,50]);
-
-    secHdr('Evidence');
-    s.evidence.forEach(ev=>{
-      if(y>700){doc.addPage();y=30;}
-      const tc=TIER_C[ev.tier]||MUT;
-      F(LTBG);D(RULE);doc.setLineWidth(0.5);
-      doc.roundedRect(L,y-10,TW,36,2,2,'FD');
-      F(tc);doc.roundedRect(L+4,y-7,22,14,2,2,'F');
-      px(8);C(WHITE);doc.setFont('courier','bold');doc.text(ev.tier||'',L+6,y+3);
-      px(9);C(INK);doc.setFont('helvetica','normal');
-      doc.text(doc.splitTextToSize(ev.claim,TW-36)[0],L+32,y+3);
-      px(7.5);C(MUT);doc.setFont('courier','normal');
-      doc.text(`${ev.publisher} · ${ev.year||''}`,L+32,y+16);
-      y+=40;
-    });
-
-    secHdr('Value Scenarios');
-    s.scenarios.forEach((sc,i)=>{
-      if(y>680){doc.addPage();y=30;}
-      F(LTBG);D(RULE);doc.setLineWidth(0.5);
-      doc.roundedRect(L,y-10,TW,54,2,2,'FD');
-      D(RULE);doc.line(L+TW-140,y-10,L+TW-140,y+44);
-      px(10);C(ACC);doc.setFont('helvetica','bold');doc.text(String(i+1).padStart(2,'0'),L+6,y+4);
-      C(INK);doc.text(sc.name,L+22,y+4);
-      px(8.5);C(MUT);doc.setFont('helvetica','normal');
-      doc.text(doc.splitTextToSize(sc.what,TW-160)[0],L+22,y+18);
-      px(13);C(ACC);doc.setFont('helvetica','bold');
-      const rs=`${sc.range_low} - ${sc.range_high}`;
-      doc.text(rs,R-8-doc.getTextWidth(rs),y+6);
-      px(7.5);C(MUT);doc.setFont('courier','normal');
-      doc.text(sc.horizon||'',R-8-doc.getTextWidth(sc.horizon||''),y+22);
-      y+=62;
-    });
-
-    if(y>660){doc.addPage();y=30;}y+=8;
-    F(INK);doc.rect(L-8,y-14,TW+16,70,'F');
-    px(7);C(MUT);doc.setFont('helvetica','normal');doc.text('COST OF INACTION',L,y-2);y+=6;
-    px(26);C(ACC);doc.setFont('helvetica','bold');doc.text(s.coi.monthly,L,y+14);y+=22;
-    px(9.5);C(WHITE);doc.setFont('helvetica','normal');
-    const fl=doc.splitTextToSize(s.coi.framing,TW);doc.text(fl,L,y+4);y+=fl.length*13+20;
-
-    secHdr('CFO Challenge');
-    if(y>660){doc.addPage();y=30;}
-    const ol=doc.splitTextToSize(`"${s.cfo_challenge.objection}"`,TW-12);
-    const al=doc.splitTextToSize(s.cfo_challenge.answer,TW-12);
-    const bh=ol.length*13+al.length*13+28;
-    F(LTBG);D(RULE);doc.setLineWidth(0.5);doc.roundedRect(L,y-10,TW,bh,2,2,'FD');
-    F(ACC);doc.rect(L,y-10,3,bh,'F');
-    px(10);C(INK);doc.setFont('helvetica','bold');doc.text(ol,L+10,y+2);y+=ol.length*13+8;
-    px(9.5);C([58,56,50]);doc.setFont('helvetica','normal');doc.text(al,L+10,y+2);
-
-    y=760;D(RULE);doc.setLineWidth(0.5);doc.line(L,y,R,y);
-    px(7.5);C(MUT);doc.setFont('helvetica','normal');
-    doc.text('Alt Meridian · Value belongs to mechanisms, not solutions. · altmeridian.com',W/2,y+12,{align:'center'});
-    doc.save('altmeridian-sample-value-analysis.pdf');
-  } catch(e) {
-    console.error('PDF error:',e);
-    alert('Could not generate PDF — please try again.');
-  }
-}
 
 </script>
 </body>
