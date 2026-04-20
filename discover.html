@@ -453,17 +453,40 @@ function scoreDomains() {
     .map(([d]) => d);
 }
 
+// Maps a scored-top domain (RFID, BLE, WMS, etc.) to a concrete tech phrase the
+// value-chat system prompt will recognize as a "solution type described."
+// Without this, buyer-flow queries ("I am X, what should I buy?") trigger
+// Format B scoping questions and never produce a shortlist.
+const DOMAIN_TECH_PHRASE = {
+  'RFID':     'RFID item-level inventory and asset tracking',
+  'BLE':      'BLE / ambient IoT asset and cold-chain tracking',
+  'WMS':      'warehouse management software',
+  'IIOT':     'industrial IoT condition monitoring and predictive maintenance',
+  'CAT-RISK': 'catastrophic risk intelligence and climate-informed underwriting',
+  'AIP':      'governed enterprise AI platform',
+  'FLEET':    'fleet telematics and driver-safety technology',
+  'POI-LI':   'location intelligence and POI data',
+  'FSM':      'field service management software',
+  'CPQ':      'configure-price-quote software',
+  'ICM-SAAS': 'incentive compensation management',
+  'VEN-VEF':  'value engineering / ROI tooling',
+};
+
 function buildDiscoveryQuery() {
   const vertLabel = document.getElementById('sel-vertical').selectedOptions[0]?.text || D.vertical;
   const painList  = [...D.pains].join(', ');
   const revLabel  = REV_LABELS[D.revIdx];
+  const topDomain = scoreDomains()[0] || '';
+  const techPhrase = DOMAIN_TECH_PHRASE[topDomain] || 'the most relevant governed technology solution';
 
-  D.ctx = `${vertLabel} operation, ${revLabel} revenue`;
+  D.ctx = `${vertLabel} operation, ${revLabel} revenue${painList ? ', pains: ' + painList : ''}`;
 
-  return `I am an operations or finance leader at a ${vertLabel} company with ${revLabel} in annual revenue.` +
-    (painList ? ` Our main pain points are: ${painList}.` : '') +
-    ` What technology solution would generate the most defensible ROI for our operation?` +
-    ` Give me a governed value analysis: signals, primary mechanism, evidence, value scenarios with ranges, cost of inaction per month, and the CFO challenge.`;
+  // Seller-style framing — value-chat v13 was built for this pattern. Buyer
+  // framing triggers clarifying questions every time.
+  return `We are evaluating ${techPhrase} for a ${vertLabel} operation with ${revLabel} in annual revenue.` +
+    (painList ? ` The operational pains we want to solve: ${painList}.` : '') +
+    ` Produce a Format A structured value analysis NOW with: title, signals (2-3), primary mechanism, evidence (2-3 items from governed database), at least 3 value scenarios each with range_low and range_high, cost of inaction per month, and CFO challenge.` +
+    ` Use typical industry ranges where specific numbers are missing. Do NOT ask clarifying questions — respond with structured JSON.`;
 }
 
 // ── RUN ───────────────────────────────────────────────────────────────────────
