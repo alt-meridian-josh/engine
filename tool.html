@@ -419,8 +419,8 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.25)}
     <div class="abody" id="abody">
       <div class="empty" id="empty">
         <div class="eico">⟁</div>
-        <div class="etit">No analysis yet</div>
-        <div class="esub">Chat to describe your deal, or click scenarios on the left to activate them.</div>
+        <div class="etit">Gathering</div>
+        <div class="esub">Tell Meridian your solution, buyer, and use case. Your value analysis will build here as the conversation narrows.</div>
       </div>
     </div>
   </div>
@@ -1241,6 +1241,10 @@ async function cfoTurn(text) {
 // Activate relevant scenarios from domain match
 function activateDomain(domains) {
   S.lastDomains = domains; // store for "back to top 3" button
+  // Phase 4 refinement: clear before re-activating so turn 2+ narrows cleanly
+  // instead of accumulating. The caller (discTurn) captures prev state before
+  // calling this so it can diff for the fade animation.
+  S.activeScens.clear();
   renderTopTiles(domains);
 }
 
@@ -1586,7 +1590,7 @@ function fullReset() {
   if (pptxBtn) { pptxBtn.disabled = true; pptxBtn.title = 'Run a value analysis first to enable PPTX export'; }
   seedDefaults();
   document.getElementById('abody').innerHTML =
-    `<div class="empty" id="empty"><div class="eico">⟁</div><div class="etit">No analysis yet</div><div class="esub">Chat to describe your deal, or click scenarios on the left to activate them.</div></div>`;
+    `<div class="empty" id="empty"><div class="eico">⟁</div><div class="etit">Gathering</div><div class="esub">Tell Meridian your solution, buyer, and use case. Your value analysis will build here as the conversation narrows.</div></div>`;
   document.getElementById('eng-lbl').textContent =
     S.engines.length ? S.engines.map(e => e.vendor_category).join(' · ') : 'Loading...';
   // Reset tiles to empty state
