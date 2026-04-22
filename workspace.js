@@ -564,4 +564,258 @@ async function wsIntakeCommit() {
   }
 }
 
+// ── Slider handler + metric refresh ──────────────────────────────────────────
+function wsOnSlide(key, val) {
+  const v = parseFloat(val);
+  if (isNaN(v)) return;
+  WS.inputs[key] = v;
+  const def = WS.defs[key];
+  const el = document.getElementById('ws-sv-' + key);
+  if (el) {
+    el.textContent = wsFmtInput(v, def ? def.unit : '');
+    el.className = 'ws-sval just-changed';
+    setTimeout(() => { if (el) el.className = 'ws-sval buyer'; }, 800);
+  }
+  wsRefreshMetrics();
+  wsScheduleSave(key);
+}
+
+function wsRefreshMetrics() {
+  const m = wsComputeMetrics();
+  const p = (id, t) => { const el = document.getElementById(id); if (el) el.textContent = t; };
+  p('ws-mc-arv', wsFmtMoney(m.arv));
+  p('ws-mc-pay', m.payback_mo != null ? m.payback_mo.toFixed(1) + 'mo' : '—');
+  p('ws-mc-bcr', m.bcr != null ? m.bcr.toFixed(1) + 'x' : '—');
+  p('ws-mc-dly', wsFmtMoney(m.monthlyDelay));
+  wsRefreshBadges();
+}
+
+function wsRefreshBadges() {
+  const state = wsSnapshotState();
+  document.querySelectorAll('.ws-mc .mc-badge').forEach(b => b.remove());
+  if (!state) return;
+  const html = state === 'live'
+    ? '<span class="mc-badge live">Live</span>'
+    : '<span class="mc-badge snap">Snapshot</span>';
+  document.querySelectorAll('.ws-mc').forEach(card => {
+    card.insertAdjacentHTML('beforeend', html);
+  });
+}
+
+// ── Debounced save + preset ──────────────────────────────────────────────────
+function wsScheduleSave() {
+  if (!WS.eng) return;
+  const statusEl = document.getElementById('ws-save-status');
+  if (statusEl) { statusEl.textContent = 'editing…'; statusEl.className = 'ws-save-status'; }
+  clearTimeout(WS.saveTimer);
+  WS.saveTimer = setTimeout(() => wsSaveInputs(), 1000);
+}
+
+async function wsSaveInputs() {
+  if (!WS.eng) return;
+  const engId = WS.eng.engagement_id;
+  const statusEl = document.getElementById('ws-save-status');
+  if (statusEl) { statusEl.textContent = 'saving…'; statusEl.className = 'ws-save-status saving'; }
+  try {
+    const rows = Object.entries(WS.inputs).map(([k, v]) => ({
+      engagement_id: engId,
+      input_key: k,
+      provided_value: v,
+      source: 'tool',
+    }));
+    if (rows.length === 0) return;
+    await sbUpsert('vef_input_values', rows, 'engagement_id,input_key');
+    if (statusEl) { statusEl.textContent = '✓ saved'; statusEl.className = 'ws-save-status saved'; }
+    setTimeout(() => { if (statusEl && statusEl.textContent === '✓ saved') statusEl.textContent = ''; }, 1800);
+  } catch (e) {
+    console.error('save inputs', e);
+    wsBotError('Failed to save inputs: ' + e.message);
+    if (statusEl) { statusEl.textContent = 'save failed'; statusEl.className = 'ws-save-status'; }
+  }
+}
+
+function wsApplyPreset(preset) {
+  WS.preset = preset;
+  document.querySelectorAll('.ws-preset').forEach(b =>
+    b.classList.toggle('on', b.dataset.preset === preset));
+  Object.values(WS.defs).forEach(d => {
+    let v;
+    if (preset === 'conservative') v = d.conservative_value;
+    else if (preset === 'aggressive') v = d.aggressive_value;
+    else v = d.typical_value;
+    const num = parseFloat(v != null ? v : d.default_value);
+    if (!isNaN(num)) WS.inputs[d.input_key] = num;
+  });
+  wsRenderAnalysis();
+  wsScheduleSave();
+}
+
+// ── AI chat with injected context ────────────────────────────────────────────
+function wsBuildSystemContext() {
+  const active = wsActiveScenarios();
+  const activeLines = active.map(s => {
+    const fields = [
+      s.scenario_id,
+      s.description || s.one_liner || '',
+      s.one_liner || '',
+      s.value_theme || '',
+      s.value_scenario_formula || '',
+      s.cost_of_inaction_formula || '',
+      s.evidence_strength || '',
+      s.cfo_challenge || '',
+    ];
+    return '- ' + fields.map(f => String(f).replace(/\|/g, '/')).join(' | ');
+  }).join('\n');
+
+  const evLines = (WS.evidence || []).slice(0, 20).map(e => {
+    return '- ' + [
+      e.evidence_id,
+      e.evidence_title,
+      e.evidence_publisher,
+      e.evidence_year,
+      e.quantified_claim_summary,
+      e.haircut_applied,
+    ].map(f => String(f == null ? '' : f).replace(/\|/g, '/')).join(' | ');
+  }).join('\n');
+
+  const leverLines = (WS.levers || []).map(l => {
+    return '- ' + [
+      l.vl_num,
+      l.value_lever,
+      l.simple_formula,
+    ].map(f => String(f == null ? '' : f).replace(/\|/g, '/')).join(' | ');
+  }).join('\n');
+
+  const inputLines = Object.entries(WS.inputs)
+    .map(([k, v]) => `${k}=${v}`).join(', ');
+
+  return `ENGAGEMENT: ${WS.eng ? WS.eng.engagement_id : '—'} · domain=${WS.domainId || '—'}
+CURRENT INPUTS: ${inputLines || '(none)'}
+
+ACTIVE SCENARIOS [scenario_id | description | one_liner | value_theme | value_scenario_formula | cost_of_inaction_formula | evidence_strength | cfo_challenge]:
+${activeLines || '(none active)'}
+
+EVIDENCE REGISTRY [evidence_id | evidence_title | evidence_publisher | evidence_year | quantified_claim_summary | haircut_applied]:
+${evLines || '(none)'}
+
+VALUE LEVERS [vl_num | value_lever | simple_formula]:
+${leverLines || '(none)'}
+
+Use the scenario formulas to reason about sensitivity. Cite evidence by evidence_id when making claims. Challenge soft numbers using haircut_applied.`;
+}
+
+async function wsChatAI(text) {
+  wsTyping();
+  WS.history.push({ role: 'user', content: text });
+  const sysCtx = wsBuildSystemContext();
+  try {
+    const res = await fetch(`${SB}/functions/v1/value-chat`, {
+      method: 'POST',
+      headers: { ...HDRS },
+      body: JSON.stringify({
+        query: text,
+        history: WS.history.slice(0, -1),
+        session_id: 'ws_' + (WS.eng ? WS.eng.engagement_id : 'none'),
+        solution_context: sysCtx,
+        engagement_id: WS.eng ? WS.eng.engagement_id : null,
+      }),
+    });
+    const data = await res.json();
+    const s = data.structured || { type: 'text', text: data.error || 'No response.' };
+    let textOut;
+    if (s.type === 'text') {
+      textOut = s.text || '';
+    } else if (s.type === 'analysis') {
+      textOut = (s.title ? `<strong>${wsEsc(s.title)}</strong><br>` : '') +
+        ((s.signals || []).map(x => `• ${wsEsc(x.name)}: ${wsEsc(x.description || '')}`).join('<br>') || '');
+      if (s.follow_up) textOut += `<br><em>${wsEsc(s.follow_up)}</em>`;
+    } else {
+      textOut = wsEsc(JSON.stringify(s));
+    }
+    WS.history.push({ role: 'assistant', content: textOut });
+    if (WS.history.length > 14) WS.history = WS.history.slice(-14);
+    wsRmTyping();
+    const m = document.getElementById('ws-msgs');
+    const el = document.createElement('div'); el.className = 'wsm bot';
+    el.innerHTML = `<div class="wsm-who">Meridian</div><div class="wsm-bub">${textOut || '—'}</div>`;
+    m.appendChild(el); m.scrollTop = m.scrollHeight;
+  } catch (e) {
+    console.error(e);
+    wsBotError('Chat failed: ' + e.message);
+  }
+}
+
+// ── Snapshot modal + save + toast ────────────────────────────────────────────
+function wsOpenSnapModal() {
+  if (!WS.eng) return;
+  document.getElementById('ws-snap-modal').classList.add('on');
+}
+
+function wsCloseSnapModal() {
+  document.getElementById('ws-snap-modal').classList.remove('on');
+}
+
+async function wsSaveSnapshot() {
+  if (!WS.eng) return;
+  const label  = document.getElementById('ws-snap-label').value;
+  const intent = document.getElementById('ws-snap-intent').value;
+  const btn = document.getElementById('ws-snap-confirm');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const m = wsComputeMetrics();
+    const activeIds = wsActiveScenarios().map(s => s.scenario_id).join(',');
+    const nextVersion = (WS.snapshots[0]?.snapshot_version || WS.snapshots.length) + 1;
+    const row = {
+      engagement_id: WS.eng.engagement_id,
+      snapshot_version: nextVersion,
+      annual_value: m.arv,
+      payback_mo: m.payback_mo,
+      bcr: m.bcr,
+      monthly_delay_cost: m.monthlyDelay,
+      active_scenario_ids: activeIds,
+      input_snapshot: WS.inputs,
+      snapshot_label: label,
+      intent,
+      domain_id: WS.domainId,
+    };
+    const inserted = await sbIns('vef_output_snapshots', [row]);
+    const saved = inserted[0] || row;
+    WS.snapshots = [saved, ...WS.snapshots];
+    wsCloseSnapModal();
+    wsRenderAnalysis();
+    wsToast(`Snapshot v${saved.snapshot_version} saved`);
+  } catch (e) {
+    console.error(e);
+    wsToast('Save failed: ' + e.message, true);
+    wsBotError('Snapshot save failed: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save';
+  }
+}
+
+function wsToast(msg, err) {
+  const el = document.getElementById('ws-toast');
+  if (!el) return;
+  el.textContent = (err ? '✗ ' : '✓ ') + msg;
+  el.className = 'ws-toast on' + (err ? ' err' : '');
+  clearTimeout(WS._toastT);
+  WS._toastT = setTimeout(() => { el.className = 'ws-toast' + (err ? ' err' : ''); }, 2600);
+}
+
+// ── Public API (called from HTML onclick and from fd-admin's setTab) ─────────
+window.wsInit              = wsInit;
+window.wsSelectEngagement  = wsSelectEngagement;
+window.wsApplyPreset       = wsApplyPreset;
+window.wsOnKey             = wsOnKey;
+window.wsResize            = wsResize;
+window.wsSend              = wsSend;
+window.wsOpenSnapModal     = wsOpenSnapModal;
+window.wsCloseSnapModal    = wsCloseSnapModal;
+window.wsSaveSnapshot      = wsSaveSnapshot;
+window.wsOnSlide           = wsOnSlide;
+window.wsStartIntake       = wsStartIntake;
+window.wsChipClick         = wsChipClick;
+window.wsIntakeCommit      = wsIntakeCommit;
+window.wsIntakeCancel      = wsIntakeCancel;
+
 })();
