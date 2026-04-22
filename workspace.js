@@ -652,7 +652,7 @@ async function wsSaveInputs() {
       engagement_id: engId,
       input_key: k,
       provided_value: v,
-      source: 'tool',
+      value_source: 'tool',
     }));
     if (rows.length === 0) return;
     await sbUpsert('vef_input_values', rows, 'engagement_id,input_key');
