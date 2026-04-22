@@ -240,4 +240,153 @@ function wsRenderEmpty(msg) {
     <div class="ws-empty-sub">${wsEsc(msg)}</div></div>`;
 }
 
+// ── Active scenarios + metrics ───────────────────────────────────────────────
+function wsActiveScenarios() {
+  const activeIds = new Set(
+    WS.selections.filter(s => s.is_active !== false).map(s => s.scenario_id)
+  );
+  return WS.scenarios.filter(s => activeIds.has(s.scenario_id));
+}
+
+function wsComputeMetrics() {
+  const active = wsActiveScenarios();
+  const arv = active.reduce((sum, s) => {
+    const v = wsEvalFormula(s.value_scenario_formula, WS.inputs);
+    return sum + (v && isFinite(v) && v > 0 ? v : 0);
+  }, 0);
+  const coiTotal = active.reduce((sum, s) => {
+    const v = wsEvalFormula(s.cost_of_inaction_formula, WS.inputs);
+    return sum + (v && isFinite(v) && v > 0 ? v : 0);
+  }, 0);
+  const delayTotal = active.reduce((sum, s) => {
+    const v = wsEvalFormula(s.delay_cost_formula, WS.inputs);
+    return sum + (v && isFinite(v) && v > 0 ? v : 0);
+  }, 0);
+
+  const impl = Number(WS.inputs.implementation_cost) || 0;
+  const payback_mo = (impl > 0 && arv > 0) ? (impl / arv) * 12 : null;
+  const bcr = (impl > 0 && arv > 0) ? (arv * 3) / impl : null;
+  const monthlyDelay = delayTotal > 0 ? delayTotal : (arv > 0 ? arv / 12 : 0);
+
+  return { arv, coiTotal, payback_mo, bcr, monthlyDelay, impl };
+}
+
+// Compare current inputs to most recent snapshot's input_snapshot.
+// 'snap' = match, 'live' = diverged, null = no snapshot to compare.
+function wsSnapshotState() {
+  const snap = WS.snapshots && WS.snapshots[0];
+  if (!snap || !snap.input_snapshot) return null;
+  const snapIn = snap.input_snapshot;
+  const keys = new Set([...Object.keys(WS.inputs), ...Object.keys(snapIn)]);
+  for (const k of keys) {
+    const a = Number(WS.inputs[k]);
+    const b = Number(snapIn[k]);
+    const aOk = isFinite(a), bOk = isFinite(b);
+    if (!aOk && !bOk) continue;
+    if (aOk !== bOk) return 'live';
+    if (Math.abs(a - b) > 1e-6) return 'live';
+  }
+  return 'snap';
+}
+
+function wsBadgeHtml() {
+  const state = wsSnapshotState();
+  if (!state) return '';
+  return state === 'live'
+    ? '<span class="mc-badge live">Live</span>'
+    : '<span class="mc-badge snap">Snapshot</span>';
+}
+
+// ── Render analysis panel ────────────────────────────────────────────────────
+function wsRenderAnalysis() {
+  const body = document.getElementById('ws-abody');
+  const m = wsComputeMetrics();
+  const presetsActive = `<span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--t3)">preset: ${WS.preset}</span>`;
+  const badge = wsBadgeHtml();
+
+  const defs = Object.values(WS.defs);
+  const sliderHtml = defs.length
+    ? defs.map(d => wsSliderRow(d)).join('')
+    : '<div class="ws-empty-sub" style="padding:10px 0">No input definitions found for this domain.</div>';
+
+  const snapHtml = WS.snapshots.length
+    ? WS.snapshots.map(s => {
+        const date = s.created_at ? new Date(s.created_at).toLocaleDateString() : '—';
+        return `<div class="ws-snap">
+          <div class="ws-snap-v">v${s.snapshot_version || '?'}</div>
+          <div class="ws-snap-lbl">${wsEsc(s.snapshot_label || '—')}${s.intent ? ' · ' + wsEsc(s.intent) : ''}</div>
+          <div class="ws-snap-val">${wsFmtMoney(s.annual_value)}</div>
+          <div class="ws-snap-pay">${s.payback_mo != null ? s.payback_mo.toFixed(1) + 'mo' : '—'}</div>
+          <div class="ws-snap-date">${wsEsc(date)}</div>
+        </div>`;
+      }).join('')
+    : '<div class="ws-empty-sub" style="padding:6px 0">No snapshots yet. Save one from the header.</div>';
+
+  body.innerHTML = `
+    <div class="ws-metrics">
+      <div class="ws-mc pri"><div class="ws-mcq">Annual Run-rate Value</div>
+        <div class="ws-mcn" id="ws-mc-arv">${wsFmtMoney(m.arv)}</div>
+        <div class="ws-mcs">ARV · sum of active scenarios</div>${badge}</div>
+      <div class="ws-mc"><div class="ws-mcq">Payback</div>
+        <div class="ws-mcn" id="ws-mc-pay">${m.payback_mo != null ? m.payback_mo.toFixed(1) + 'mo' : '—'}</div>
+        <div class="ws-mcs">months to breakeven</div>${badge}</div>
+      <div class="ws-mc"><div class="ws-mcq">BCR</div>
+        <div class="ws-mcn" id="ws-mc-bcr">${m.bcr != null ? m.bcr.toFixed(1) + 'x' : '—'}</div>
+        <div class="ws-mcs">benefit-cost · 3yr</div>${badge}</div>
+      <div class="ws-mc warn"><div class="ws-mcq">Monthly Delay Cost</div>
+        <div class="ws-mcn" id="ws-mc-dly">${wsFmtMoney(m.monthlyDelay)}</div>
+        <div class="ws-mcs">per month of inaction</div>${badge}</div>
+    </div>
+
+    <div>
+      <div class="ws-sec-hd"><span>Key Inputs</span>${presetsActive}</div>
+      <div class="ws-sliders" id="ws-sliders">${sliderHtml}</div>
+    </div>
+
+    <div>
+      <div class="ws-sec-hd"><span>Snapshots</span>
+        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--t3)">${WS.snapshots.length}</span>
+      </div>
+      <div class="ws-snap-list" id="ws-snap-list">${snapHtml}</div>
+    </div>`;
+}
+
+// ── Slider row + input formatter ─────────────────────────────────────────────
+function wsSliderRow(def) {
+  const key = def.input_key;
+  const cur = Number(WS.inputs[key] != null ? WS.inputs[key] : (def.typical_value || def.default_value || 0));
+  let mn = parseFloat(def.min_value);
+  let mx = parseFloat(def.max_value);
+  if (!isFinite(mn)) mn = 0;
+  if (!isFinite(mx)) mx = Math.max(cur * 3, 100);
+  if (mx <= mn) mx = mn + 1;
+  const unit = def.unit || '';
+  const isDec = unit === 'decimal' || unit === '%';
+  const span  = mx - mn;
+  const step  = isDec ? Math.max(0.001, span / 200) : Math.max(1, Math.round(span / 200));
+  const disp = wsFmtInput(cur, unit);
+  const label = def.label || key;
+  return `<div class="ws-sr">
+    <div class="ws-stop">
+      <div class="ws-slbl" title="${wsEsc(label)}">${wsEsc(label)}</div>
+      <div class="ws-sval" id="ws-sv-${wsEsc(key)}">${wsEsc(disp)}</div>
+    </div>
+    <input type="range" min="${mn}" max="${mx}" step="${step}" value="${cur}"
+      oninput="wsOnSlide('${wsEsc(key)}', this.value)">
+    <div class="ws-shints">
+      <span class="ws-sh">${wsEsc(wsFmtInput(mn, unit))}</span>
+      <span class="ws-sh">${wsEsc(wsFmtInput(mx, unit))}</span>
+    </div>
+  </div>`;
+}
+
+function wsFmtInput(n, unit) {
+  n = Number(n);
+  if (!isFinite(n)) return '—';
+  if (unit === '$') return '$' + n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  if (unit === 'decimal' || unit === '%') return (Math.round(n * 1000) / 10) + '%';
+  const u = unit ? ' ' + unit : '';
+  return n.toLocaleString(undefined, { maximumFractionDigits: 2 }) + u;
+}
+
 })();
