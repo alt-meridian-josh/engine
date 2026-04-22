@@ -204,7 +204,7 @@ select.fi option{background:var(--s3)}
 
 /* metric cards */
 .ws-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
-.ws-mc{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:11px 13px}
+.ws-mc{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:11px 13px;position:relative}
 .ws-mc.pri{border-color:var(--aline);background:var(--adim)}
 .ws-mc.warn{border-left:2px solid var(--amber)}
 .ws-mc.dng{border-left:2px solid var(--red)}
@@ -216,6 +216,12 @@ select.fi option{background:var(--s3)}
 .ws-mc.warn .ws-mcn{color:var(--amber)}
 .ws-mc.dng .ws-mcn{color:var(--red)}
 .ws-mcs{font-size:10px;color:var(--t3);margin-top:3px}
+.mc-badge{position:absolute;top:8px;right:8px;
+  font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.08em;
+  padding:2px 6px;border-radius:2px;border:1px solid var(--b2);color:var(--t3);
+  text-transform:uppercase;line-height:1.2}
+.mc-badge.live{border-color:rgba(189,66,66,.4);color:var(--red);background:var(--rdim)}
+.mc-badge.snap{border-color:var(--b2);color:var(--t3);background:var(--s2)}
 
 /* sliders */
 .ws-sec-hd{display:flex;align-items:center;justify-content:space-between;
@@ -1117,10 +1123,37 @@ function wsComputeMetrics() {
   return { arv, coiTotal, payback_mo, bcr, monthlyDelay, impl };
 }
 
+// Compare current inputs to most recent snapshot's input_snapshot.
+// Returns 'snap' (match), 'live' (diverged), or null (no snapshot to compare).
+function wsSnapshotState() {
+  const snap = WS.snapshots && WS.snapshots[0];
+  if (!snap || !snap.input_snapshot) return null;
+  const snapIn = snap.input_snapshot;
+  const keys = new Set([...Object.keys(WS.inputs), ...Object.keys(snapIn)]);
+  for (const k of keys) {
+    const a = Number(WS.inputs[k]);
+    const b = Number(snapIn[k]);
+    const aOk = isFinite(a), bOk = isFinite(b);
+    if (!aOk && !bOk) continue;
+    if (aOk !== bOk) return 'live';
+    if (Math.abs(a - b) > 1e-6) return 'live';
+  }
+  return 'snap';
+}
+
+function wsBadgeHtml() {
+  const state = wsSnapshotState();
+  if (!state) return '';
+  return state === 'live'
+    ? '<span class="mc-badge live">Live</span>'
+    : '<span class="mc-badge snap">Snapshot</span>';
+}
+
 function wsRenderAnalysis() {
   const body = document.getElementById('ws-abody');
   const m = wsComputeMetrics();
   const presetsActive = `<span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--t3)">preset: ${WS.preset}</span>`;
+  const badge = wsBadgeHtml();
 
   const defs = Object.values(WS.defs);
   const sliderHtml = defs.length
@@ -1144,16 +1177,16 @@ function wsRenderAnalysis() {
     <div class="ws-metrics">
       <div class="ws-mc pri"><div class="ws-mcq">Annual Run-rate Value</div>
         <div class="ws-mcn" id="ws-mc-arv">${wsFmtMoney(m.arv)}</div>
-        <div class="ws-mcs">ARV · sum of active scenarios</div></div>
+        <div class="ws-mcs">ARV · sum of active scenarios</div>${badge}</div>
       <div class="ws-mc"><div class="ws-mcq">Payback</div>
         <div class="ws-mcn" id="ws-mc-pay">${m.payback_mo != null ? m.payback_mo.toFixed(1) + 'mo' : '—'}</div>
-        <div class="ws-mcs">months to breakeven</div></div>
+        <div class="ws-mcs">months to breakeven</div>${badge}</div>
       <div class="ws-mc"><div class="ws-mcq">BCR</div>
         <div class="ws-mcn" id="ws-mc-bcr">${m.bcr != null ? m.bcr.toFixed(1) + 'x' : '—'}</div>
-        <div class="ws-mcs">benefit-cost · 3yr</div></div>
+        <div class="ws-mcs">benefit-cost · 3yr</div>${badge}</div>
       <div class="ws-mc warn"><div class="ws-mcq">Monthly Delay Cost</div>
         <div class="ws-mcn" id="ws-mc-dly">${wsFmtMoney(m.monthlyDelay)}</div>
-        <div class="ws-mcs">per month of inaction</div></div>
+        <div class="ws-mcs">per month of inaction</div>${badge}</div>
     </div>
 
     <div>
@@ -1229,6 +1262,19 @@ function wsRefreshMetrics() {
   p('ws-mc-pay', m.payback_mo != null ? m.payback_mo.toFixed(1) + 'mo' : '—');
   p('ws-mc-bcr', m.bcr != null ? m.bcr.toFixed(1) + 'x' : '—');
   p('ws-mc-dly', wsFmtMoney(m.monthlyDelay));
+  wsRefreshBadges();
+}
+
+function wsRefreshBadges() {
+  const state = wsSnapshotState();
+  document.querySelectorAll('.ws-mc .mc-badge').forEach(b => b.remove());
+  if (!state) return;
+  const html = state === 'live'
+    ? '<span class="mc-badge live">Live</span>'
+    : '<span class="mc-badge snap">Snapshot</span>';
+  document.querySelectorAll('.ws-mc').forEach(card => {
+    card.insertAdjacentHTML('beforeend', html);
+  });
 }
 
 // Debounced save — upsert on (engagement_id, input_key)
