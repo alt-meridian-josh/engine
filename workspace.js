@@ -389,4 +389,179 @@ function wsFmtInput(n, unit) {
   return n.toLocaleString(undefined, { maximumFractionDigits: 2 }) + u;
 }
 
+// ── Chat / intake router ─────────────────────────────────────────────────────
+async function wsSend() {
+  const el = document.getElementById('ws-inp');
+  const text = (el.value || '').trim();
+  if (!text) return;
+  el.value = ''; el.style.height = 'auto';
+  wsUserMsg(text);
+
+  // Intake mode: state machine consumes input
+  if (WS.intake) { await wsIntakeStep(text); return; }
+
+  // Trigger intake
+  if (/^\s*new\s+engagement\s*$/i.test(text)) { wsStartIntake(); return; }
+
+  // General AI chat (engagement required)
+  if (!WS.eng) {
+    wsBotMsg('Select an engagement from the dropdown first, or type <em>new engagement</em> to create one.',
+      [{ label: 'New engagement', value: 'new engagement' }]);
+    return;
+  }
+  await wsChatAI(text);
+}
+
+function wsChipClick(btn) {
+  const val = btn.dataset.val || btn.textContent;
+  const inp = document.getElementById('ws-inp');
+  inp.value = val;
+  wsSend();
+}
+
+// ── Intake state machine ─────────────────────────────────────────────────────
+const INTAKE_STEPS = [
+  { key: 'vendor_name',         prompt: "What's the vendor name? (who's selling)" },
+  { key: 'prospect_name',       prompt: "And the prospect? (who they're selling to)" },
+  { key: 'domain_id',           prompt: "Which domain? Pick one below.", type: 'domain' },
+  { key: 'deal_stage',          prompt: "What deal stage?", type: 'chips',
+    options: ['Discovery', 'Technical Validation', 'Business Case', 'Negotiation', 'Closed Won'] },
+  { key: 'sales_motion',        prompt: "What sales motion?", type: 'chips',
+    options: ['Direct', 'Partner-led', 'Inbound', 'RFP', 'Expansion'] },
+  { key: 'champion_role',       prompt: "Champion role? (e.g. VP Supply Chain)" },
+  { key: 'economic_buyer_role', prompt: "Economic buyer role? (e.g. CFO)" },
+  { key: 'artifact_purpose',    prompt: "Artifact purpose?", type: 'chips',
+    options: ['CFO Business Case', 'Champion Leave-Behind', 'Executive Briefing', 'Proposal Section', 'RFP Response'] },
+];
+
+function wsStartIntake() {
+  WS.intake = { step: 0, data: {} };
+  wsBotMsg("Let's create a new engagement. I'll ask a few questions — answer in the box or tap a chip.");
+  wsAskIntakeStep();
+}
+
+function wsAskIntakeStep() {
+  const it = WS.intake;
+  if (!it) return;
+  if (it.step >= INTAKE_STEPS.length) { wsIntakeSummary(); return; }
+  const step = INTAKE_STEPS[it.step];
+  let chips = [];
+  if (step.type === 'chips') chips = step.options.map(o => ({ label: o, value: o }));
+  else if (step.type === 'domain') {
+    chips = WS.domains.map(d => ({
+      label: `${d.domain_id} — ${d.domain_name}`,
+      value: d.domain_id,
+    }));
+  }
+  wsBotMsg(wsEsc(step.prompt), chips);
+}
+
+async function wsIntakeStep(answer) {
+  const it = WS.intake;
+  const step = INTAKE_STEPS[it.step];
+
+  if (step.type === 'domain') {
+    const match = WS.domains.find(d =>
+      d.domain_id === answer || d.domain_name === answer ||
+      `${d.domain_id} — ${d.domain_name}` === answer);
+    if (!match) {
+      wsBotMsg(`Couldn't find that domain. Pick one from the list below.`,
+        WS.domains.map(d => ({ label: `${d.domain_id} — ${d.domain_name}`, value: d.domain_id })));
+      return;
+    }
+    it.data[step.key] = match.domain_id;
+    wsBotMsg(`Got it — <strong>${wsEsc(match.domain_id)}</strong> (${wsEsc(match.domain_name)}).`);
+  } else {
+    it.data[step.key] = answer;
+    wsBotMsg(`Got it — <strong>${wsEsc(answer)}</strong>.`);
+  }
+
+  it.step += 1;
+  if (it.step >= INTAKE_STEPS.length) wsIntakeSummary();
+  else wsAskIntakeStep();
+}
+
+function wsIntakeSummary() {
+  const d = WS.intake.data;
+  const rows = INTAKE_STEPS.map(s => {
+    const v = d[s.key];
+    const disp = (s.type === 'domain') ? (() => {
+      const dom = WS.domains.find(x => x.domain_id === v);
+      return dom ? `${dom.domain_id} — ${dom.domain_name}` : (v || '—');
+    })() : (v || '—');
+    return `<div class="ws-intake-row">
+      <div class="ws-intake-k">${wsEsc(s.key.replace(/_/g,' '))}</div>
+      <div class="ws-intake-v">${wsEsc(disp)}</div></div>`;
+  }).join('');
+
+  const m = document.getElementById('ws-msgs');
+  const el = document.createElement('div'); el.className = 'wsm bot';
+  el.innerHTML = `<div class="wsm-who">Meridian</div>
+    <div class="wsm-bub">Here's what I've got. Create this engagement?</div>
+    <div class="ws-intake-card">${rows}</div>
+    <div class="ws-chips">
+      <button class="ws-chip" onclick="wsIntakeCommit()">Yes, create it</button>
+      <button class="ws-chip" onclick="wsIntakeCancel()">Cancel</button>
+    </div>`;
+  m.appendChild(el); m.scrollTop = m.scrollHeight;
+}
+
+function wsIntakeCancel() {
+  WS.intake = null;
+  wsBotMsg('Cancelled. No engagement was created.');
+}
+
+async function wsIntakeCommit() {
+  const d = WS.intake ? WS.intake.data : null;
+  if (!d) return;
+  wsTyping();
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const engId = 'ENG-' + Date.now();
+    const row = {
+      engagement_id: engId,
+      vendor_name: d.vendor_name,
+      prospect_name: d.prospect_name,
+      domain_id: d.domain_id,
+      deal_stage: d.deal_stage,
+      sales_motion: d.sales_motion,
+      champion_role: d.champion_role,
+      economic_buyer_role: d.economic_buyer_role,
+      artifact_purpose: d.artifact_purpose,
+      intake_source: 'tool',
+      intake_date: today,
+      engagement_status: 'Active',
+    };
+    const inserted = await sbIns('vef_engagements', [row]);
+    const newEng = inserted[0] || row;
+
+    // Seed scenario selections from domain defaults
+    const domainScens = await sbGet('vef_value_scenarios',
+      `domain_id=eq.${encodeURIComponent(d.domain_id)}&active_by_default=eq.true&select=scenario_id`);
+    if (domainScens.length) {
+      const selRows = domainScens.map(s => ({
+        engagement_id: engId,
+        scenario_id: s.scenario_id,
+        is_active: true,
+        source: 'intake-default',
+      }));
+      try { await sbIns('vef_scenario_selections', selRows); }
+      catch (e) { console.warn('scenario selections seed failed', e); }
+    }
+
+    WS.intake = null;
+    wsRmTyping();
+    wsBotMsg(`✓ Created <strong>${wsEsc(engId)}</strong> and seeded ${domainScens.length} default scenarios.`);
+
+    WS.engagements = [newEng, ...WS.engagements];
+    wsRenderDropdown();
+    document.getElementById('ws-eng-sel').value = engId;
+    await wsSelectEngagement(engId);
+  } catch (e) {
+    console.error(e);
+    wsRmTyping();
+    wsBotError('Failed to create engagement: ' + e.message);
+  }
+}
+
 })();
