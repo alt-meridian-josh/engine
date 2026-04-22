@@ -75,6 +75,17 @@ function wsFmtMoney(n) {
   return '$' + Math.round(n).toLocaleString();
 }
 
+// First value that parseFloats to a finite number, else null.
+// Treats null, undefined, '', and NaN as "not present" so fallback chains
+// don't dead-end when an earlier slot holds an empty string.
+function wsNumOr(...vals) {
+  for (const v of vals) {
+    const n = parseFloat(v);
+    if (isFinite(n)) return n;
+  }
+  return null;
+}
+
 function wsEsc(t) {
   return String(t == null ? '' : t)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -247,15 +258,16 @@ async function wsLoadEngagementData() {
   (defs || []).forEach(d => { if (!defMap[d.input_key]) defMap[d.input_key] = d; });
   WS.defs = defMap;
 
-  // Seed inputs from typical_value, override with provided_value from DB
+  // Seed order: typical_value → default_value. Provided_value overrides after.
+  // Net precedence: provided_value > typical_value > default_value.
   WS.inputs = {};
   Object.values(WS.defs).forEach(d => {
-    const tv = parseFloat(d.typical_value != null ? d.typical_value : d.default_value);
-    if (!isNaN(tv)) WS.inputs[d.input_key] = tv;
+    const seed = wsNumOr(d.typical_value, d.default_value);
+    if (seed != null) WS.inputs[d.input_key] = seed;
   });
   (values || []).forEach(v => {
-    const pv = parseFloat(v.provided_value);
-    if (!isNaN(pv)) WS.inputs[v.input_key] = pv;
+    const pv = wsNumOr(v.provided_value);
+    if (pv != null) WS.inputs[v.input_key] = pv;
   });
 
   WS.selections = sels || [];
@@ -385,7 +397,8 @@ function wsRenderAnalysis() {
 // ── Slider row + input formatter ─────────────────────────────────────────────
 function wsSliderRow(def) {
   const key = def.input_key;
-  const cur = Number(WS.inputs[key] != null ? WS.inputs[key] : (def.typical_value || def.default_value || 0));
+  // Fallback chain: live input → typical_value → default_value → 0.
+  const cur = wsNumOr(WS.inputs[key], def.typical_value, def.default_value) ?? 0;
   let mn = parseFloat(def.min_value);
   let mx = parseFloat(def.max_value);
   if (!isFinite(mn)) mn = 0;
@@ -670,12 +683,14 @@ function wsApplyPreset(preset) {
   document.querySelectorAll('.ws-preset').forEach(b =>
     b.classList.toggle('on', b.dataset.preset === preset));
   Object.values(WS.defs).forEach(d => {
-    let v;
-    if (preset === 'conservative') v = d.conservative_value;
-    else if (preset === 'aggressive') v = d.aggressive_value;
-    else v = d.typical_value;
-    const num = parseFloat(v != null ? v : d.default_value);
-    if (!isNaN(num)) WS.inputs[d.input_key] = num;
+    let presetVal;
+    if (preset === 'conservative') presetVal = d.conservative_value;
+    else if (preset === 'aggressive') presetVal = d.aggressive_value;
+    else presetVal = d.typical_value;
+    // When the preset column is null/blank (e.g. RFD has all three null),
+    // fall back to default_value so the preset button still moves the slider.
+    const num = wsNumOr(presetVal, d.default_value);
+    if (num != null) WS.inputs[d.input_key] = num;
   });
   wsRenderAnalysis();
   wsScheduleSave();
