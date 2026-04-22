@@ -202,12 +202,43 @@ async function wsSelectEngagement(engId) {
 async function wsLoadEngagementData() {
   const engId = WS.eng.engagement_id;
   const dom   = WS.domainId;
+
+  // Some engagements have a vertical-specific domain_id (e.g. WH-RFD, RET-RFD)
+  // but the underlying input_definitions / scenarios / evidence are stored under
+  // the technology's base key ('RFD'). Resolve the fallback lazily, memoized so
+  // parallel queries trigger only one vef_domains lookup.
+  let fallbackPromise = null;
+  function getFallbackDom() {
+    if (!dom) return Promise.resolve(null);
+    if (!fallbackPromise) {
+      fallbackPromise = sbGet('vef_domains',
+          `domain_id=eq.${encodeURIComponent(dom)}&select=technology`)
+        .then(rows => {
+          const tech = rows && rows[0] && rows[0].technology;
+          if (tech === 'RFID' && dom !== 'RFD') return 'RFD';
+          return null;
+        })
+        .catch(e => { console.warn('fallback domain resolve failed', e); return null; });
+    }
+    return fallbackPromise;
+  }
+
+  async function byDomainWithFallback(table, suffix) {
+    if (!dom) return [];
+    const primaryQ = `domain_id=eq.${encodeURIComponent(dom)}&${suffix}`;
+    const primary = await sbGet(table, primaryQ);
+    if (primary && primary.length > 0) return primary;
+    const fb = await getFallbackDom();
+    if (!fb) return primary || [];
+    return sbGet(table, `domain_id=eq.${encodeURIComponent(fb)}&${suffix}`);
+  }
+
   const [defs, values, sels, scens, ev, snaps] = await Promise.all([
-    dom ? sbGet('vef_input_definitions', `domain_id=eq.${encodeURIComponent(dom)}&select=*`) : Promise.resolve([]),
+    byDomainWithFallback('vef_input_definitions', 'select=*'),
     sbGet('vef_input_values', `engagement_id=eq.${encodeURIComponent(engId)}&select=*`),
     sbGet('vef_scenario_selections', `engagement_id=eq.${encodeURIComponent(engId)}&select=*`),
-    dom ? sbGet('vef_value_scenarios', `domain_id=eq.${encodeURIComponent(dom)}&select=*`) : Promise.resolve([]),
-    dom ? sbGet('vef_evidence_registry', `domain_id=eq.${encodeURIComponent(dom)}&select=*&order=haircut_applied.desc&limit=20`) : Promise.resolve([]),
+    byDomainWithFallback('vef_value_scenarios', 'select=*'),
+    byDomainWithFallback('vef_evidence_registry', 'select=*&order=haircut_applied.desc&limit=20'),
     sbGet('vef_output_snapshots', `engagement_id=eq.${encodeURIComponent(engId)}&select=*&order=snapshot_version.desc`),
   ]);
 
