@@ -135,6 +135,173 @@ select.fi option{background:var(--s3)}
 .inline-edit{background:var(--s3);border:1px solid var(--b2);border-radius:2px;
   padding:3px 7px;font-family:'DM Mono',monospace;font-size:11px;color:var(--text);outline:none;width:100%}
 .inline-edit:focus{border-color:var(--acc)}
+
+/* ── WORKSPACE ── */
+#pane-workspace{padding:0;display:none;flex-direction:column}
+#pane-workspace.on{display:flex}
+.ws-top{display:flex;align-items:center;gap:12px;padding:12px 20px;
+  border-bottom:1px solid var(--b1);background:var(--s1);flex-shrink:0}
+.ws-top select{min-width:340px}
+.ws-presets{display:flex;gap:2px;background:var(--s2);border:1px solid var(--b1);
+  border-radius:2px;padding:2px;margin-left:auto}
+.ws-preset{padding:5px 14px;border-radius:1px;border:none;background:transparent;
+  font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;
+  color:var(--t3);cursor:pointer;transition:all .15s;text-transform:uppercase}
+.ws-preset.on{background:var(--s4);color:var(--text)}
+.ws-preset:hover:not(.on){color:var(--t2)}
+.ws-body{flex:1;display:flex;min-height:0;overflow:hidden}
+
+/* ── WS CHAT ── */
+.ws-chat{width:400px;flex-shrink:0;border-right:1px solid var(--b1);
+  display:flex;flex-direction:column;background:var(--s1);min-height:0}
+.ws-msgs{flex:1;overflow-y:auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+.ws-msgs::-webkit-scrollbar{width:3px}
+.ws-msgs::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px}
+.wsm{display:flex;flex-direction:column;gap:3px;animation:wsfi .2s ease}
+@keyframes wsfi{from{opacity:0;transform:translateY(3px)}to{opacity:1;transform:none}}
+.wsm.user{align-items:flex-end}.wsm.bot{align-items:flex-start}
+.wsm-who{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--t3);padding:0 2px}
+.wsm-bub{max-width:92%;padding:7px 11px;border-radius:var(--r2);font-size:12.5px;line-height:1.6}
+.wsm.user .wsm-bub{background:var(--adim);border:1px solid var(--aline);
+  color:var(--text);border-bottom-right-radius:1px}
+.wsm.bot .wsm-bub{background:var(--s2);border:1px solid var(--b1);
+  color:var(--text);border-bottom-left-radius:1px}
+.wsm-bub strong{font-weight:500}.wsm-bub em{color:var(--t2);font-style:italic}
+.wsm-err{background:var(--rdim) !important;border-color:rgba(189,66,66,.3) !important;color:var(--red)}
+.ws-chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:5px;max-width:92%}
+.ws-chip{padding:3px 9px;border:1px solid var(--b2);border-radius:12px;
+  background:transparent;color:var(--t2);font-size:11px;cursor:pointer;
+  transition:all .15s;font-family:'DM Mono',monospace;letter-spacing:.03em}
+.ws-chip:hover{border-color:var(--acc);color:var(--acc)}
+.ws-inp-row{padding:10px 12px;border-top:1px solid var(--b1);background:var(--s2);
+  flex-shrink:0;display:flex;gap:7px;align-items:flex-end}
+.ws-inp{flex:1;background:var(--s3);border:1px solid var(--b2);border-radius:var(--r2);
+  padding:7px 10px;font-family:'DM Sans',sans-serif;font-size:12.5px;color:var(--text);
+  outline:none;resize:none;min-height:34px;max-height:96px;line-height:1.5}
+.ws-inp:focus{border-color:var(--b3)}.ws-inp::placeholder{color:var(--t3)}
+.ws-send{width:34px;height:34px;border-radius:var(--r);background:var(--acc);
+  border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;transition:background .15s;color:#fff;font-size:16px}
+.ws-send:hover{background:var(--acc2)}.ws-send:disabled{background:var(--s4);cursor:not-allowed}
+.ws-typing{display:flex;gap:4px;align-items:center;padding:7px 11px;
+  background:var(--s2);border:1px solid var(--b1);border-radius:var(--r2);
+  border-bottom-left-radius:1px;width:fit-content}
+.ws-typing span{width:4px;height:4px;border-radius:50%;background:var(--t3);animation:wstd 1.2s infinite}
+.ws-typing span:nth-child(2){animation-delay:.2s}.ws-typing span:nth-child(3){animation-delay:.4s}
+@keyframes wstd{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-4px)}}
+
+/* ── WS ANALYSIS ── */
+.ws-analysis{flex:1;min-width:0;display:flex;flex-direction:column;background:var(--bg);overflow:hidden}
+.ws-ahead{padding:10px 20px;border-bottom:1px solid var(--b1);
+  display:flex;align-items:center;justify-content:space-between;flex-shrink:0;background:var(--s1)}
+.ws-atit{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--t3)}
+.ws-atit strong{color:var(--text);margin-left:8px;letter-spacing:.04em}
+.ws-abody{flex:1;overflow-y:auto;padding:14px 20px;display:flex;flex-direction:column;gap:14px}
+.ws-abody::-webkit-scrollbar{width:3px}
+.ws-abody::-webkit-scrollbar-thumb{background:var(--b2);border-radius:2px}
+
+/* metric cards */
+.ws-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.ws-mc{background:var(--s1);border:1px solid var(--b1);border-radius:var(--r);padding:11px 13px}
+.ws-mc.pri{border-color:var(--aline);background:var(--adim)}
+.ws-mc.warn{border-left:2px solid var(--amber)}
+.ws-mc.dng{border-left:2px solid var(--red)}
+.ws-mcq{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--t3);margin-bottom:5px}
+.ws-mcn{font-family:'Syne',sans-serif;font-weight:800;font-size:22px;line-height:1;
+  color:var(--text);transition:color .25s}
+.ws-mc.pri .ws-mcn{color:var(--acc)}
+.ws-mc.warn .ws-mcn{color:var(--amber)}
+.ws-mc.dng .ws-mcn{color:var(--red)}
+.ws-mcs{font-size:10px;color:var(--t3);margin-top:3px}
+
+/* sliders */
+.ws-sec-hd{display:flex;align-items:center;justify-content:space-between;
+  font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--t3);margin-bottom:6px}
+.ws-sliders{display:grid;grid-template-columns:1fr 1fr;gap:14px 22px}
+.ws-sr{display:flex;flex-direction:column;gap:4px}
+.ws-stop{display:flex;justify-content:space-between;align-items:baseline;gap:8px}
+.ws-slbl{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.04em;
+  color:var(--t2);flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ws-sval{font-family:'DM Mono',monospace;font-size:11px;color:var(--text);
+  font-weight:500;white-space:nowrap;transition:color .2s}
+.ws-sval.buyer{color:var(--green)}
+.ws-sval.just-changed{color:var(--amber)}
+.ws-sr input[type=range]{-webkit-appearance:none;width:100%;height:3px;
+  border-radius:2px;background:var(--b2);outline:none;cursor:pointer}
+.ws-sr input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;
+  border-radius:50%;background:var(--acc);cursor:pointer;border:2px solid var(--bg);
+  box-shadow:0 0 0 1px var(--acc)}
+.ws-shints{display:flex;justify-content:space-between}
+.ws-sh{font-family:'DM Mono',monospace;font-size:9px;color:var(--t3)}
+
+/* snapshots */
+.ws-snap-list{display:flex;flex-direction:column;gap:4px}
+.ws-snap{display:grid;grid-template-columns:40px 1fr 100px 80px 70px;gap:10px;
+  padding:8px 10px;background:var(--s1);border:1px solid var(--b1);
+  border-radius:var(--r);font-size:11px;align-items:center}
+.ws-snap-v{font-family:'DM Mono',monospace;color:var(--t3);font-size:10px}
+.ws-snap-lbl{font-family:'DM Mono',monospace;font-size:10px;color:var(--t2);text-transform:uppercase;letter-spacing:.04em}
+.ws-snap-val{font-family:'DM Mono',monospace;color:var(--acc);text-align:right;font-weight:500}
+.ws-snap-pay{font-family:'DM Mono',monospace;color:var(--t2);text-align:right}
+.ws-snap-date{font-family:'DM Mono',monospace;color:var(--t3);font-size:10px;text-align:right}
+
+/* save snapshot button */
+.ws-save-btn{padding:7px 14px;background:var(--acc);border:none;border-radius:var(--r);
+  font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+  color:#fff;cursor:pointer;transition:background .15s}
+.ws-save-btn:hover{background:var(--acc2)}
+.ws-save-btn:disabled{background:var(--s4);color:var(--t3);cursor:not-allowed}
+
+/* save status indicator */
+.ws-save-status{font-family:'DM Mono',monospace;font-size:9px;color:var(--t3);
+  letter-spacing:.06em;margin-left:8px}
+.ws-save-status.saved{color:var(--green)}
+.ws-save-status.saving{color:var(--amber)}
+
+/* modal */
+.ws-modal{position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:1000;
+  display:none;align-items:center;justify-content:center}
+.ws-modal.on{display:flex}
+.ws-modal-box{background:var(--s1);border:1px solid var(--b2);border-radius:var(--r2);
+  padding:20px 22px;min-width:360px;max-width:420px}
+.ws-modal-tit{font-family:'Syne',sans-serif;font-weight:700;font-size:15px;color:var(--text);margin-bottom:14px}
+.ws-modal-row{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.ws-modal-row label{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--t3)}
+.ws-modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:6px}
+.ws-modal-cancel{padding:7px 14px;background:transparent;border:1px solid var(--b2);
+  border-radius:var(--r);font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--t2);cursor:pointer}
+.ws-modal-cancel:hover{color:var(--text);border-color:var(--b3)}
+
+/* toast */
+.ws-toast{position:fixed;bottom:24px;right:24px;z-index:1100;
+  background:var(--s1);border:1px solid var(--green);border-left:3px solid var(--green);
+  border-radius:var(--r);padding:10px 16px;font-family:'DM Mono',monospace;
+  font-size:11px;color:var(--text);opacity:0;transform:translateY(10px);
+  transition:opacity .2s, transform .2s;pointer-events:none}
+.ws-toast.on{opacity:1;transform:translateY(0)}
+.ws-toast.err{border-color:var(--red);border-left-color:var(--red);color:var(--red)}
+
+/* empty state */
+.ws-empty{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:40px;gap:8px}
+.ws-empty-ico{font-size:22px;opacity:.15;margin-bottom:4px}
+.ws-empty-tit{font-family:'Syne',sans-serif;font-weight:700;font-size:15px;color:var(--t3)}
+.ws-empty-sub{font-size:11px;color:var(--t3);max-width:260px;line-height:1.7;opacity:.8}
+
+/* intake summary card */
+.ws-intake-card{background:var(--s2);border:1px solid var(--b1);border-radius:var(--r2);
+  padding:12px 14px;margin-top:4px;max-width:92%}
+.ws-intake-row{display:flex;gap:10px;padding:4px 0;font-size:11px;border-bottom:1px solid var(--b1)}
+.ws-intake-row:last-child{border-bottom:none}
+.ws-intake-k{font-family:'DM Mono',monospace;color:var(--t3);text-transform:uppercase;
+  letter-spacing:.06em;font-size:9px;width:110px;padding-top:2px}
+.ws-intake-v{color:var(--text);flex:1}
 </style>
 </head>
 <body>
@@ -149,6 +316,7 @@ select.fi option{background:var(--s3)}
 
 <div class="tabs">
   <button class="tab on" onclick="setTab('pipeline')">Pipeline</button>
+  <button class="tab" onclick="setTab('workspace')">Workspace</button>
   <button class="tab" onclick="setTab('intake')">New Engagement</button>
   <button class="tab" onclick="setTab('outcomes')">Record Outcome</button>
   <button class="tab" onclick="setTab('builds')">Engine Builds</button>
@@ -340,11 +508,89 @@ select.fi option{background:var(--s3)}
       </div>
 
       <div style="display:flex;align-items:center;gap:12px">
-        <button class="submit-btn" onclick="submitOutcome()">Record Outcome →</button>
+        <button class="submit-btn" id="outcome-btn" onclick="submitOutcome()">Record Outcome →</button>
         <div id="outcome-result" class="form-result"></div>
+      </div>
+      <div id="outcome-empty" class="form-result" style="display:none;margin-top:10px;color:var(--t2)">
+        No active engagements to record an outcome for.
+        <a href="#" onclick="event.preventDefault();setTab('intake')" style="color:var(--acc);text-decoration:underline;text-underline-offset:2px">Create one in New Engagement →</a>
       </div>
     </div>
   </div>
+
+  <!-- WORKSPACE TAB -->
+  <div class="pane" id="pane-workspace">
+    <div class="ws-top">
+      <select class="fi" id="ws-eng-sel" onchange="wsSelectEngagement(this.value)" style="max-width:380px">
+        <option value="">— select engagement —</option>
+      </select>
+      <div class="ws-presets" id="ws-presets" style="display:none">
+        <button class="ws-preset" data-preset="conservative" onclick="wsApplyPreset('conservative')">Conservative</button>
+        <button class="ws-preset on" data-preset="typical" onclick="wsApplyPreset('typical')">Typical</button>
+        <button class="ws-preset" data-preset="aggressive" onclick="wsApplyPreset('aggressive')">Aggressive</button>
+      </div>
+    </div>
+    <div class="ws-body">
+      <!-- CHAT -->
+      <div class="ws-chat">
+        <div class="ws-msgs" id="ws-msgs"></div>
+        <div class="ws-inp-row">
+          <textarea class="ws-inp" id="ws-inp" rows="1"
+            placeholder="Ask about evidence, scenarios, formulas..."
+            onkeydown="wsOnKey(event)" oninput="wsResize(this)"></textarea>
+          <button class="ws-send" id="ws-send" onclick="wsSend()" title="Send">↑</button>
+        </div>
+      </div>
+      <!-- ANALYSIS -->
+      <div class="ws-analysis">
+        <div class="ws-ahead">
+          <div class="ws-atit" id="ws-atit">Analysis <strong id="ws-atit-eid">—</strong></div>
+          <div>
+            <span class="ws-save-status" id="ws-save-status"></span>
+            <button class="ws-save-btn" id="ws-snap-btn" onclick="wsOpenSnapModal()" disabled>+ Save Snapshot</button>
+          </div>
+        </div>
+        <div class="ws-abody" id="ws-abody">
+          <div class="ws-empty" id="ws-empty">
+            <div class="ws-empty-ico">⟁</div>
+            <div class="ws-empty-tit">Workspace</div>
+            <div class="ws-empty-sub">Select an engagement from the dropdown or type "new engagement" in chat to create one.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SNAPSHOT MODAL -->
+  <div class="ws-modal" id="ws-snap-modal">
+    <div class="ws-modal-box">
+      <div class="ws-modal-tit">Save Snapshot</div>
+      <div class="ws-modal-row">
+        <label>Snapshot Label</label>
+        <select class="fi" id="ws-snap-label">
+          <option value="kickoff">Kickoff</option>
+          <option value="champion-session">Champion Session</option>
+          <option value="cfo-review">CFO Review</option>
+          <option value="delivery">Delivery</option>
+        </select>
+      </div>
+      <div class="ws-modal-row">
+        <label>Intent</label>
+        <select class="fi" id="ws-snap-intent">
+          <option value="convince">Convince</option>
+          <option value="measure">Measure</option>
+          <option value="justify">Justify</option>
+        </select>
+      </div>
+      <div class="ws-modal-actions">
+        <button class="ws-modal-cancel" onclick="wsCloseSnapModal()">Cancel</button>
+        <button class="ws-save-btn" id="ws-snap-confirm" onclick="wsSaveSnapshot()">Save</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div class="ws-toast" id="ws-toast"></div>
 
   <!-- BUILDS TAB -->
   <div class="pane" id="pane-builds">
@@ -384,13 +630,15 @@ async function sbGet(table, q = '') {
 // ── TABS ──────────────────────────────────────────────────────────────────────
 function setTab(t) {
   document.querySelectorAll('.tab').forEach((b,i) => {
-    const names = ['pipeline','intake','outcomes','builds'];
+    const names = ['pipeline','workspace','intake','outcomes','builds'];
     b.classList.toggle('on', names[i] === t);
   });
   document.querySelectorAll('.pane').forEach(p => p.classList.remove('on'));
   document.getElementById('pane-' + t).classList.add('on');
   if (t === 'pipeline') loadEngagements();
+  if (t === 'outcomes') loadEngagements();  // refresh dropdown + empty state
   if (t === 'builds') loadBuilds();
+  if (t === 'workspace') wsInit();
 }
 
 // ── LOAD ENGAGEMENTS ──────────────────────────────────────────────────────────
@@ -414,7 +662,17 @@ async function loadEngagements() {
   const activeOpts = active.map(e => `<option value="${e.engagement_id}">${e.engagement_id} — ${e.vendor_name} / ${e.prospect_name}</option>`).join('');
   oSel.innerHTML = '<option value="">— select engagement —</option>' + activeOpts;
 
-  if (!engs.length) { tbody.innerHTML = '<tr><td colspan="9" class="empty">No engagements yet. Create one in the New Engagement tab.</td></tr>'; return; }
+  // Outcomes tab: disable submit and show empty-state when no active engagements exist.
+  const outcomeBtn = document.getElementById('outcome-btn');
+  const outcomeEmpty = document.getElementById('outcome-empty');
+  const hasActive = active.length > 0;
+  if (outcomeBtn) outcomeBtn.disabled = !hasActive;
+  if (outcomeEmpty) outcomeEmpty.style.display = hasActive ? 'none' : 'block';
+
+  if (!engs.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="empty">No engagements yet. <a href="#" onclick="event.preventDefault();setTab(\'intake\')" style="color:var(--acc);text-decoration:underline;text-underline-offset:2px">Create one in New Engagement →</a></td></tr>';
+    return;
+  }
 
   const statusClass = s => s === 'Active' ? 's-active' : s === 'Won' ? 's-won' : s === 'Lost' ? 's-lost' : s === 'Stalled' ? 's-stalled' : 's-pending';
 
@@ -589,6 +847,776 @@ async function promoteEngine(id) {
     method: 'PATCH', headers: HDRS, body: JSON.stringify({ engine_status: 'Production' })
   });
   loadBuilds();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ── WORKSPACE ────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+const WS = {
+  ready: false,
+  engagements: [], domains: [], scenarios: [], selections: [],
+  defs: {}, inputs: {}, levers: [], evidence: [],
+  eng: null, domainId: null,
+  history: [],
+  saveTimer: null,
+  intake: null,  // intake state machine
+  snapshots: [],
+  preset: 'typical',
+};
+
+async function sbPatch(t, q, d) {
+  const r = await fetch(`${SB}/rest/v1/${t}?${q}`, {
+    method: 'PATCH', headers: { ...HDRS, 'Prefer': 'return=representation' },
+    body: JSON.stringify(d)
+  });
+  if (!r.ok) throw new Error(`SB patch ${t} ${r.status}: ${await r.text()}`);
+  return r.json();
+}
+
+async function sbUpsert(t, d, conflict) {
+  const r = await fetch(`${SB}/rest/v1/${t}?on_conflict=${conflict}`, {
+    method: 'POST',
+    headers: { ...HDRS, 'Prefer': 'return=representation,resolution=merge-duplicates' },
+    body: JSON.stringify(d)
+  });
+  if (!r.ok) throw new Error(`SB upsert ${t} ${r.status}: ${await r.text()}`);
+  return r.json();
+}
+
+async function sbIns(t, d) {
+  const r = await fetch(`${SB}/rest/v1/${t}`, {
+    method: 'POST',
+    headers: { ...HDRS, 'Prefer': 'return=representation' },
+    body: JSON.stringify(d)
+  });
+  if (!r.ok) throw new Error(`SB insert ${t} ${r.status}: ${await r.text()}`);
+  return r.json();
+}
+
+// Formula eval — build a function from the formula string with input keys as named parameters.
+function wsEvalFormula(formula, inputs) {
+  if (!formula || typeof formula !== 'string') return null;
+  const keys = Object.keys(inputs || {});
+  const vals = keys.map(k => {
+    const v = inputs[k];
+    return (v == null || isNaN(Number(v))) ? 0 : Number(v);
+  });
+  try {
+    const fn = new Function(...keys, '"use strict";return (' + formula + ');');
+    const result = fn(...vals);
+    return (typeof result === 'number' && isFinite(result)) ? result : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+function wsFmtMoney(n) {
+  if (n == null || !isFinite(n)) return '—';
+  if (Math.abs(n) >= 1e6) return '$' + (n/1e6).toFixed(1) + 'M';
+  if (Math.abs(n) >= 1e3) return '$' + Math.round(n/1000) + 'K';
+  return '$' + Math.round(n).toLocaleString();
+}
+
+async function wsInit() {
+  // Always refresh engagements + domains so newly-created ones show up.
+  try {
+    const [engs, doms, levers] = await Promise.all([
+      sbGet('vef_engagements', 'select=*&order=created_at.desc'),
+      sbGet('vef_domains',     'select=*&order=domain_name.asc'),
+      sbGet('vef_levers',      'select=*&order=vl_num.asc'),
+    ]);
+    WS.engagements = engs || [];
+    WS.domains     = doms || [];
+    WS.levers      = levers || [];
+    wsRenderDropdown();
+    if (!WS.ready) {
+      wsShowWelcome();
+      WS.ready = true;
+    }
+  } catch (e) {
+    console.error('workspace init', e);
+    wsBotError('Could not load workspace data: ' + e.message);
+  }
+}
+
+function wsRenderDropdown() {
+  const sel = document.getElementById('ws-eng-sel');
+  const current = sel.value;
+  sel.innerHTML = '<option value="">— select engagement —</option>' +
+    WS.engagements.map(e =>
+      `<option value="${e.engagement_id}">${e.engagement_id} — ${e.vendor_name || '?'} / ${e.prospect_name || '?'}</option>`
+    ).join('');
+  if (current) sel.value = current;
+}
+
+function wsShowWelcome() {
+  const m = document.getElementById('ws-msgs');
+  m.innerHTML = '';
+  const d = document.createElement('div');
+  d.className = 'wsm bot';
+  d.innerHTML = `<div class="wsm-who">Meridian</div>
+    <div class="wsm-bub">Pick an engagement from the dropdown to load its scenarios, inputs, and snapshots — or type <em>new engagement</em> to create one.</div>
+    <div class="ws-chips">
+      <button class="ws-chip" onclick="wsStartIntake()">New engagement</button>
+    </div>`;
+  m.appendChild(d);
+  m.scrollTop = m.scrollHeight;
+}
+
+function wsResize(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 96) + 'px'; }
+function wsOnKey(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); wsSend(); } }
+
+function wsUserMsg(text) {
+  const m = document.getElementById('ws-msgs');
+  const d = document.createElement('div'); d.className = 'wsm user';
+  d.innerHTML = `<div class="wsm-who">You</div><div class="wsm-bub">${wsEsc(text)}</div>`;
+  m.appendChild(d); m.scrollTop = m.scrollHeight;
+}
+
+function wsBotMsg(html, chips) {
+  const m = document.getElementById('ws-msgs');
+  wsRmTyping();
+  const d = document.createElement('div'); d.className = 'wsm bot';
+  let inner = `<div class="wsm-who">Meridian</div><div class="wsm-bub">${html}</div>`;
+  if (chips && chips.length) {
+    inner += '<div class="ws-chips">';
+    chips.forEach(c => {
+      const label = typeof c === 'string' ? c : c.label;
+      const val = typeof c === 'string' ? c : c.value;
+      inner += `<button class="ws-chip" data-val="${wsEsc(val)}" onclick="wsChipClick(this)">${wsEsc(label)}</button>`;
+    });
+    inner += '</div>';
+  }
+  d.innerHTML = inner;
+  m.appendChild(d); m.scrollTop = m.scrollHeight;
+}
+
+function wsBotError(msg) {
+  const m = document.getElementById('ws-msgs');
+  wsRmTyping();
+  const d = document.createElement('div'); d.className = 'wsm bot';
+  d.innerHTML = `<div class="wsm-who">Meridian</div><div class="wsm-bub wsm-err">${wsEsc(msg)}</div>`;
+  m.appendChild(d); m.scrollTop = m.scrollHeight;
+}
+
+function wsRmTyping() { const el = document.getElementById('ws-typing'); if (el) el.remove(); }
+function wsTyping() {
+  const m = document.getElementById('ws-msgs');
+  wsRmTyping();
+  const d = document.createElement('div'); d.className = 'wsm bot'; d.id = 'ws-typing';
+  d.innerHTML = `<div class="wsm-who">Meridian</div><div class="ws-typing"><span></span><span></span><span></span></div>`;
+  m.appendChild(d); m.scrollTop = m.scrollHeight;
+}
+
+function wsEsc(t) {
+  return String(t == null ? '' : t)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── SELECT ENGAGEMENT ───────────────────────────────────────────────────────
+async function wsSelectEngagement(engId) {
+  if (!engId) {
+    WS.eng = null; WS.domainId = null; WS.inputs = {}; WS.defs = {};
+    WS.scenarios = []; WS.selections = []; WS.evidence = []; WS.snapshots = [];
+    document.getElementById('ws-atit-eid').textContent = '—';
+    document.getElementById('ws-snap-btn').disabled = true;
+    document.getElementById('ws-presets').style.display = 'none';
+    wsRenderEmpty('Select an engagement or type "new engagement" in chat.');
+    return;
+  }
+  const eng = WS.engagements.find(e => e.engagement_id === engId);
+  if (!eng) { wsBotError('Engagement not found.'); return; }
+  WS.eng = eng;
+  WS.domainId = eng.domain_id || null;
+  document.getElementById('ws-atit-eid').textContent = `${eng.engagement_id} · ${eng.vendor_name || ''} → ${eng.prospect_name || ''}`;
+
+  wsRenderEmpty('Loading engagement…');
+  try {
+    await wsLoadEngagementData();
+    document.getElementById('ws-snap-btn').disabled = false;
+    document.getElementById('ws-presets').style.display = 'flex';
+    wsRenderAnalysis();
+  } catch (e) {
+    console.error(e);
+    wsBotError('Failed to load engagement data: ' + e.message);
+    wsRenderEmpty('Load failed.');
+  }
+}
+
+async function wsLoadEngagementData() {
+  const engId = WS.eng.engagement_id;
+  const dom   = WS.domainId;
+  const [defs, values, sels, scens, ev, snaps] = await Promise.all([
+    dom ? sbGet('vef_input_definitions', `domain_id=eq.${encodeURIComponent(dom)}&select=*`) : Promise.resolve([]),
+    sbGet('vef_input_values', `engagement_id=eq.${encodeURIComponent(engId)}&select=*`),
+    sbGet('vef_scenario_selections', `engagement_id=eq.${encodeURIComponent(engId)}&select=*`),
+    dom ? sbGet('vef_value_scenarios', `domain_id=eq.${encodeURIComponent(dom)}&select=*`) : Promise.resolve([]),
+    dom ? sbGet('vef_evidence_registry', `domain_id=eq.${encodeURIComponent(dom)}&select=*&order=haircut_applied.desc&limit=20`) : Promise.resolve([]),
+    sbGet('vef_output_snapshots', `engagement_id=eq.${encodeURIComponent(engId)}&select=*&order=snapshot_version.desc`),
+  ]);
+
+  // Deduplicate input defs by input_key (a domain may have multiple rows for same key)
+  const defMap = {};
+  (defs || []).forEach(d => {
+    if (!defMap[d.input_key]) defMap[d.input_key] = d;
+  });
+  WS.defs = defMap;
+
+  // Seed inputs: typical_value by default, overridden by provided_value where exists
+  WS.inputs = {};
+  Object.values(WS.defs).forEach(d => {
+    const tv = parseFloat(d.typical_value != null ? d.typical_value : d.default_value);
+    if (!isNaN(tv)) WS.inputs[d.input_key] = tv;
+  });
+  (values || []).forEach(v => {
+    const pv = parseFloat(v.provided_value);
+    if (!isNaN(pv)) WS.inputs[v.input_key] = pv;
+  });
+
+  WS.selections = sels || [];
+  WS.scenarios  = scens || [];
+  WS.evidence   = ev || [];
+  WS.snapshots  = snaps || [];
+}
+
+function wsRenderEmpty(msg) {
+  const body = document.getElementById('ws-abody');
+  body.innerHTML = `<div class="ws-empty"><div class="ws-empty-ico">⟁</div>
+    <div class="ws-empty-tit">Workspace</div>
+    <div class="ws-empty-sub">${wsEsc(msg)}</div></div>`;
+}
+
+// ─── ACTIVE SCENARIOS + METRICS ──────────────────────────────────────────────
+function wsActiveScenarios() {
+  const activeIds = new Set(
+    WS.selections.filter(s => s.is_active !== false).map(s => s.scenario_id)
+  );
+  return WS.scenarios.filter(s => activeIds.has(s.scenario_id));
+}
+
+function wsComputeMetrics() {
+  const active = wsActiveScenarios();
+  const arv = active.reduce((sum, s) => {
+    const v = wsEvalFormula(s.value_scenario_formula, WS.inputs);
+    return sum + (v && isFinite(v) && v > 0 ? v : 0);
+  }, 0);
+  const coiTotal = active.reduce((sum, s) => {
+    const v = wsEvalFormula(s.cost_of_inaction_formula, WS.inputs);
+    return sum + (v && isFinite(v) && v > 0 ? v : 0);
+  }, 0);
+  const delayTotal = active.reduce((sum, s) => {
+    const v = wsEvalFormula(s.delay_cost_formula, WS.inputs);
+    return sum + (v && isFinite(v) && v > 0 ? v : 0);
+  }, 0);
+
+  const impl = Number(WS.inputs.implementation_cost) || 0;
+  const payback_mo = (impl > 0 && arv > 0) ? (impl / arv) * 12 : null;
+  const bcr = (impl > 0 && arv > 0) ? (arv * 3) / impl : null;   // simple 3-yr BCR
+  const monthlyDelay = delayTotal > 0 ? delayTotal : (arv > 0 ? arv / 12 : 0);
+
+  return { arv, coiTotal, payback_mo, bcr, monthlyDelay, impl };
+}
+
+function wsRenderAnalysis() {
+  const body = document.getElementById('ws-abody');
+  const m = wsComputeMetrics();
+  const presetsActive = `<span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--t3)">preset: ${WS.preset}</span>`;
+
+  const defs = Object.values(WS.defs);
+  const sliderHtml = defs.length
+    ? defs.map(d => wsSliderRow(d)).join('')
+    : '<div class="ws-empty-sub" style="padding:10px 0">No input definitions found for this domain.</div>';
+
+  const snapHtml = WS.snapshots.length
+    ? WS.snapshots.map(s => {
+        const date = s.created_at ? new Date(s.created_at).toLocaleDateString() : '—';
+        return `<div class="ws-snap">
+          <div class="ws-snap-v">v${s.snapshot_version || '?'}</div>
+          <div class="ws-snap-lbl">${wsEsc(s.snapshot_label || '—')}${s.intent ? ' · ' + wsEsc(s.intent) : ''}</div>
+          <div class="ws-snap-val">${wsFmtMoney(s.annual_value)}</div>
+          <div class="ws-snap-pay">${s.payback_mo != null ? s.payback_mo.toFixed(1) + 'mo' : '—'}</div>
+          <div class="ws-snap-date">${wsEsc(date)}</div>
+        </div>`;
+      }).join('')
+    : '<div class="ws-empty-sub" style="padding:6px 0">No snapshots yet. Save one from the header.</div>';
+
+  body.innerHTML = `
+    <div class="ws-metrics">
+      <div class="ws-mc pri"><div class="ws-mcq">Annual Run-rate Value</div>
+        <div class="ws-mcn" id="ws-mc-arv">${wsFmtMoney(m.arv)}</div>
+        <div class="ws-mcs">ARV · sum of active scenarios</div></div>
+      <div class="ws-mc"><div class="ws-mcq">Payback</div>
+        <div class="ws-mcn" id="ws-mc-pay">${m.payback_mo != null ? m.payback_mo.toFixed(1) + 'mo' : '—'}</div>
+        <div class="ws-mcs">months to breakeven</div></div>
+      <div class="ws-mc"><div class="ws-mcq">BCR</div>
+        <div class="ws-mcn" id="ws-mc-bcr">${m.bcr != null ? m.bcr.toFixed(1) + 'x' : '—'}</div>
+        <div class="ws-mcs">benefit-cost · 3yr</div></div>
+      <div class="ws-mc warn"><div class="ws-mcq">Monthly Delay Cost</div>
+        <div class="ws-mcn" id="ws-mc-dly">${wsFmtMoney(m.monthlyDelay)}</div>
+        <div class="ws-mcs">per month of inaction</div></div>
+    </div>
+
+    <div>
+      <div class="ws-sec-hd"><span>Key Inputs</span>${presetsActive}</div>
+      <div class="ws-sliders" id="ws-sliders">${sliderHtml}</div>
+    </div>
+
+    <div>
+      <div class="ws-sec-hd"><span>Snapshots</span>
+        <span style="font-family:'DM Mono',monospace;font-size:9px;color:var(--t3)">${WS.snapshots.length}</span>
+      </div>
+      <div class="ws-snap-list" id="ws-snap-list">${snapHtml}</div>
+    </div>`;
+}
+
+// ─── SLIDERS ─────────────────────────────────────────────────────────────────
+function wsSliderRow(def) {
+  const key = def.input_key;
+  const cur = Number(WS.inputs[key] != null ? WS.inputs[key] : (def.typical_value || def.default_value || 0));
+  let mn = parseFloat(def.min_value);
+  let mx = parseFloat(def.max_value);
+  if (!isFinite(mn)) mn = 0;
+  if (!isFinite(mx)) mx = Math.max(cur * 3, 100);
+  if (mx <= mn) mx = mn + 1;
+  const unit = def.unit || '';
+  const isDec = unit === 'decimal' || unit === '%';
+  const span  = mx - mn;
+  const step  = isDec ? Math.max(0.001, span / 200) : Math.max(1, Math.round(span / 200));
+  const disp = wsFmtInput(cur, unit);
+  const label = def.label || key;
+  return `<div class="ws-sr">
+    <div class="ws-stop">
+      <div class="ws-slbl" title="${wsEsc(label)}">${wsEsc(label)}</div>
+      <div class="ws-sval" id="ws-sv-${wsEsc(key)}">${wsEsc(disp)}</div>
+    </div>
+    <input type="range" min="${mn}" max="${mx}" step="${step}" value="${cur}"
+      oninput="wsOnSlide('${wsEsc(key)}', this.value)">
+    <div class="ws-shints">
+      <span class="ws-sh">${wsEsc(wsFmtInput(mn, unit))}</span>
+      <span class="ws-sh">${wsEsc(wsFmtInput(mx, unit))}</span>
+    </div>
+  </div>`;
+}
+
+function wsFmtInput(n, unit) {
+  n = Number(n);
+  if (!isFinite(n)) return '—';
+  if (unit === '$') return '$' + n.toLocaleString(undefined, { maximumFractionDigits: 0 });
+  if (unit === 'decimal' || unit === '%') return (Math.round(n * 1000) / 10) + '%';
+  const u = unit ? ' ' + unit : '';
+  return n.toLocaleString(undefined, { maximumFractionDigits: 2 }) + u;
+}
+
+function wsOnSlide(key, val) {
+  const v = parseFloat(val);
+  if (isNaN(v)) return;
+  WS.inputs[key] = v;
+  const def = WS.defs[key];
+  const el = document.getElementById('ws-sv-' + key);
+  if (el) {
+    el.textContent = wsFmtInput(v, def ? def.unit : '');
+    el.className = 'ws-sval just-changed';
+    setTimeout(() => { if (el) el.className = 'ws-sval buyer'; }, 800);
+  }
+  wsRefreshMetrics();
+  wsScheduleSave(key);
+}
+
+function wsRefreshMetrics() {
+  const m = wsComputeMetrics();
+  const p = (id, t) => { const el = document.getElementById(id); if (el) el.textContent = t; };
+  p('ws-mc-arv', wsFmtMoney(m.arv));
+  p('ws-mc-pay', m.payback_mo != null ? m.payback_mo.toFixed(1) + 'mo' : '—');
+  p('ws-mc-bcr', m.bcr != null ? m.bcr.toFixed(1) + 'x' : '—');
+  p('ws-mc-dly', wsFmtMoney(m.monthlyDelay));
+}
+
+// Debounced save — upsert on (engagement_id, input_key)
+function wsScheduleSave() {
+  if (!WS.eng) return;
+  const statusEl = document.getElementById('ws-save-status');
+  if (statusEl) { statusEl.textContent = 'editing…'; statusEl.className = 'ws-save-status'; }
+  clearTimeout(WS.saveTimer);
+  WS.saveTimer = setTimeout(() => wsSaveInputs(), 1000);
+}
+
+async function wsSaveInputs() {
+  if (!WS.eng) return;
+  const engId = WS.eng.engagement_id;
+  const statusEl = document.getElementById('ws-save-status');
+  if (statusEl) { statusEl.textContent = 'saving…'; statusEl.className = 'ws-save-status saving'; }
+  try {
+    const rows = Object.entries(WS.inputs).map(([k, v]) => ({
+      engagement_id: engId,
+      input_key: k,
+      provided_value: v,
+      source: 'tool',
+    }));
+    if (rows.length === 0) return;
+    await sbUpsert('vef_input_values', rows, 'engagement_id,input_key');
+    if (statusEl) { statusEl.textContent = '✓ saved'; statusEl.className = 'ws-save-status saved'; }
+    setTimeout(() => { if (statusEl && statusEl.textContent === '✓ saved') statusEl.textContent = ''; }, 1800);
+  } catch (e) {
+    console.error('save inputs', e);
+    wsBotError('Failed to save inputs: ' + e.message);
+    if (statusEl) { statusEl.textContent = 'save failed'; statusEl.className = 'ws-save-status'; }
+  }
+}
+
+function wsApplyPreset(preset) {
+  WS.preset = preset;
+  document.querySelectorAll('.ws-preset').forEach(b =>
+    b.classList.toggle('on', b.dataset.preset === preset));
+  Object.values(WS.defs).forEach(d => {
+    let v;
+    if (preset === 'conservative') v = d.conservative_value;
+    else if (preset === 'aggressive') v = d.aggressive_value;
+    else v = d.typical_value;
+    const num = parseFloat(v != null ? v : d.default_value);
+    if (!isNaN(num)) WS.inputs[d.input_key] = num;
+  });
+  wsRenderAnalysis();
+  wsScheduleSave();
+}
+
+// ─── CHAT / INTAKE ROUTER ────────────────────────────────────────────────────
+async function wsSend() {
+  const el = document.getElementById('ws-inp');
+  const text = (el.value || '').trim();
+  if (!text) return;
+  el.value = ''; el.style.height = 'auto';
+  wsUserMsg(text);
+
+  // Intake mode: let the state machine consume input
+  if (WS.intake) { await wsIntakeStep(text); return; }
+
+  // Trigger intake by typing "new engagement"
+  if (/^\s*new\s+engagement\s*$/i.test(text)) {
+    wsStartIntake();
+    return;
+  }
+
+  // Otherwise — general AI chat for the selected engagement
+  if (!WS.eng) {
+    wsBotMsg('Select an engagement from the dropdown first, or type <em>new engagement</em> to create one.',
+      [{ label: 'New engagement', value: 'new engagement' }]);
+    return;
+  }
+  await wsChatAI(text);
+}
+
+function wsChipClick(btn) {
+  const val = btn.dataset.val || btn.textContent;
+  const inp = document.getElementById('ws-inp');
+  inp.value = val;
+  wsSend();
+}
+
+// ─── INTAKE STATE MACHINE ────────────────────────────────────────────────────
+const INTAKE_STEPS = [
+  { key: 'vendor_name',         prompt: "What's the vendor name? (who's selling)" },
+  { key: 'prospect_name',       prompt: "And the prospect? (who they're selling to)" },
+  { key: 'domain_id',           prompt: "Which domain? Pick one below.", type: 'domain' },
+  { key: 'deal_stage',          prompt: "What deal stage?", type: 'chips',
+    options: ['Discovery', 'Technical Validation', 'Business Case', 'Negotiation', 'Closed Won'] },
+  { key: 'sales_motion',        prompt: "What sales motion?", type: 'chips',
+    options: ['Direct', 'Partner-led', 'Inbound', 'RFP', 'Expansion'] },
+  { key: 'champion_role',       prompt: "Champion role? (e.g. VP Supply Chain)" },
+  { key: 'economic_buyer_role', prompt: "Economic buyer role? (e.g. CFO)" },
+  { key: 'artifact_purpose',    prompt: "Artifact purpose?", type: 'chips',
+    options: ['CFO Business Case', 'Champion Leave-Behind', 'Executive Briefing', 'Proposal Section', 'RFP Response'] },
+];
+
+function wsStartIntake() {
+  WS.intake = { step: 0, data: {} };
+  wsBotMsg("Let's create a new engagement. I'll ask a few questions — answer in the box or tap a chip.");
+  wsAskIntakeStep();
+}
+
+function wsAskIntakeStep() {
+  const it = WS.intake;
+  if (!it) return;
+  if (it.step >= INTAKE_STEPS.length) {
+    wsIntakeSummary();
+    return;
+  }
+  const step = INTAKE_STEPS[it.step];
+  let chips = [];
+  if (step.type === 'chips') chips = step.options.map(o => ({ label: o, value: o }));
+  else if (step.type === 'domain') {
+    chips = WS.domains.map(d => ({
+      label: `${d.domain_id} — ${d.domain_name}`,
+      value: d.domain_id,
+    }));
+  }
+  wsBotMsg(wsEsc(step.prompt), chips);
+}
+
+async function wsIntakeStep(answer) {
+  const it = WS.intake;
+  const step = INTAKE_STEPS[it.step];
+
+  // Domain step: validate against the list
+  if (step.type === 'domain') {
+    const match = WS.domains.find(d =>
+      d.domain_id === answer || d.domain_name === answer ||
+      `${d.domain_id} — ${d.domain_name}` === answer);
+    if (!match) {
+      wsBotMsg(`Couldn't find that domain. Pick one from the list below.`,
+        WS.domains.map(d => ({ label: `${d.domain_id} — ${d.domain_name}`, value: d.domain_id })));
+      return;
+    }
+    it.data[step.key] = match.domain_id;
+    wsBotMsg(`Got it — <strong>${wsEsc(match.domain_id)}</strong> (${wsEsc(match.domain_name)}).`);
+  } else if (step.type === 'chips') {
+    it.data[step.key] = answer;
+    wsBotMsg(`Got it — <strong>${wsEsc(answer)}</strong>.`);
+  } else {
+    it.data[step.key] = answer;
+    wsBotMsg(`Got it — <strong>${wsEsc(answer)}</strong>.`);
+  }
+
+  it.step += 1;
+  if (it.step >= INTAKE_STEPS.length) wsIntakeSummary();
+  else wsAskIntakeStep();
+}
+
+function wsIntakeSummary() {
+  const d = WS.intake.data;
+  const rows = INTAKE_STEPS.map(s => {
+    const v = d[s.key];
+    const disp = (s.type === 'domain') ? (() => {
+      const dom = WS.domains.find(x => x.domain_id === v);
+      return dom ? `${dom.domain_id} — ${dom.domain_name}` : (v || '—');
+    })() : (v || '—');
+    return `<div class="ws-intake-row">
+      <div class="ws-intake-k">${wsEsc(s.key.replace(/_/g,' '))}</div>
+      <div class="ws-intake-v">${wsEsc(disp)}</div></div>`;
+  }).join('');
+
+  const m = document.getElementById('ws-msgs');
+  const el = document.createElement('div'); el.className = 'wsm bot';
+  el.innerHTML = `<div class="wsm-who">Meridian</div>
+    <div class="wsm-bub">Here's what I've got. Create this engagement?</div>
+    <div class="ws-intake-card">${rows}</div>
+    <div class="ws-chips">
+      <button class="ws-chip" onclick="wsIntakeCommit()">Yes, create it</button>
+      <button class="ws-chip" onclick="wsIntakeCancel()">Cancel</button>
+    </div>`;
+  m.appendChild(el); m.scrollTop = m.scrollHeight;
+}
+
+function wsIntakeCancel() {
+  WS.intake = null;
+  wsBotMsg('Cancelled. No engagement was created.');
+}
+
+async function wsIntakeCommit() {
+  const d = WS.intake ? WS.intake.data : null;
+  if (!d) return;
+  wsTyping();
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const engId = 'ENG-' + Date.now();
+    const row = {
+      engagement_id: engId,
+      vendor_name: d.vendor_name,
+      prospect_name: d.prospect_name,
+      domain_id: d.domain_id,
+      deal_stage: d.deal_stage,
+      sales_motion: d.sales_motion,
+      champion_role: d.champion_role,
+      economic_buyer_role: d.economic_buyer_role,
+      artifact_purpose: d.artifact_purpose,
+      intake_source: 'tool',
+      intake_date: today,
+      engagement_status: 'Active',
+    };
+    const inserted = await sbIns('vef_engagements', [row]);
+    const newEng = inserted[0] || row;
+
+    // Seed scenario selections from domain defaults
+    const domainScens = await sbGet('vef_value_scenarios',
+      `domain_id=eq.${encodeURIComponent(d.domain_id)}&active_by_default=eq.true&select=scenario_id`);
+    if (domainScens.length) {
+      const selRows = domainScens.map(s => ({
+        engagement_id: engId,
+        scenario_id: s.scenario_id,
+        is_active: true,
+        source: 'intake-default',
+      }));
+      try { await sbIns('vef_scenario_selections', selRows); }
+      catch (e) { console.warn('scenario selections seed failed', e); }
+    }
+
+    WS.intake = null;
+    wsRmTyping();
+    wsBotMsg(`✓ Created <strong>${wsEsc(engId)}</strong> and seeded ${domainScens.length} default scenarios.`);
+
+    // Refresh dropdown + auto-select
+    WS.engagements = [newEng, ...WS.engagements];
+    wsRenderDropdown();
+    document.getElementById('ws-eng-sel').value = engId;
+    await wsSelectEngagement(engId);
+  } catch (e) {
+    console.error(e);
+    wsRmTyping();
+    wsBotError('Failed to create engagement: ' + e.message);
+  }
+}
+
+// ─── AI CHAT WITH INJECTED CONTEXT ───────────────────────────────────────────
+function wsBuildSystemContext() {
+  // Active scenarios for this engagement
+  const active = wsActiveScenarios();
+  const activeLines = active.map(s => {
+    const fields = [
+      s.scenario_id,
+      s.description || s.one_liner || '',
+      s.one_liner || '',
+      s.value_theme || '',
+      s.value_scenario_formula || '',
+      s.cost_of_inaction_formula || '',
+      s.evidence_strength || '',
+      s.cfo_challenge || '',
+    ];
+    return '- ' + fields.map(f => String(f).replace(/\|/g, '/')).join(' | ');
+  }).join('\n');
+
+  const evLines = (WS.evidence || []).slice(0, 20).map(e => {
+    return '- ' + [
+      e.evidence_id,
+      e.evidence_title,
+      e.evidence_publisher,
+      e.evidence_year,
+      e.quantified_claim_summary,
+      e.haircut_applied,
+    ].map(f => String(f == null ? '' : f).replace(/\|/g, '/')).join(' | ');
+  }).join('\n');
+
+  const leverLines = (WS.levers || []).map(l => {
+    return '- ' + [
+      l.vl_num,
+      l.value_lever,
+      l.simple_formula,
+    ].map(f => String(f == null ? '' : f).replace(/\|/g, '/')).join(' | ');
+  }).join('\n');
+
+  const inputLines = Object.entries(WS.inputs)
+    .map(([k, v]) => `${k}=${v}`).join(', ');
+
+  return `ENGAGEMENT: ${WS.eng ? WS.eng.engagement_id : '—'} · domain=${WS.domainId || '—'}
+CURRENT INPUTS: ${inputLines || '(none)'}
+
+ACTIVE SCENARIOS [scenario_id | description | one_liner | value_theme | value_scenario_formula | cost_of_inaction_formula | evidence_strength | cfo_challenge]:
+${activeLines || '(none active)'}
+
+EVIDENCE REGISTRY [evidence_id | evidence_title | evidence_publisher | evidence_year | quantified_claim_summary | haircut_applied]:
+${evLines || '(none)'}
+
+VALUE LEVERS [vl_num | value_lever | simple_formula]:
+${leverLines || '(none)'}
+
+Use the scenario formulas to reason about sensitivity. Cite evidence by evidence_id when making claims. Challenge soft numbers using haircut_applied.`;
+}
+
+async function wsChatAI(text) {
+  wsTyping();
+  WS.history.push({ role: 'user', content: text });
+  const sysCtx = wsBuildSystemContext();
+  try {
+    const res = await fetch(`${SB}/functions/v1/value-chat`, {
+      method: 'POST',
+      headers: { ...HDRS },
+      body: JSON.stringify({
+        query: text,
+        history: WS.history.slice(0, -1),
+        session_id: 'ws_' + (WS.eng ? WS.eng.engagement_id : 'none'),
+        solution_context: sysCtx,
+        engagement_id: WS.eng ? WS.eng.engagement_id : null,
+      }),
+    });
+    const data = await res.json();
+    const s = data.structured || { type: 'text', text: data.error || 'No response.' };
+    let textOut;
+    if (s.type === 'text') {
+      textOut = s.text || '';
+    } else if (s.type === 'analysis') {
+      textOut = (s.title ? `<strong>${wsEsc(s.title)}</strong><br>` : '') +
+        ((s.signals || []).map(x => `• ${wsEsc(x.name)}: ${wsEsc(x.description || '')}`).join('<br>') || '');
+      if (s.follow_up) textOut += `<br><em>${wsEsc(s.follow_up)}</em>`;
+    } else {
+      textOut = wsEsc(JSON.stringify(s));
+    }
+    WS.history.push({ role: 'assistant', content: textOut });
+    if (WS.history.length > 14) WS.history = WS.history.slice(-14);
+    wsRmTyping();
+    // Bot message with HTML allowed (textOut only uses wsEsc-encoded fragments)
+    const m = document.getElementById('ws-msgs');
+    const el = document.createElement('div'); el.className = 'wsm bot';
+    el.innerHTML = `<div class="wsm-who">Meridian</div><div class="wsm-bub">${textOut || '—'}</div>`;
+    m.appendChild(el); m.scrollTop = m.scrollHeight;
+  } catch (e) {
+    console.error(e);
+    wsBotError('Chat failed: ' + e.message);
+  }
+}
+
+// ─── SNAPSHOT MODAL + SAVE ───────────────────────────────────────────────────
+function wsOpenSnapModal() {
+  if (!WS.eng) return;
+  document.getElementById('ws-snap-modal').classList.add('on');
+}
+
+function wsCloseSnapModal() {
+  document.getElementById('ws-snap-modal').classList.remove('on');
+}
+
+async function wsSaveSnapshot() {
+  if (!WS.eng) return;
+  const label  = document.getElementById('ws-snap-label').value;
+  const intent = document.getElementById('ws-snap-intent').value;
+  const btn = document.getElementById('ws-snap-confirm');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  try {
+    const m = wsComputeMetrics();
+    const activeIds = wsActiveScenarios().map(s => s.scenario_id).join(',');
+    const nextVersion = (WS.snapshots[0]?.snapshot_version || WS.snapshots.length) + 1;
+    const row = {
+      engagement_id: WS.eng.engagement_id,
+      snapshot_version: nextVersion,
+      annual_value: m.arv,
+      payback_mo: m.payback_mo,
+      bcr: m.bcr,
+      monthly_delay_cost: m.monthlyDelay,
+      active_scenario_ids: activeIds,
+      input_snapshot: WS.inputs,
+      snapshot_label: label,
+      intent,
+      domain_id: WS.domainId,
+    };
+    const inserted = await sbIns('vef_output_snapshots', [row]);
+    const saved = inserted[0] || row;
+    WS.snapshots = [saved, ...WS.snapshots];
+    wsCloseSnapModal();
+    wsRenderAnalysis();
+    wsToast(`Snapshot v${saved.snapshot_version} saved`);
+  } catch (e) {
+    console.error(e);
+    wsToast('Save failed: ' + e.message, true);
+    wsBotError('Snapshot save failed: ' + e.message);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save';
+  }
+}
+
+function wsToast(msg, err) {
+  const el = document.getElementById('ws-toast');
+  if (!el) return;
+  el.textContent = (err ? '✗ ' : '✓ ') + msg;
+  el.className = 'ws-toast on' + (err ? ' err' : '');
+  clearTimeout(WS._toastT);
+  WS._toastT = setTimeout(() => { el.className = 'ws-toast' + (err ? ' err' : ''); }, 2600);
 }
 
 // ── INIT ──────────────────────────────────────────────────────────────────────

@@ -49,6 +49,9 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;
 .resetbtn{font-family:'DM Mono',monospace;font-size:10px;color:var(--t3);
   background:none;border:none;cursor:pointer;text-decoration:underline;text-underline-offset:2px;}
 .resetbtn:hover{color:var(--t2)}
+.xlink{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.07em;
+  color:var(--t3);text-decoration:none;transition:color .15s;}
+.xlink:hover{color:var(--acc)}
 
 /* ── LAYOUT ────────────────────────────────────────── */
 .body{display:flex;flex:1;overflow:hidden;min-height:0}
@@ -235,6 +238,15 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.25)}
   background:#0F0F10;border:1px solid var(--aline);border-radius:var(--r2);
   padding:16px 16px 14px;max-width:92%;animation:fi .25s ease;
 }
+.gate-card.shake{animation:gshake .42s cubic-bezier(.36,.07,.19,.97) both}
+@keyframes gshake{10%,90%{transform:translateX(-1px)}20%,80%{transform:translateX(2px)}30%,50%,70%{transform:translateX(-4px)}40%,60%{transform:translateX(4px)}}
+.brow.fading{opacity:.35;text-decoration:line-through;transition:opacity .5s, filter .5s;filter:grayscale(1);}
+.brow.just-activated{animation:jact 1.4s ease}
+@keyframes jact{0%{background:rgba(58,155,96,.18)}60%{background:rgba(58,155,96,.10)}100%{background:transparent}}
+.brow.shadowed{opacity:.55}
+.brow.shadowed .bval{text-decoration:line-through;color:var(--t3)}
+.bcr-cap{display:inline-block;font-family:'DM Mono',monospace;font-size:8px;letter-spacing:.08em;color:var(--acc);border:1px solid var(--acc);border-radius:2px;padding:1px 4px;margin-left:4px;vertical-align:middle;}
+.pool-note{font-family:'DM Mono',monospace;font-size:9px;color:var(--t3);margin-top:6px;padding:5px 8px;background:var(--s3);border-radius:2px;line-height:1.5}
 .gate-headline{
   font-family:'Syne',sans-serif;font-weight:700;font-size:14px;
   color:var(--text);margin-bottom:4px;
@@ -353,7 +365,11 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.25)}
     <button class="msw on" id="tab-d" onclick="setMode('discovery')">Value Discovery</button>
     <button class="msw"    id="tab-c" onclick="setMode('cfo')">CFO Audit</button>
   </div>
-  <button class="resetbtn" onclick="fullReset()">New session</button>
+  <div style="display:flex;align-items:center;gap:14px">
+    <a class="xlink" href="discover.html" title="Buyer-side tool: find which solutions move your numbers">For buyers · Solution Discovery →</a>
+    <div class="vr"></div>
+    <button class="resetbtn" onclick="fullReset()">New session</button>
+  </div>
 </div>
 
 <!-- BODY -->
@@ -403,8 +419,8 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.25)}
     <div class="abody" id="abody">
       <div class="empty" id="empty">
         <div class="eico">⟁</div>
-        <div class="etit">No analysis yet</div>
-        <div class="esub">Chat to describe your deal, or click scenarios on the left to activate them.</div>
+        <div class="etit">Gathering</div>
+        <div class="esub">Tell Meridian your solution, buyer, and use case. Your value analysis will build here as the conversation narrows.</div>
       </div>
     </div>
   </div>
@@ -445,6 +461,8 @@ const S = {
   gateShown: false,
   lastDomains: [],
   lastStructured: null,
+  droppedSoon: new Set(),
+  scenarioActivatedTurn: {},
 };
 
 // ─── SUPABASE ─────────────────────────────────────────────────────────────────
@@ -651,82 +669,181 @@ function setConf(c) {
 }
 
 // ─── ANALYSIS PANEL ──────────────────────────────────────────────────────────
-function updateAnalysis() {
-  const active = S.activeScens.size > 0
-    ? S.scenarios.filter(s => S.activeScens.has(s.scenario_id))
+// ─── AGGREGATE MATH (Phase 3) ─────────────────────────────────────────────────
+// VEF v1.1 activation ramps per scenario.activation_type
+const RAMP = {
+  human:      [0.30, 0.70, 1.00],  // J-curve — people/workflow change ramps over 3y
+  instrument: [1.00, 1.00, 1.00],  // full from Y1 — sensor/telemetry is binary
+  deadline:   [1.00, 1.00, 1.00],  // binary once the deadline triggers
+};
+
+// Pool-share guard (option a): for each value_pool, credit only the scenario
+// with the highest annual value. Shadowed scenarios are flagged, not summed.
+// Eliminates double-counting by construction — defensible to a CFO.
+function computeAggregates(activeSet) {
+  const source = activeSet && activeSet.size > 0
+    ? S.scenarios.filter(s => activeSet.has(s.scenario_id))
     : S.scenarios;
 
-  const computed = active
-    .map(s => ({ s, v: evalF(s.value_scenario_formula) }))
-    .filter(x => x.v && x.v > 0 && isFinite(x.v))
-    .sort((a, b) => b.v - a.v);
+  const raw = source
+    .map(s => ({ s, annual: evalF(s.value_scenario_formula) }))
+    .filter(x => x.annual && x.annual > 0 && isFinite(x.annual));
 
-  if (computed.length === 0) return;
+  const ramped = raw.map(({ s, annual }) => {
+    const type = s.activation_type || 'human';
+    const r = RAMP[type] || RAMP.human;
+    return {
+      s, annual,
+      y1: annual * r[0], y2: annual * r[1], y3: annual * r[2],
+      pool: s.value_pool || 'other',
+      activation: type,
+    };
+  });
 
-  document.getElementById('empty').style.display = 'none';
+  // Pool-max: one winner per value_pool
+  const byPool = {};
+  ramped.forEach(r => { if (!byPool[r.pool] || r.annual > byPool[r.pool].annual) byPool[r.pool] = r; });
+  const winnerIds = new Set(Object.values(byPool).map(r => r.s.scenario_id));
+  const computed = ramped.map(r => ({ ...r, shadowed: !winnerIds.has(r.s.scenario_id) }));
+  computed.sort((a, b) => b.y1 - a.y1);
+
+  const winners = computed.filter(r => !r.shadowed);
+  const y1 = winners.reduce((sum, r) => sum + r.y1, 0);
+  const y2 = winners.reduce((sum, r) => sum + r.y2, 0);
+  const y3 = winners.reduce((sum, r) => sum + r.y3, 0);
+
+  // Implementation cost — no silent 85K fallback. Must be explicitly provided.
+  const implInput = S.inputs['implementation_cost'];
+  const implProvided = implInput != null && implInput.value != null && implInput.value > 0 && implInput.source !== 'engine-default-85k';
+  const impl = implProvided ? implInput.value : null;
+
+  const npv = impl != null ? (y1 / 1.10 + y2 / 1.21 + y3 / 1.331 - impl) : null;
+  const bcrRaw = (impl != null && impl > 0) ? (y1 + y2 + y3) / impl : null;
+  const bcrCapped = bcrRaw != null && bcrRaw > 10;
+  const bcr = bcrRaw != null ? Math.min(bcrRaw, 10) : null;
+  const pay = (impl != null && impl > 0 && y1 > 0) ? (impl / y1 * 12) : null;
+
+  const poolGuard = computed.filter(r => r.shadowed).map(r => ({
+    shadowed: r.s.scenario_id,
+    winner: byPool[r.pool].s.scenario_id,
+    pool: r.pool,
+  }));
+
+  return { y1, y2, y3, npv, pay, bcr, bcrRaw, bcrCapped, impl, computed, winners, poolGuard };
+}
+
+// Phase 4: panel empty-state when no structured analysis has landed yet.
+function renderGatheringState() {
   const body = document.getElementById('abody');
+  if (!body) return;
+  body.innerHTML = `<div class="empty" id="empty">
+    <div class="eico">⟁</div>
+    <div class="etit">Gathering</div>
+    <div class="esub">Tell Meridian your solution, buyer, and use case. Your value analysis will build here as the conversation narrows.</div>
+  </div>`;
+}
 
-  const total  = computed.reduce((s, x) => s + x.v, 0);
-  const impl   = S.inputs['implementation_cost']?.value || 85000;
-  const mo     = total / 12;
-  const npv    = total * 2.487 - impl;
-  const pay    = total > 0 ? (impl / total * 12) : null;
-  const bcr    = impl > 0 ? (npv + impl) / impl : null;
-  const cod3yr = mo * 36;
+function updateAnalysis() {
+  // Phase 4 gate: panel only shows aggregate math once a structured analysis has
+  // landed. Clarifying-question turns (type='text') leave it in gathering state.
+  if (!S.lastStructured || S.lastStructured.type !== 'analysis') {
+    renderGatheringState();
+    return;
+  }
 
-  const maxV = computed[0]?.v || 1;
+  const agg = computeAggregates(S.activeScens);
+  const { y1, y2, y3, npv, pay, bcr, bcrCapped, impl, computed, poolGuard } = agg;
 
-  // Priority slider keys
-  const pkeys = priorityKeys(active, 6);
+  // Include recently-dropped scenarios so the refinement diff has something to fade.
+  const displayComputed = [...computed];
+  S.droppedSoon.forEach(sid => {
+    if (displayComputed.find(r => r.s.scenario_id === sid)) return;
+    const s = S.scenarios.find(x => x.scenario_id === sid);
+    if (!s) return;
+    const annual = evalF(s.value_scenario_formula) || 0;
+    displayComputed.push({ s, annual, y1: annual, y2: annual, y3: annual, pool: s.value_pool || 'other', shadowed: false, fading: true });
+  });
+
+  if (displayComputed.length === 0) { renderGatheringState(); return; }
+
+  const body = document.getElementById('abody');
+  const maxV = Math.max(...displayComputed.map(r => r.y1), 1);
+
+  // Priority slider keys — still from the source active set (excludes shadowed is OK)
+  const activeSource = S.activeScens.size > 0
+    ? S.scenarios.filter(s => S.activeScens.has(s.scenario_id))
+    : S.scenarios;
+  const pkeys = priorityKeys(activeSource, 6);
+
+  const winnerCount = computed.filter(r => !r.shadowed).length;
+  const shadowCount = computed.filter(r => r.shadowed).length;
 
   let html = '';
 
-  // ── THREE VEF QUESTIONS
+  // ── THREE VEF QUESTIONS (Y1 realized, ramp + pool-guard applied)
   html += `<div>
   <div class="sec-hd" style="margin-bottom:8px">
     <span>The Three Questions</span>
-    <span style="font-size:9px">${computed.length} scenarios · ${S.conf}</span>
+    <span style="font-size:9px">${winnerCount} scenarios · ${S.conf}${shadowCount ? ` · ${shadowCount} pool-shadowed` : ''}</span>
   </div>
   <div class="trio">
     <div class="vcard pri">
       <div class="vq">Value of Acting</div>
-      <div class="vn" id="v-act">${fmt(total)}</div>
-      <div class="vsub">Annual · all active scenarios</div>
+      <div class="vn" id="v-act">${fmt(y1)}</div>
+      <div class="vsub">Year 1 realized · after activation ramp</div>
     </div>
     <div class="vcard warn">
       <div class="vq">Cost of Delay</div>
-      <div class="vn" id="v-dly">${fmt(mo)}</div>
+      <div class="vn" id="v-dly">${fmt(y1 / 12)}</div>
       <div class="vsub">Per month of inaction</div>
     </div>
     <div class="vcard dng">
       <div class="vq">Cost of Doing Nothing</div>
-      <div class="vn" id="v-cdn">${fmt(cod3yr)}</div>
-      <div class="vsub">3-year unrealized value</div>
+      <div class="vn" id="v-cdn">${fmt(y1 + y2 + y3)}</div>
+      <div class="vsub">3-year cumulative · ramped</div>
     </div>
   </div></div>`;
 
-  // ── SECONDARY METRICS
+  // ── SECONDARY METRICS — DCF NPV, honest payback, capped BCR
+  const npvStr = npv != null ? fmt(npv) : '—';
+  const payStr = pay != null ? pay.toFixed(1) + 'mo' : '—';
+  const bcrStr = bcr != null ? bcr.toFixed(1) + 'x' : '—';
+  const bcrCapTag = bcrCapped ? '<span class="bcr-cap" title="Raw BCR capped at 10x — CFOs stop reading after the first double-digit multiple">capped</span>' : '';
+  const payHint = impl == null ? 'enter implementation cost to compute' : 'months to breakeven';
   html += `<div class="sec3">
-    <div class="sm"><div class="smq">3-Yr NPV</div><div class="smn" id="v-npv">${fmt(npv)}</div><div class="smb">10% discount rate</div></div>
-    <div class="sm"><div class="smq">Payback</div><div class="smn" id="v-pay">${pay ? pay.toFixed(1) + 'mo' : '—'}</div><div class="smb">months to breakeven</div></div>
-    <div class="sm"><div class="smq">BCR</div><div class="smn" id="v-bcr">${bcr ? bcr.toFixed(1) + 'x' : '—'}</div><div class="smb">benefit-cost ratio</div></div>
+    <div class="sm"><div class="smq">3-Yr NPV</div><div class="smn" id="v-npv">${npvStr}</div><div class="smb">10% discount rate · DCF</div></div>
+    <div class="sm"><div class="smq">Payback</div><div class="smn" id="v-pay">${payStr}</div><div class="smb">${payHint}</div></div>
+    <div class="sm"><div class="smq">BCR</div><div class="smn" id="v-bcr">${bcrStr}${bcrCapTag}</div><div class="smb">benefit-cost ratio</div></div>
   </div>`;
+
+  // Pool-guard note — visible when scenarios got shadowed
+  if (poolGuard.length > 0) {
+    const pools = [...new Set(poolGuard.map(g => g.pool))].join(', ');
+    html += `<div class="pool-note">↯ Pool-share guard: ${poolGuard.length} scenario${poolGuard.length === 1 ? '' : 's'} shadowed in pool${poolGuard.length === 1 ? '' : 's'} (${pools}) — only the highest-value scenario per pool is credited to avoid double-counting.</div>`;
+  }
 
   html += '<div class="sep"></div>';
 
   // ── SCENARIO BREAKDOWN
   html += `<div>
-  <div class="sec-hd" style="margin-bottom:7px"><span>Scenario Breakdown</span><span>${computed.length} active</span></div>
+  <div class="sec-hd" style="margin-bottom:7px"><span>Scenario Breakdown</span><span>${winnerCount} active${shadowCount ? ` + ${shadowCount} shadowed` : ''}</span></div>
   <div class="breakdown" id="breakdown">`;
-  computed.slice(0, 10).forEach(({ s, v }) => {
+  displayComputed.slice(0, 10).forEach(r => {
+    const s = r.s;
     const meta = TH[s.value_theme] || { c: '#888' };
-    const pct = Math.round((v / maxV) * 100);
+    const pct = Math.round((r.y1 / maxV) * 100);
     const on = S.activeScens.has(s.scenario_id);
-    html += `<div class="brow${on ? ' on' : ''}" onclick="toggleScen('${s.scenario_id}')" data-sid="${s.scenario_id}">
+    const cls = ['brow'];
+    if (on) cls.push('on');
+    if (r.shadowed) cls.push('shadowed');
+    if (r.fading || S.droppedSoon.has(s.scenario_id)) cls.push('fading');
+    const turn = S.scenarioActivatedTurn[s.scenario_id];
+    const turnAttr = turn != null ? ` data-turn="${turn}" title="Activated at turn ${turn}${r.shadowed ? ' · shadowed (pool double-count guard)' : ''}"` : (r.shadowed ? ' title="Shadowed by pool double-count guard"' : '');
+    html += `<div class="${cls.join(' ')}" onclick="toggleScen('${s.scenario_id}')" data-sid="${s.scenario_id}"${turnAttr}>
       <div class="bfill" style="width:${pct}%"></div>
       <div class="bdot" style="background:${meta.c}"></div>
-      <div class="bname">${s.one_liner || s.description.substring(0, 52)}</div>
-      <div class="bval">${fmt(v)}</div>
+      <div class="bname">${s.mechanism_label || s.one_liner || s.description.substring(0, 52)}</div>
+      <div class="bval">${fmt(r.y1)}</div>
     </div>`;
   });
   html += `</div></div><div class="sep"></div>`;
@@ -771,8 +888,8 @@ function updateAnalysis() {
     <div class="savest" id="savest"></div>
   </div>
   <div class="export-row">
-    <button class="expbtn pdf" id="pdf-btn" onclick="downloadPDF()" disabled title="Download PDF leave-behind">↓ PDF</button>
-    <button class="expbtn" id="pptx-btn" onclick="downloadPPTX()" disabled title="Download 3-slide PPTX deck">↓ PPTX</button>
+    <button class="expbtn pdf" id="pdf-btn" onclick="downloadPDF()" disabled title="Run a value analysis first to enable PDF export">↓ PDF</button>
+    <button class="expbtn" id="pptx-btn" onclick="downloadPPTX()" disabled title="Run a value analysis first to enable PPTX export">↓ PPTX</button>
   </div>`;
 
   body.innerHTML = html;
@@ -808,36 +925,33 @@ function onSlide(key, val, unit) {
   refreshNumbers();
 }
 
-// Patch numbers in place without full re-render
+// Patch numbers in place without full re-render (Phase 3 math via computeAggregates)
 function refreshNumbers() {
-  const active = S.activeScens.size > 0
-    ? S.scenarios.filter(s => S.activeScens.has(s.scenario_id))
-    : S.scenarios;
-  const computed = active
-    .map(s => ({ s, v: evalF(s.value_scenario_formula) }))
-    .filter(x => x.v && x.v > 0 && isFinite(x.v))
-    .sort((a, b) => b.v - a.v);
-
-  const total = computed.reduce((s, x) => s + x.v, 0);
-  const impl  = S.inputs['implementation_cost']?.value || 85000;
-  const mo    = total / 12;
-  const npv   = total * 2.487 - impl;
-  const pay   = total > 0 ? (impl / total * 12) : null;
-  const bcr   = impl > 0 ? (npv + impl) / impl : null;
+  if (!S.lastStructured || S.lastStructured.type !== 'analysis') return;
+  const { y1, y2, y3, npv, pay, bcr, bcrCapped, impl, computed } = computeAggregates(S.activeScens);
 
   const p = (id, t) => { const el = document.getElementById(id); if (el) el.textContent = t; };
-  p('v-act', fmt(total)); p('v-dly', fmt(mo)); p('v-cdn', fmt(mo * 36));
-  p('v-npv', fmt(npv)); p('v-pay', pay ? pay.toFixed(1) + 'mo' : '—');
-  p('v-bcr', bcr ? bcr.toFixed(1) + 'x' : '—');
+  p('v-act', fmt(y1));
+  p('v-dly', fmt(y1 / 12));
+  p('v-cdn', fmt(y1 + y2 + y3));
+  p('v-npv', npv != null ? fmt(npv) : '—');
+  p('v-pay', pay != null ? pay.toFixed(1) + 'mo' : '—');
+  // BCR: reset inner text, reattach cap tag if needed
+  const bcrEl = document.getElementById('v-bcr');
+  if (bcrEl) {
+    bcrEl.innerHTML = (bcr != null ? bcr.toFixed(1) + 'x' : '—') +
+      (bcrCapped ? '<span class="bcr-cap" title="Raw BCR capped at 10x">capped</span>' : '');
+  }
 
-  const maxV = computed[0]?.v || 1;
+  const maxV = computed.length ? Math.max(...computed.map(r => r.y1), 1) : 1;
   document.querySelectorAll('.brow').forEach(row => {
-    const found = computed.find(x => x.s.scenario_id === row.dataset.sid);
+    const found = computed.find(r => r.s.scenario_id === row.dataset.sid);
     if (!found) return;
-    const pct = Math.round((found.v / maxV) * 100);
+    const pct = Math.round((found.y1 / maxV) * 100);
     const fill = row.querySelector('.bfill'); const bval = row.querySelector('.bval');
     if (fill) fill.style.width = pct + '%';
-    if (bval) bval.textContent = fmt(found.v);
+    if (bval) bval.textContent = fmt(found.y1);
+    row.classList.toggle('shadowed', !!found.shadowed);
   });
   document.querySelectorAll('.stile').forEach(t => {
     const s = S.scenarios.find(x => x.scenario_id === t.dataset.sid);
@@ -861,10 +975,15 @@ async function send() {
   const el = document.getElementById('cin');
   const text = el.value.trim();
   if (!text || S.loading) return;
-  // Block if gate is shown but not yet submitted
+  // Block if gate is shown but not yet submitted — highlight card + focus email.
   if (S.gateShown && !S.gateUnlocked) {
     const emailEl = document.getElementById('gate-email');
+    const card = document.querySelector('#gate-msg .gate-card');
     if (emailEl) emailEl.focus();
+    if (card) {
+      card.classList.add('shake');
+      setTimeout(() => card.classList.remove('shake'), 500);
+    }
     return;
   }
   el.value = ''; el.style.height = 'auto';
@@ -952,9 +1071,28 @@ async function discTurn(text) {
     if (S.history.length > 14) S.history = S.history.slice(-14);
 
     extractNums(text);
-    if (S.turns === 1 && data.domains_matched?.length) activateDomain(data.domains_matched);
 
+    // renderStructured sets S.lastStructured — must run BEFORE activateDomain so
+    // the panel gate in updateAnalysis sees the new state on first pass.
     renderStructured(structured);
+
+    // Phase 4: only refresh activation (which populates the panel) when the
+    // model returned a structured analysis. Clarifying-question turns leave
+    // the panel in its current state (gathering, if first turn).
+    if (structured.type === 'analysis' && data.domains_matched?.length) {
+      const prevActive = new Set(S.activeScens);
+      activateDomain(data.domains_matched);
+      const newActive = new Set(S.activeScens);
+      const dropped = [...prevActive].filter(sid => !newActive.has(sid));
+      const added   = [...newActive].filter(sid => !prevActive.has(sid));
+      added.forEach(sid => { S.scenarioActivatedTurn[sid] = S.turns; });
+      if (dropped.length > 0) {
+        // Fade dropped rows for 2s, then re-render cleanly.
+        S.droppedSoon = new Set(dropped);
+        setTimeout(() => { S.droppedSoon = new Set(); updateAnalysis(); }, 2000);
+      }
+    }
+
     updateAnalysis();
 
     // Show gate after turn 1 response renders
@@ -963,9 +1101,24 @@ async function discTurn(text) {
     }
   } catch (e) {
     console.error(e);
-    botMsg('Connection error — please try again.');
+    botMsgError(text, 'discovery');
   }
   setLoad(false);
+}
+
+// Render a bot error message with a working retry button that re-runs the failed turn.
+function botMsgError(failedText, mode) {
+  const m = document.getElementById('msgs');
+  rmId('typing');
+  const d = document.createElement('div'); d.className = 'msg bot';
+  d.innerHTML = `<div class="mwho">Meridian</div>
+    <div class="mbub" style="color:var(--red)">Connection error — couldn't reach the model. Check your network and retry.</div>
+    <div class="qrs"></div>`;
+  const btn = document.createElement('button');
+  btn.className = 'qr'; btn.textContent = '↻ Retry';
+  btn.onclick = () => { d.remove(); (mode === 'cfo' ? cfoTurn : discTurn)(failedText); };
+  d.querySelector('.qrs').appendChild(btn);
+  m.appendChild(d); m.scrollTop = m.scrollHeight;
 }
 
 // ─── GATE ─────────────────────────────────────────────────────────────────────
@@ -988,6 +1141,7 @@ function showGate() {
         <input class="gate-input" id="gate-email" type="email" placeholder="you@company.com" onkeydown="if(event.key==='Enter')submitGate()">
         <button class="gate-btn" id="gate-btn" onclick="submitGate()">Send it →</button>
       </div>
+      <div class="gate-err" id="gate-err" style="display:none;font-family:'DM Mono',monospace;font-size:10px;color:var(--red);margin-top:8px;letter-spacing:.04em">Enter a valid email to continue.</div>
       <div class="gate-note">No spam. One email with your analysis. Josh may follow up.</div>
     </div>`;
   msgs.appendChild(d);
@@ -999,11 +1153,16 @@ function showGate() {
 async function submitGate() {
   const emailEl = document.getElementById('gate-email');
   const btn = document.getElementById('gate-btn');
+  const err = document.getElementById('gate-err');
   const email = emailEl?.value?.trim();
-  if (!email || !email.includes('@')) {
-    if (emailEl) emailEl.style.borderColor = 'var(--acc)';
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (emailEl) emailEl.style.borderColor = 'var(--red)';
+    if (err) err.style.display = 'block';
+    emailEl?.focus();
     return;
   }
+  if (err) err.style.display = 'none';
+  if (emailEl) emailEl.style.borderColor = '';
   btn.disabled = true;
   btn.textContent = 'Sending...';
 
@@ -1075,13 +1234,17 @@ async function cfoTurn(text) {
     const cfoStructured = data.structured || { type: 'text', text: data.error || 'Unable to process.' };
     S.history.push({ role: 'assistant', structured: cfoStructured, content: JSON.stringify(cfoStructured) });
     renderStructured(cfoStructured);
-  } catch (e) { botMsg('Connection error — please try again.'); }
+  } catch (e) { console.error(e); botMsgError(text, 'cfo'); }
   setLoad(false);
 }
 
 // Activate relevant scenarios from domain match
 function activateDomain(domains) {
   S.lastDomains = domains; // store for "back to top 3" button
+  // Phase 4 refinement: clear before re-activating so turn 2+ narrows cleanly
+  // instead of accumulating. The caller (discTurn) captures prev state before
+  // calling this so it can diff for the fade animation.
+  S.activeScens.clear();
   renderTopTiles(domains);
 }
 
@@ -1156,23 +1319,19 @@ async function saveEng() {
       vendor_name: 'Tool Session', prospect_name: 'Anonymous',
       engagement_status: 'Active', notes: `tool ${S.sid}`
     }]);
-    const active = S.activeScens.size > 0
-      ? S.scenarios.filter(s => S.activeScens.has(s.scenario_id))
-      : S.scenarios;
-    const computed = active
-      .map(s => ({ s, v: evalF(s.value_scenario_formula) }))
-      .filter(x => x.v && x.v > 0 && isFinite(x.v));
-    const total = computed.reduce((s, x) => s + x.v, 0);
-    const impl  = S.inputs['implementation_cost']?.value || 85000;
+    const agg = computeAggregates(S.activeScens);
+    const winnerIds = agg.winners.map(r => r.s.scenario_id);
     await sbIns('vef_output_snapshots', [{
       engagement_id: eid, snapshot_version: 1,
-      annual_value: total, npv: total * 2.487 - impl,
-      payback_mo: total > 0 ? (impl / total * 12) : null,
-      bcr: impl > 0 ? ((total * 2.487) / impl) : null,
-      monthly_delay_cost: total / 12,
-      active_scenario_ids: computed.map(x => x.s.scenario_id).join(','),
+      annual_value: agg.y1,
+      npv: agg.npv,
+      payback_mo: agg.pay,
+      bcr: agg.bcr,
+      monthly_delay_cost: agg.y1 / 12,
+      cost_of_doing_nothing: agg.y1 + agg.y2 + agg.y3,
+      active_scenario_ids: winnerIds.join(','),
       input_snapshot: S.inputs, domain_id: S.engine, intent: 'convince',
-      notes: `tool session ${S.sid}`
+      notes: `tool session ${S.sid}${agg.bcrCapped ? ' (bcr capped at 10x)' : ''}${agg.poolGuard.length ? ' · pool-shadowed: ' + agg.poolGuard.map(g => g.shadowed).join(',') : ''}`
     }]);
     if (st) st.textContent = `✓ ${eid}`;
     btn.textContent = 'Saved ✓';
@@ -1217,8 +1376,8 @@ function renderStructured(s) {
     S.lastStructured = s;
     const pdfBtn = document.getElementById('pdf-btn');
     const pptxBtn = document.getElementById('pptx-btn');
-    if (pdfBtn) pdfBtn.disabled = false;
-    if (pptxBtn) pptxBtn.disabled = false;
+    if (pdfBtn) { pdfBtn.disabled = false; pdfBtn.title = 'Download PDF leave-behind'; }
+    if (pptxBtn) { pptxBtn.disabled = false; pptxBtn.title = 'Download 3-slide PPTX deck'; }
   }
   const m = document.getElementById('msgs');
   rmId('typing');
@@ -1384,6 +1543,12 @@ function showWelcome() {
 }
 
 function setMode(m) {
+  const prev = S.mode;
+  if (prev === m) return;
+  // Confirm if there's work in progress — mode switch wipes the chat.
+  if (S.turns > 0 && !confirm(`Switch to ${m === 'cfo' ? 'CFO Audit' : 'Value Discovery'}? The current conversation will be cleared.`)) {
+    return;
+  }
   S.mode = m;
   document.getElementById('tab-d').classList.toggle('on', m === 'discovery');
   document.getElementById('tab-c').classList.toggle('on', m === 'cfo');
@@ -1391,8 +1556,24 @@ function setMode(m) {
   document.getElementById('cin').placeholder = m === 'discovery'
     ? 'Describe your solution and buyer...'
     : "Paste the vendor's ROI claim...";
-  if (m === 'cfo')
+
+  // Switching modes clears chat + history so discovery and audit contexts don't bleed.
+  S.history = [];
+  S.turns = 0;
+  S.lastStructured = null;
+  S.scenarioActivatedTurn = {};
+  S.droppedSoon = new Set();
+  document.getElementById('msgs').innerHTML = '';
+  const pdfBtn = document.getElementById('pdf-btn');
+  const pptxBtn = document.getElementById('pptx-btn');
+  if (pdfBtn) { pdfBtn.disabled = true; pdfBtn.title = 'Run a value analysis first to enable PDF export'; }
+  if (pptxBtn) { pptxBtn.disabled = true; pptxBtn.title = 'Run a value analysis first to enable PPTX export'; }
+
+  if (m === 'cfo') {
     renderStructured({ type: 'text', text: "CFO Audit Mode. Paste the vendor's ROI claim and I will break it down component by component — Accept, Adjust, or Remove — with evidence tiers and a defensible verified range." });
+  } else {
+    showWelcome();
+  }
 }
 
 function fullReset() {
@@ -1400,9 +1581,16 @@ function fullReset() {
   S.turns = 0; S.engine = null; S.activeScens.clear();
   S.sid = 's' + Date.now(); S.ctx = '';
   S.gateUnlocked = false; S.gateShown = false;
+  S.lastStructured = null;
+  S.scenarioActivatedTurn = {};
+  S.droppedSoon = new Set();
+  const pdfBtn = document.getElementById('pdf-btn');
+  const pptxBtn = document.getElementById('pptx-btn');
+  if (pdfBtn) { pdfBtn.disabled = true; pdfBtn.title = 'Run a value analysis first to enable PDF export'; }
+  if (pptxBtn) { pptxBtn.disabled = true; pptxBtn.title = 'Run a value analysis first to enable PPTX export'; }
   seedDefaults();
   document.getElementById('abody').innerHTML =
-    `<div class="empty" id="empty"><div class="eico">⟁</div><div class="etit">No analysis yet</div><div class="esub">Chat to describe your deal, or click scenarios on the left to activate them.</div></div>`;
+    `<div class="empty" id="empty"><div class="eico">⟁</div><div class="etit">Gathering</div><div class="esub">Tell Meridian your solution, buyer, and use case. Your value analysis will build here as the conversation narrows.</div></div>`;
   document.getElementById('eng-lbl').textContent =
     S.engines.length ? S.engines.map(e => e.vendor_category).join(' · ') : 'Loading...';
   // Reset tiles to empty state
@@ -1434,7 +1622,12 @@ function rawFmt(n, unit) {
 load();
 // Auto-switch mode from URL param — ?mode=cfo opens CFO audit directly
 const urlMode = new URLSearchParams(window.location.search).get('mode');
-if (urlMode === 'cfo') setMode('cfo');
+if (urlMode === 'cfo') {
+  setMode('cfo');
+  // URL-arrival override — make it clear they landed here from the Claim Audit card.
+  document.getElementById('msgs').innerHTML = '';
+  renderStructured({ type: 'text', text: "Arrived from the Claim Audit link. Paste the vendor's ROI claim below and I'll evaluate it component by component — Accept, Adjust, or Remove — with evidence tiers and a defensible verified range." });
+}
 
 // ─── EXPORT ───────────────────────────────────────────────────────────────────
 function downloadPDF() {

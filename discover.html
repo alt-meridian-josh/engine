@@ -37,6 +37,9 @@ html,body{min-height:100%;background:var(--bg);color:var(--text);
 .page-badge{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.08em;
   text-transform:uppercase;color:var(--t3);
   border:1px solid var(--b2);border-radius:2px;padding:3px 8px;}
+.xlink{font-family:'DM Mono',monospace;font-size:10px;letter-spacing:.07em;
+  color:var(--t3);text-decoration:none;transition:color .15s;display:flex;align-items:center;gap:4px;}
+.xlink:hover{color:var(--acc)}
 
 /* ── HERO ── */
 .hero{padding:56px 20px 40px;max-width:680px;margin:0 auto;text-align:center;}
@@ -241,8 +244,10 @@ input[type=range]::-webkit-slider-thumb:hover{transform:scale(1.2)}
     <a class="back" href="index.html">← Back</a>
     <div class="vr"></div>
     <div class="logo">Alt <em>Meridian</em></div>
+    <div class="vr"></div>
+    <div class="page-badge">Solution Discovery</div>
   </div>
-  <div class="page-badge">Solution Discovery</div>
+  <a class="xlink" href="tool.html" title="Seller-side tool: build a value case">For sellers · Value Discovery →</a>
 </div>
 
 <!-- HERO -->
@@ -392,6 +397,7 @@ const D = {
   vertical: '', role: '', revIdx: 2, pains: new Set(),
   running: false, gateUnlocked: false, gateShown: false,
   results: [], sid: 'd' + Date.now(), ctx: '',
+  lastStructured: null, lastDomains: [], readyToSend: false,
 };
 
 // ── INTAKE CONTROLS ───────────────────────────────────────────────────────────
@@ -447,17 +453,40 @@ function scoreDomains() {
     .map(([d]) => d);
 }
 
+// Maps a scored-top domain (RFID, BLE, WMS, etc.) to a concrete tech phrase the
+// value-chat system prompt will recognize as a "solution type described."
+// Without this, buyer-flow queries ("I am X, what should I buy?") trigger
+// Format B scoping questions and never produce a shortlist.
+const DOMAIN_TECH_PHRASE = {
+  'RFID':     'RFID item-level inventory and asset tracking',
+  'BLE':      'BLE / ambient IoT asset and cold-chain tracking',
+  'WMS':      'warehouse management software',
+  'IIOT':     'industrial IoT condition monitoring and predictive maintenance',
+  'CAT-RISK': 'catastrophic risk intelligence and climate-informed underwriting',
+  'AIP':      'governed enterprise AI platform',
+  'FLEET':    'fleet telematics and driver-safety technology',
+  'POI-LI':   'location intelligence and POI data',
+  'FSM':      'field service management software',
+  'CPQ':      'configure-price-quote software',
+  'ICM-SAAS': 'incentive compensation management',
+  'VEN-VEF':  'value engineering / ROI tooling',
+};
+
 function buildDiscoveryQuery() {
   const vertLabel = document.getElementById('sel-vertical').selectedOptions[0]?.text || D.vertical;
   const painList  = [...D.pains].join(', ');
   const revLabel  = REV_LABELS[D.revIdx];
+  const topDomain = scoreDomains()[0] || '';
+  const techPhrase = DOMAIN_TECH_PHRASE[topDomain] || 'the most relevant governed technology solution';
 
-  D.ctx = `${vertLabel} operation, ${revLabel} revenue`;
+  D.ctx = `${vertLabel} operation, ${revLabel} revenue${painList ? ', pains: ' + painList : ''}`;
 
-  return `I am an operations or finance leader at a ${vertLabel} company with ${revLabel} in annual revenue.` +
-    (painList ? ` Our main pain points are: ${painList}.` : '') +
-    ` What technology solution would generate the most defensible ROI for our operation?` +
-    ` Give me a governed value analysis: signals, primary mechanism, evidence, value scenarios with ranges, cost of inaction per month, and the CFO challenge.`;
+  // Seller-style framing — value-chat v13 was built for this pattern. Buyer
+  // framing triggers clarifying questions every time.
+  return `We are evaluating ${techPhrase} for a ${vertLabel} operation with ${revLabel} in annual revenue.` +
+    (painList ? ` The operational pains we want to solve: ${painList}.` : '') +
+    ` Produce a Format A structured value analysis NOW with: title, signals (2-3), primary mechanism, evidence (2-3 items from governed database), at least 3 value scenarios each with range_low and range_high, cost of inaction per month, and CFO challenge.` +
+    ` Use typical industry ranges where specific numbers are missing. Do NOT ask clarifying questions — respond with structured JSON.`;
 }
 
 // ── RUN ───────────────────────────────────────────────────────────────────────
@@ -503,17 +532,27 @@ async function runDiscovery() {
 
     const data = await res.json();
     const structured = data.structured || { type: 'text', text: data.error || 'Unable to generate analysis.' };
-    D.results = [{ query, structured, domains: data.domains_matched || [] }];
+    const domainsMatched = Array.isArray(data.domains_matched) ? data.domains_matched : [];
+    D.results = [{ query, structured, domains: domainsMatched }];
+    D.lastStructured = structured;
+    D.lastDomains = domainsMatched;
 
     renderResults(structured, structured.text || '');
 
-    if (!D.gateShown && !D.gateUnlocked) {
-      showGate(reply);
+    // Gate only fires when analysis is actually complete — no null-preview emails.
+    const readiness = isReadyToSend(structured, domainsMatched);
+    D.readyToSend = readiness.ready;
+    if (readiness.ready && !D.gateShown && !D.gateUnlocked) {
+      showGate(structured);
+    } else if (!readiness.ready) {
+      appendScopingNudge(readiness.reason);
     }
 
   } catch (e) {
     console.error(e);
-    rw.innerHTML = `<div class="empty-state">Connection error — please try again.</div>`;
+    rw.innerHTML = `<div class="empty-state">Connection error — couldn't reach the model.
+      <button class="run-btn" style="margin-top:12px" onclick="runDiscovery()">↻ Retry</button>
+    </div>`;
   }
 
   D.running = false;
@@ -652,17 +691,76 @@ function renderStructuredCard(s, idx, blurClass) {
   return inner;
 }
 
+// ── READINESS CHECK ───────────────────────────────────────────────────────────
+// Returns { ready: bool, reason?: string }. The gate only fires when every
+// field the buyer email will render is actually populated — no more
+// "Not calculated" previews leaking into production.
+const MKT_LEAK_RE = /\b(governed value|attainment gap|alt ?meridian|\bvef\b|value case|no decision|finance stage|head-to-head|governed engine|champions? who walk in)\b/i;
+function isReadyToSend(structured, domainsMatched) {
+  if (!structured || structured.type !== 'analysis') {
+    return { ready: false, reason: 'Analysis did not return a structured recommendation. Add industry + revenue band above and rerun.' };
+  }
+  if (!Array.isArray(domainsMatched) || domainsMatched.length === 0) {
+    return { ready: false, reason: 'No solution domain matched your context. Pick an industry and at least one pain point, then rerun.' };
+  }
+  if (!structured.title) {
+    return { ready: false, reason: 'Recommendation is missing a title — rerun with more specific pains selected.' };
+  }
+  const scenarios = Array.isArray(structured.scenarios) ? structured.scenarios : [];
+  if (scenarios.length < 3) {
+    return { ready: false, reason: 'Need at least 3 value scenarios to send a shortlist (got ' + scenarios.length + '). Add more pain points above.' };
+  }
+  for (const sc of scenarios.slice(0, 3)) {
+    if (!sc.name) return { ready: false, reason: 'A top scenario is missing its name.' };
+    if (!sc.range_low || !sc.range_high) {
+      return { ready: false, reason: 'Scenario "' + (sc.name || 'unnamed') + '" has no value range.' };
+    }
+    if (MKT_LEAK_RE.test(sc.name || '') || MKT_LEAK_RE.test(sc.what || '')) {
+      return { ready: false, reason: 'Analysis contains Alt-Meridian self-referential copy. Data-quality issue upstream — not sending.' };
+    }
+  }
+  if (MKT_LEAK_RE.test(structured.title || '')) {
+    return { ready: false, reason: 'Recommendation title is marketing copy. Not sending.' };
+  }
+  return { ready: true };
+}
+
+function appendScopingNudge(reason) {
+  const rw = document.getElementById('results-wrap');
+  const existing = document.getElementById('scoping-nudge');
+  if (existing) existing.remove();
+  const d = document.createElement('div');
+  d.id = 'scoping-nudge';
+  d.style.cssText = 'margin-top:12px;padding:14px 18px;border:1px solid var(--acc);background:rgba(200,75,47,0.06);border-radius:3px;font-size:12.5px;color:var(--t2);line-height:1.55;';
+  d.innerHTML = '<div style="font-family:\'DM Mono\',monospace;font-size:10px;letter-spacing:.12em;color:var(--acc);margin-bottom:6px;text-transform:uppercase">Need more scope before I can send this</div>' + esc(reason);
+  rw.appendChild(d);
+}
+
 // ── GATE ──────────────────────────────────────────────────────────────────────
-function showGate(analysisText) {
+function showGate(structured) {
   D.gateShown = true;
   const rw = document.getElementById('results-wrap');
+  // Build a real preview from the structured analysis — what the email will contain.
+  const top = (structured?.scenarios || []).slice(0, 3);
+  const previewItems = top.map(sc =>
+    '<li style="display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid var(--b2);font-size:12px;">' +
+      '<span style="color:var(--text)">' + esc(sc.name || '') + '</span>' +
+      '<span style="font-family:\'DM Mono\',monospace;color:var(--acc);white-space:nowrap">' + esc(sc.range_low || '') + ' – ' + esc(sc.range_high || '') + '</span>' +
+    '</li>'
+  ).join('');
+  const previewBlock = '<div style="background:var(--s3);border:1px solid var(--b2);border-radius:3px;padding:12px 14px;margin-bottom:16px;text-align:left">' +
+    '<div style="font-family:\'DM Mono\',monospace;font-size:9px;letter-spacing:.12em;color:var(--t3);text-transform:uppercase;margin-bottom:6px">You\'ll receive</div>' +
+    '<div style="font-size:12.5px;font-weight:600;color:var(--text);margin-bottom:8px">' + esc(structured?.title || 'Your solution shortlist') + '</div>' +
+    '<ul style="list-style:none;padding:0;margin:0">' + previewItems + '</ul>' +
+  '</div>';
   const gateDiv = document.createElement('div');
   gateDiv.id = 'gate-overlay';
   gateDiv.className = 'gate-overlay';
   gateDiv.innerHTML = `
     <div class="gate-box">
-      <div class="gate-h">Want the full briefing?</div>
-      <div class="gate-sub">Drop your email and I'll send you this analysis — all solutions, full evidence, COI model — and unlock the complete session.</div>
+      <div class="gate-h">Send this shortlist to yourself</div>
+      ${previewBlock}
+      <div class="gate-sub">Full briefing — recommendation, mechanism, top scenarios, CFO challenge.</div>
       <div class="gate-row">
         <input class="gate-input" id="gate-email" type="email" placeholder="you@company.com"
           onkeydown="if(event.key==='Enter')submitGate()">
@@ -678,22 +776,46 @@ async function submitGate() {
   const emailEl = document.getElementById('gate-email');
   const btn     = document.getElementById('gate-btn');
   const email   = emailEl?.value?.trim();
-  if (!email || !email.includes('@')) {
-    if (emailEl) { emailEl.style.borderColor = 'var(--acc)'; emailEl.focus(); }
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (emailEl) { emailEl.style.borderColor = 'var(--red)'; emailEl.focus(); }
     return;
   }
+  // Belt-and-suspenders: never send if readiness was never established.
+  if (!D.readyToSend || !D.lastStructured) {
+    appendScopingNudge('Analysis is not ready to send yet.');
+    return;
+  }
+  if (emailEl) emailEl.style.borderColor = '';
   btn.disabled = true;
   btn.textContent = 'Sending...';
 
-  const lastReply = D.results[0]?.reply || '';
+  const s = D.lastStructured;
+  const vertLabel = document.getElementById('sel-vertical').selectedOptions[0]?.text || D.vertical;
+  const topScenarios = (s.scenarios || []).slice(0, 3).map(sc => ({
+    name: sc.name, what: sc.what, range_low: sc.range_low, range_high: sc.range_high, horizon: sc.horizon,
+  }));
 
   try {
     await fetch(NOTIFY, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${KEY}`, 'apikey': KEY },
       body: JSON.stringify({
-        email, solution: D.ctx, domains: D.results[0]?.domains?.join(', ') || '',
-        scenario_text: lastReply.slice(0, 2000), session_id: D.sid,
+        flavor: 'buyer',
+        email,
+        session_id: D.sid,
+        buyer_context: {
+          vertical: vertLabel,
+          revenue_band: REV_LABELS[D.revIdx],
+          pains: [...D.pains],
+        },
+        recommendation: {
+          title: s.title || '',
+          domains_matched: D.lastDomains,
+          mechanism: s.mechanism || null,
+        },
+        top_scenarios: topScenarios,
+        cfo_challenge: s.cfo_challenge || null,
+        signals: s.signals || [],
       })
     });
 
@@ -702,8 +824,11 @@ async function submitGate() {
       headers: { 'apikey': KEY, 'Authorization': `Bearer ${KEY}`, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' },
       body: JSON.stringify({
         email, solution_description: D.ctx,
-        domain_ids: D.results[0]?.domains?.join(',') || '',
-        conversation: [{ role: 'user', content: D.results[0]?.query }, { role: 'assistant', content: lastReply }],
+        domain_ids: D.lastDomains.join(','),
+        conversation: [
+          { role: 'user', content: D.results[0]?.query || '' },
+          { role: 'assistant', structured: s },
+        ],
         session_id: D.sid, emailed: true,
       })
     });
