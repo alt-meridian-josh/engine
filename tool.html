@@ -990,15 +990,26 @@ function clientSideDomainMatch(text) {
   if (/\bpoi\b|location intelligence|geospatial|foot traffic|site selection|mobility data|trade area|\bgis\b/.test(lc))
     return 'GEO-POI';
 
-  // Ambient IoT / BLE
-  if (/\bble\b|bluetooth|cold chain|temperature monitoring|ambient iot|pallet tracking|food safety/.test(lc))
+  // Ambient IoT / BLE — 'food safety' dropped here so FS-RFD claims that
+  // phrase when RFID is also mentioned.
+  if (/\bble\b|bluetooth|cold chain|temperature monitoring|ambient iot|pallet tracking/.test(lc))
     return 'BLE-3PL';
 
-  // RFID — resolve vertical
+  // RFID — resolve vertical. Order matters: specific verticals checked
+  // before general ones so markers like 'parcel' hit CAR-RFD instead of
+  // TL-RFD, and 'hospitality' hits HOS-RFD instead of HC-RFD via \bhospital\b.
   if (/rfid|radio frequency|item level|inventory accuracy|asset tracking|shrink/.test(lc)) {
-    if (/retail|apparel|footwear|omni|\bstore\b|\bstores\b/.test(lc))        return 'RET-RFD';
-    if (/hospital|healthcare|medical|clinical|\bnurse/.test(lc))             return 'HC-RFD';
-    if (/carrier|parcel|transport|truck|\bfleet\b|\b3pl\b|logistics/.test(lc)) return 'TL-RFD';
+    // FED before AVN so 'parts tracking' doesn't shadow DoD/military/federal markers.
+    if (/\bfederal\b|government|\bdod\b|military|public sector/.test(lc))       return 'FED-RFD';
+    if (/aviation|aerospace|\bmro\b|aircraft|parts tracking/.test(lc))          return 'AVN-RFD';
+    if (/carrier|parcel|last mile|\bfedex\b|\bups\b|postal/.test(lc))           return 'CAR-RFD';
+    if (/data center|\bserver\b|\brack\b|it asset/.test(lc))                    return 'DC-RFD';
+    if (/food service|restaurant|kitchen|\bqsr\b|food safety/.test(lc))         return 'FS-RFD';
+    if (/hospitality|\bhotel\b|\bvenue\b|\blinen\b|laundry/.test(lc))           return 'HOS-RFD';
+    if (/infrastructure|\benergy\b|\butility\b|oil.?gas|pipeline/.test(lc))     return 'IE-RFD';
+    if (/retail|apparel|footwear|omni|\bstore\b|\bstores\b/.test(lc))           return 'RET-RFD';
+    if (/\bhospital\b|healthcare|medical|clinical|\bnurse/.test(lc))            return 'HC-RFD';
+    if (/transport|truck|\bfleet\b|\b3pl\b|logistics/.test(lc))                 return 'TL-RFD';
     if (/manufactur|assembly|production line|\bfactory\b|\bwip\b|\bplant\b/.test(lc)) return 'MTL-RFD';
     return 'WH-RFD';
   }
@@ -1173,7 +1184,6 @@ async function submitGate() {
     const existing = await sbGet('vef_chat_leads', `session_id=eq.${sidQ}&select=session_id&limit=1`);
     if (existing.length > 0) {
       const patchBody = { email, emailed: true };
-      if (role) patchBody.role = role;
       const r = await fetch(`${SB}/rest/v1/vef_chat_leads?session_id=eq.${sidQ}`, {
         method:'PATCH',
         headers:{ 'apikey':KEY, 'Authorization':`Bearer ${KEY}`,
@@ -1186,7 +1196,6 @@ async function submitGate() {
         email, solution_description:S.ctx, domain_ids:S.engine||'',
         conversation:S.history, session_id:S.sid, emailed:true,
       };
-      if (role) insertBody.role = role;
       await sbIns('vef_chat_leads', insertBody);
     }
   } catch (e) { console.error('lead upsert failed:', e); }
