@@ -2132,9 +2132,84 @@ function generateAppraisal() {
        'reflect the value pools typically addressed by this solution in this segment.';
   body(bgText, { after: 14 });
 
-  // Chunks G/H: per-scenario pages + summary.
+  // ── PER-SCENARIO PAGES ──────────────────────────────────────────────────
+  // Walk grounded scenarios in print_priority order so the appraisal reads in
+  // the same order the right pane presented during discovery. One page each.
+  const grounded = S.scenarios
+    .filter(s => S.groundedScenarios.has(s.scenario_id))
+    .sort((a,b) => (a.print_priority||99) - (b.print_priority||99));
+  const M = grounded.length;
+  const overflowCheck = (need) => { if (y + need > H - 50) newPage(); };
+
+  grounded.forEach((s, i) => {
+    newPage();
+    px(9); setC(MUT); doc.setFont('helvetica','bold');
+    doc.text(`SCENARIO ${i+1} OF ${M} · ${(s.value_theme || 'Value').toUpperCase()}`, L, y);
+    y += 16;
+    px(18); setC(INK); doc.setFont('helvetica','bold');
+    const titleLines = doc.splitTextToSize(s.one_liner || 'Value scenario', TW);
+    doc.text(titleLines, L, y);
+    y += titleLines.length * 20 + 6;
+
+    // Annual value block — red accent on the standard beige card.
+    const annual = evalF(s.value_scenario_formula) || 0;
+    setF(LTBG); setD(RULE); doc.setLineWidth(0.5);
+    doc.roundedRect(L, y, TW, 52, 2, 2, 'FD');
+    px(8); setC(MUT); doc.setFont('helvetica','normal');
+    doc.text('ANNUAL VALUE', L + 14, y + 18);
+    px(22); setC(ACC); doc.setFont('helvetica','bold');
+    doc.text(fmt(annual), L + 14, y + 42);
+    y += 64;
+
+    section('Purpose');
+    body(s.description || s.one_liner || '—', { after: 10 });
+
+    // Assumption: evidence tier + typical baseline in one paragraph so the
+    // page doesn't fragment. Either field alone still renders.
+    section('Assumption');
+    const evStr   = s.evidence_strength ? `Evidence: ${s.evidence_strength}.` : '';
+    const baseStr = s.typical_baseline_assumption || '';
+    body([evStr, baseStr].filter(Boolean).join(' ') || '—', { after: 10 });
+
+    section('Theory');
+    const mechStr = s.mechanism_label ? `${s.mechanism_label}. ` : '';
+    const formStr = s.value_scenario_formula
+      ? `Computed as: ${formulaToPlainEnglish(s.value_scenario_formula)}.`
+      : '';
+    body((mechStr + formStr).trim() || '—', { after: 10 });
+
+    section('Cost of Inaction');
+    const monthly = scenarioMonthlyDelay(s);
+    body(
+      monthly > 0
+        ? `${fmt(monthly)} per month of inaction, or ${fmt(monthly * 12)} over a full year.`
+        : 'No delay cost modelled for this scenario.',
+      { after: 10 }
+    );
+
+    // Evidence citations from vef_evidence_registry. Compact cards — one row
+    // each. overflowCheck before each card so long evidence lists auto-page.
+    const refs = lookupEvidence(s.evidence_ids);
+    if (refs.length) {
+      section('Evidence');
+      refs.forEach(ev => {
+        overflowCheck(38);
+        setF(LTBG); setD(RULE); doc.setLineWidth(0.5);
+        doc.roundedRect(L, y, TW, 32, 2, 2, 'FD');
+        px(9.5); setC(INK); doc.setFont('helvetica','bold');
+        const titleL = doc.splitTextToSize(ev.evidence_title || '—', TW - 20);
+        doc.text(titleL[0] || '—', L + 10, y + 14);
+        px(8); setC(MUT); doc.setFont('courier','normal');
+        const meta = [ev.evidence_publisher, ev.evidence_year].filter(Boolean).join(' · ');
+        doc.text(meta, L + 10, y + 26);
+        y += 38;
+      });
+    }
+  });
+
+  // Chunk H: summary page + save.
   doc.save(`appraisal-${(S.engine||'unknown').toLowerCase()}-${today}.pdf`);
-  toast('Cover + basis generated — scenario pages coming in the next update.');
+  toast(`Cover + basis + ${M} scenario page${M===1?'':'s'} generated — summary coming in the next update.`);
 }
 
 // ─── PDF EXPORT ─────────────────────────────────────────────────────────────
