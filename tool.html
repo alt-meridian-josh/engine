@@ -305,7 +305,140 @@ body::before{
 <div id="toast"></div>
 
 <script>
-/* === JS_SLOT_1 === */
+// ─── CONFIG ─────────────────────────────────────────────────────────────────
+const SB  = 'https://kpecdezcolcycgpuqbgs.supabase.co';
+const KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwZWNkZXpjb2xjeWNncHVxYmdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2ODIyMDYsImV4cCI6MjA5MTI1ODIwNn0.rKHzdjjkYToEZWdS0ngg3Kgigh_gDWt5cRbLBCE44rg';
+const CHAT   = `${SB}/functions/v1/value-chat`;
+const NOTIFY = `${SB}/functions/v1/notify`;
+
+// Theme palette (for scenario dots + swatches)
+const TH = {
+  'Labor & Human Capacity':                     {c:'#5B8DD9', s:'Labor'},
+  'Operational Efficiency & Asset Utilization': {c:'#6BC49A', s:'Ops'},
+  'Direct Cost & Spend Optimization':           {c:'#D4B45A', s:'Cost'},
+  'Risk/Compliance & Working Capital':          {c:'#C47C5A', s:'Risk'},
+  'Revenue/Margin & Commercial Performance':    {c:'#9B7BD4', s:'Revenue'},
+  'Strategic & Data Second-Order Effects':      {c:'#7DB8C4', s:'Strategic'},
+};
+
+// ─── STATE ──────────────────────────────────────────────────────────────────
+const S = {
+  conf: 'typical',
+  engines: [], scenarios: [], defs: {},
+  inputs: {},
+  pendingSliderChanges: {},
+  activeScens: new Set(),
+  droppedSoon: new Set(),
+  history: [], turns: 0,
+  engine: null, loaded: false,
+  sid: 's' + Date.now() + '-' + Math.random().toString(36).slice(2,6),
+  ctx: '', loading: false,
+  gateUnlocked: false, gateShown: false,
+  lastDomains: [], lastStructured: null,
+  scenarioActivatedTurn: {},
+  saveState: 'idle',
+};
+
+// ─── SUPABASE HELPERS ───────────────────────────────────────────────────────
+async function sbGet(t, q='') {
+  const r = await fetch(`${SB}/rest/v1/${t}?${q}`, {
+    headers:{ 'apikey':KEY, 'Authorization':`Bearer ${KEY}` }
+  });
+  if (!r.ok) throw new Error(`SB ${r.status}`);
+  return r.json();
+}
+async function sbIns(t, d) {
+  const r = await fetch(`${SB}/rest/v1/${t}`, {
+    method:'POST',
+    headers:{ 'apikey':KEY, 'Authorization':`Bearer ${KEY}`,
+      'Content-Type':'application/json', 'Prefer':'return=minimal' },
+    body: JSON.stringify(d)
+  });
+  if (!r.ok) throw new Error(`SB ins ${r.status}`);
+}
+
+// ─── LOAD ───────────────────────────────────────────────────────────────────
+async function load() {
+  try {
+    S.engines = await sbGet('vef_builds', 'engine_status=in.(Active,Production)&select=*');
+    if (!S.engines.length) throw new Error('no active engines');
+    const ids = S.engines.map(e => e.engine_id).join(',');
+    S.scenarios = await sbGet('vef_value_scenarios',
+      `engine_id=in.(${ids})&active_by_default=eq.true&select=*&order=print_priority.asc`);
+    const rd = await sbGet('vef_input_definitions', `engine_id=in.(${ids})&select=*`);
+    // Dedupe defs by input_key, keep highest default_value
+    const seen = {};
+    rd.forEach(d => {
+      if (!seen[d.input_key] || parseFloat(d.default_value) > parseFloat(seen[d.input_key].default_value || 0)) {
+        seen[d.input_key] = d;
+      }
+    });
+    S.defs = seen;
+    seedDefaults();
+    S.loaded = true;
+    document.getElementById('inp').disabled = false;
+    document.getElementById('send').disabled = false;
+    document.getElementById('inp').placeholder = 'Describe your solution and buyer…';
+    showWelcome();
+  } catch (e) {
+    console.error('load failed:', e);
+    addMsg('ai', 'Failed to load the governed value engine. Check network and refresh.', true);
+  }
+}
+
+function cval(def) {
+  if (S.conf === 'conservative') return def.conservative_value ?? def.typical_value ?? def.default_value;
+  if (S.conf === 'aggressive')   return def.aggressive_value  ?? def.typical_value ?? def.default_value;
+  return def.typical_value ?? def.default_value;
+}
+function seedDefaults() {
+  Object.values(S.defs).forEach(d => {
+    const v = parseFloat(cval(d));
+    if (!isNaN(v)) S.inputs[d.input_key] = { value:v, source:'engine' };
+  });
+}
+
+// ─── FORMULA ENGINE ─────────────────────────────────────────────────────────
+// Substitute input_key tokens with current numeric values, then eval only if
+// the resulting expression is pure arithmetic. Returns null on failure.
+function evalF(formula) {
+  if (!formula) return null;
+  let expr = formula;
+  const keys = Object.keys(S.defs).sort((a,b) => b.length - a.length);
+  keys.forEach(k => {
+    const v = S.inputs[k]?.value;
+    if (v != null && !isNaN(v)) {
+      expr = expr.replace(new RegExp('\\b' + k + '\\b', 'g'), String(v));
+    }
+  });
+  try {
+    if (/^[\d\s\+\-\*\/\(\)\.,]+$/.test(expr))
+      return Function('"use strict";return(' + expr + ')')();
+  } catch(_) {}
+  return null;
+}
+
+// ─── FORMATTERS ─────────────────────────────────────────────────────────────
+function fmt(n) {
+  if (n == null || !isFinite(n) || n === 0) return '—';
+  const abs = Math.abs(n);
+  if (abs >= 1e6) return '$' + (n/1e6).toFixed(1) + 'M';
+  if (abs >= 1e3) return '$' + Math.round(n/1000) + 'K';
+  return '$' + Math.round(n).toLocaleString();
+}
+function pctFmt(n) { return Math.round(n * 100) + '%'; }
+function rawFmt(n, unit) {
+  n = Number(n);
+  if (unit === '$') return fmt(n);
+  if (unit === 'decimal') return pctFmt(n);
+  if (Math.abs(n) >= 1e6) return (n/1e6).toFixed(1) + 'M' + (unit?' '+unit:'');
+  if (Math.abs(n) >= 1e3) return Math.round(n/1000) + 'K' + (unit?' '+unit:'');
+  return n.toLocaleString(undefined, {maximumFractionDigits:1}) + (unit?' '+unit:'');
+}
+function esc(t) {
+  return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function rmId(id) { const el = document.getElementById(id); if (el) el.remove(); }
 /* === JS_SLOT_2 === */
 /* === JS_SLOT_3 === */
 /* === JS_SLOT_4 === */
