@@ -324,7 +324,7 @@ const TH = {
 // ─── STATE ──────────────────────────────────────────────────────────────────
 const S = {
   conf: 'typical',
-  engines: [], scenarios: [], defs: {},
+  engines: [], scenarios: [], defs: {}, defsByKeyDomain: {},
   inputs: {},
   pendingSliderChanges: {},
   activeScens: new Set(),
@@ -365,15 +365,26 @@ async function load() {
     const ids = S.engines.map(e => e.engine_id).join(',');
     S.scenarios = await sbGet('vef_value_scenarios',
       `engine_id=in.(${ids})&active_by_default=eq.true&select=*&order=print_priority.asc`);
-    const rd = await sbGet('vef_input_definitions', `engine_id=in.(${ids})&select=*`);
-    // Dedupe defs by input_key, keep highest default_value
-    const seen = {};
+    // Load ALL input definitions — unfiltered. Some domains (BLE-3PL,
+    // CAT-RISK, CV-MFG, GEO-POI) have rows keyed only by domain_id with no
+    // engine_id, so a build-scoped filter silently drops them. The table is
+    // small; this is a single page-load cost.
+    const rd = await sbGet('vef_input_definitions', 'select=*');
+    // Index raw by (input_key, domain_id). resolveDefs() flattens this into
+    // S.defs based on the currently-active domain — preferring the domain-
+    // specific variant (e.g. audit_labor_reduction_pct has different ranges
+    // across AIP vs VEN-VEF) and falling back to highest-default when no
+    // domain is active yet.
+    S.defsByKeyDomain = {};
     rd.forEach(d => {
-      if (!seen[d.input_key] || parseFloat(d.default_value) > parseFloat(seen[d.input_key].default_value || 0)) {
-        seen[d.input_key] = d;
+      if (!d.input_key) return;
+      const bucket = S.defsByKeyDomain[d.input_key] || (S.defsByKeyDomain[d.input_key] = {});
+      const dk = d.domain_id || '__none__';
+      if (!bucket[dk] || parseFloat(d.default_value) > parseFloat(bucket[dk].default_value || 0)) {
+        bucket[dk] = d;
       }
     });
-    S.defs = seen;
+    resolveDefs();
     seedDefaults();
     S.loaded = true;
     document.getElementById('inp').disabled = false;
@@ -386,15 +397,49 @@ async function load() {
   }
 }
 
+// vef_input_definitions lumps all 12 *-RFD scenario verticals (WH/RET/HC/TL/
+// MTL/AVN/CAR/DC/FED/FS/HOS/IE) under a single 'RFD' row set. Map scenario
+// domains to the input-def bucket for lookup.
+function mapToInputDefDomain(scenarioDomainId) {
+  if (!scenarioDomainId) return null;
+  if (scenarioDomainId.endsWith('-RFD')) return 'RFD';
+  return scenarioDomainId;
+}
+
+// Flatten S.defsByKeyDomain into a simple S.defs keyed by input_key, picking
+// the variant whose domain_id matches the active domain. Falls back to the
+// highest-default variant when no active domain (first paint) or when the
+// active domain has no row for that key. Keeps the downstream contract
+// ({[input_key]: def}) the rest of the code already expects.
+function resolveDefs() {
+  const target = mapToInputDefDomain(S.lastDomains && S.lastDomains[0]);
+  S.defs = {};
+  Object.entries(S.defsByKeyDomain).forEach(([key, variants]) => {
+    let chosen = target ? variants[target] : null;
+    if (!chosen) {
+      const pool = Object.values(variants);
+      pool.sort((a,b) => parseFloat(b.default_value || 0) - parseFloat(a.default_value || 0));
+      chosen = pool[0];
+    }
+    if (chosen) S.defs[key] = chosen;
+  });
+}
+
 function cval(def) {
   if (S.conf === 'conservative') return def.conservative_value ?? def.typical_value ?? def.default_value;
   if (S.conf === 'aggressive')   return def.aggressive_value  ?? def.typical_value ?? def.default_value;
   return def.typical_value ?? def.default_value;
 }
 function seedDefaults() {
+  // Source-aware: fill missing inputs, re-seed engine-sourced ones at the
+  // current tier / domain, but leave 'chat' and 'buyer' values intact so a
+  // domain switch (or tier bump) never stomps on values the user entered.
   Object.values(S.defs).forEach(d => {
-    const v = parseFloat(cval(d));
-    if (!isNaN(v)) S.inputs[d.input_key] = { value:v, source:'engine' };
+    const cur = S.inputs[d.input_key];
+    if (!cur || cur.source === 'engine') {
+      const v = parseFloat(cval(d));
+      if (!isNaN(v)) S.inputs[d.input_key] = { value:v, source:'engine' };
+    }
   });
 }
 
@@ -920,6 +965,11 @@ function activateDomain(domains) {
   const dom = S.engines.find(e => domains.includes(e.engine_id) || domains.includes(e.domain_id));
   const tag = document.getElementById('rh-domain');
   if (dom) { tag.textContent = dom.vendor_category || dom.engine_id; tag.style.display = ''; }
+
+  // Re-resolve S.defs for the new domain so sliders show the right ranges.
+  // Inputs that were entered manually (source !== 'engine') keep their values;
+  // engine-sourced inputs get re-seeded to the new domain's typical at current tier.
+  if (matched.length) { resolveDefs(); seedDefaults(); }
 }
 
 // Client-side domain matcher — returns a real vef_value_scenarios.domain_id
@@ -974,6 +1024,7 @@ function activateFromDomainId(domainId) {
     const dom = S.engines.find(e => e.domain_id === domainId || e.engine_id === domainId);
     tag.textContent = (dom && (dom.vendor_category || dom.engine_id)) || domainId;
     tag.style.display = '';
+    resolveDefs(); seedDefaults();
   }
   return matched.length;
 }
