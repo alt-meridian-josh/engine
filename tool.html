@@ -120,6 +120,26 @@ html,body{height:100%;background:var(--black);color:var(--t1);font-family:var(--
 .onboard-back{display:inline-flex;align-items:center;gap:6px;font-size:9px;color:var(--t3);background:none;border:none;cursor:pointer;padding:6px 0;margin-bottom:14px;font-family:var(--mono);letter-spacing:0.1em;text-transform:uppercase;transition:color 0.15s;}
 .onboard-back:hover{color:var(--red);}
 
+/* SIGNAL TILES (step 3) */
+.signal-list{display:flex;flex-direction:column;gap:8px;margin-bottom:4px;}
+.signal-tile{background:var(--bg);border:1px solid var(--border);padding:14px 16px 14px 40px;cursor:pointer;transition:all 0.15s;border-radius:2px;text-align:left;font-family:var(--mono);position:relative;}
+.signal-tile:hover{border-color:var(--red);background:var(--bg3);}
+.signal-tile.selected{border-color:var(--red);background:var(--rdim);}
+.signal-check{position:absolute;left:14px;top:16px;width:14px;height:14px;border:1px solid var(--border2);border-radius:2px;background:var(--bg);transition:all 0.15s;}
+.signal-tile.selected .signal-check{background:var(--red);border-color:var(--red);}
+.signal-tile.selected .signal-check::after{content:'';position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);}
+.signal-name{font-family:var(--display);font-size:14px;font-weight:600;color:var(--t1);margin-bottom:3px;letter-spacing:-0.01em;}
+.signal-state{font-size:11px;color:var(--t2);line-height:1.45;}
+.signal-ind{font-size:10px;color:var(--t3);margin-top:4px;font-style:italic;}
+.signal-empty{padding:28px 20px;text-align:center;font-size:12px;color:var(--t3);border:1px dashed var(--border2);border-radius:2px;line-height:1.6;}
+.signal-footer{display:flex;align-items:center;justify-content:space-between;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);}
+.signal-count{font-size:10px;color:var(--t2);letter-spacing:0.04em;}
+.signal-count b{color:var(--t1);font-weight:500;}
+.signal-count .sc-warn{color:var(--amber);}
+.signal-continue{padding:8px 18px;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#fff;background:var(--red);border:none;border-radius:1px;cursor:pointer;font-family:var(--mono);transition:background 0.15s;}
+.signal-continue:hover:not(:disabled){background:var(--red2);}
+.signal-continue:disabled{background:var(--border2);cursor:not-allowed;color:var(--t3);}
+
 /* METRICS */
 .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:20px;animation:fadeUp 0.3s ease;}
 .mc{background:var(--bg);padding:16px;position:relative;}
@@ -347,6 +367,7 @@ const S = {
   gateUnlocked: false, gateShown: false,
   govInputs: 0, skipDiscovery: false,
   onboarding: { step: 1, solution: null, complete: false },
+  signals: [], selectedSignals: new Set(), signalScenarioIds: new Set(),
   lastDomains: [], lastStructured: null,
   scenarioActivatedTurn: {},
   saveState: 'idle',
