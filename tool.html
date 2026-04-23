@@ -106,12 +106,19 @@ html,body{height:100%;background:var(--black);color:var(--t1);font-family:var(--
 
 #rbody{flex:1;overflow-y:auto;padding:20px 24px 80px;}
 
-/* GATHERING */
-.gathering{display:flex;flex-direction:column;align-items:center;justify-content:center;height:60%;gap:10px;text-align:center;}
-.g-hex{width:40px;height:46px;margin-bottom:8px;opacity:0.15;background:var(--red);clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);animation:pulse 2.5s ease infinite;}
-@keyframes pulse{0%,100%{opacity:0.12;}50%{opacity:0.25;}}
-.g-title{font-family:var(--display);font-size:15px;color:var(--t2);font-weight:600;}
-.g-sub{font-size:11px;color:var(--t3);max-width:240px;line-height:1.7;}
+/* ONBOARDING */
+.onboard{padding:36px 20px 20px;max-width:640px;margin:0 auto;animation:fadeUp 0.2s ease;}
+.onboard-step{font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:var(--t3);text-align:center;margin-bottom:14px;font-family:var(--mono);}
+.onboard-step b{color:var(--red);font-weight:500;}
+.onboard-head{font-family:var(--display);font-size:26px;font-weight:700;color:var(--t1);text-align:center;margin-bottom:6px;letter-spacing:-0.01em;}
+.onboard-sub{font-size:12px;color:var(--t2);text-align:center;margin-bottom:28px;}
+.onboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.onboard-tile{background:var(--bg);border:1px solid var(--border);padding:18px 18px;cursor:pointer;transition:all 0.15s;border-radius:2px;text-align:left;font-family:var(--mono);}
+.onboard-tile:hover{border-color:var(--red);background:var(--rdim);transform:translateY(-1px);}
+.onboard-tile .ot-title{font-family:var(--display);font-size:14px;font-weight:600;color:var(--t1);margin-bottom:4px;letter-spacing:-0.01em;}
+.onboard-tile .ot-sub{font-size:10px;color:var(--t3);line-height:1.4;}
+.onboard-back{display:inline-flex;align-items:center;gap:6px;font-size:9px;color:var(--t3);background:none;border:none;cursor:pointer;padding:6px 0;margin-bottom:14px;font-family:var(--mono);letter-spacing:0.1em;text-transform:uppercase;transition:color 0.15s;}
+.onboard-back:hover{color:var(--red);}
 
 /* METRICS */
 .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:20px;animation:fadeUp 0.3s ease;}
@@ -260,11 +267,6 @@ body::before{
     </div>
     <div id="chat"></div>
     <div id="foot">
-      <div class="chips" id="chips">
-        <div class="chip" onclick="useChip(this)">I sell RFID to retail</div>
-        <div class="chip" onclick="useChip(this)">Enterprise AI platform, mid-market</div>
-        <div class="chip" onclick="useChip(this)">What's my cost of inaction?</div>
-      </div>
       <div class="inp-wrap">
         <textarea id="inp" rows="1" placeholder="Describe your solution and buyer…" onkeydown="onKey(event)" oninput="grow(this)" disabled></textarea>
         <button id="send" onclick="send()" disabled>↑</button>
@@ -285,11 +287,7 @@ body::before{
       </div>
     </div>
     <div id="rbody">
-      <div class="gathering" id="gathering">
-        <div class="g-hex"></div>
-        <div class="g-title">Gathering</div>
-        <div class="g-sub">Tell Meridian your solution, buyer, and use case. Your value analysis builds here as the conversation narrows.</div>
-      </div>
+      <div id="gathering"></div>
       <div id="analysis" style="display:none;"></div>
     </div>
   </div>
@@ -348,6 +346,7 @@ const S = {
   ctx: '', loading: false,
   gateUnlocked: false, gateShown: false,
   govInputs: 0, skipDiscovery: false,
+  onboarding: { step: 1, solution: null, complete: false },
   lastDomains: [], lastStructured: null,
   scenarioActivatedTurn: {},
   saveState: 'idle',
