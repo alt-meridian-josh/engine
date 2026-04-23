@@ -98,6 +98,8 @@ html,body{height:100%;background:var(--black);color:var(--t1);font-family:var(--
 .right-head{height:var(--bar);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;flex-shrink:0;gap:10px;}
 .rh-label{font-size:8px;letter-spacing:0.16em;text-transform:uppercase;color:var(--t3);}
 .rh-domain{font-size:10px;color:var(--t2);padding:3px 8px;border:1px solid var(--border2);border-radius:1px;background:var(--bg2);}
+.rh-appraisal{margin-left:auto;font-size:10px;letter-spacing:0.06em;padding:5px 12px;border:1px solid var(--red);border-radius:1px;background:var(--red);color:#fff;font-family:var(--mono);cursor:pointer;transition:background 0.15s;animation:fadeUp 0.25s ease;}
+.rh-appraisal:hover{background:var(--red2);}
 .tier-toggle{display:flex;margin-left:auto;border:1px solid var(--border2);border-radius:1px;overflow:hidden;}
 .tier{padding:4px 12px;font-size:9px;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;color:var(--t3);transition:all 0.15s;border-right:1px solid var(--border2);}
 .tier:last-child{border-right:none;}
@@ -106,12 +108,39 @@ html,body{height:100%;background:var(--black);color:var(--t1);font-family:var(--
 
 #rbody{flex:1;overflow-y:auto;padding:20px 24px 80px;}
 
-/* GATHERING */
-.gathering{display:flex;flex-direction:column;align-items:center;justify-content:center;height:60%;gap:10px;text-align:center;}
-.g-hex{width:40px;height:46px;margin-bottom:8px;opacity:0.15;background:var(--red);clip-path:polygon(50% 0%,100% 25%,100% 75%,50% 100%,0% 75%,0% 25%);animation:pulse 2.5s ease infinite;}
-@keyframes pulse{0%,100%{opacity:0.12;}50%{opacity:0.25;}}
-.g-title{font-family:var(--display);font-size:15px;color:var(--t2);font-weight:600;}
-.g-sub{font-size:11px;color:var(--t3);max-width:240px;line-height:1.7;}
+/* ONBOARDING */
+.onboard{padding:36px 20px 20px;max-width:640px;margin:0 auto;animation:fadeUp 0.2s ease;}
+.onboard-step{font-size:9px;letter-spacing:0.16em;text-transform:uppercase;color:var(--t3);text-align:center;margin-bottom:14px;font-family:var(--mono);}
+.onboard-step b{color:var(--red);font-weight:500;}
+.onboard-head{font-family:var(--display);font-size:18px;font-weight:700;color:var(--t1);text-align:center;margin-bottom:6px;letter-spacing:-0.01em;}
+.onboard-sub{font-size:12px;color:var(--t2);text-align:center;margin-bottom:28px;}
+.onboard-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.onboard-tile{background:var(--bg);border:1px solid var(--border);padding:18px 18px;cursor:pointer;transition:all 0.15s;border-radius:2px;text-align:left;font-family:var(--mono);}
+.onboard-tile:hover{border-color:var(--red);background:var(--bg3);transform:translateY(-1px);}
+.onboard-tile .ot-title{font-family:var(--display);font-size:14px;font-weight:600;color:var(--t1);margin-bottom:4px;letter-spacing:-0.01em;}
+.onboard-tile .ot-sub{font-size:11px;color:var(--t2);line-height:1.4;}
+.onboard-back{display:inline-flex;align-items:center;gap:6px;font-size:9px;color:var(--t3);background:none;border:none;cursor:pointer;padding:6px 0;margin-bottom:14px;font-family:var(--mono);letter-spacing:0.1em;text-transform:uppercase;transition:color 0.15s;}
+.onboard-back:hover{color:var(--red);}
+
+/* SIGNAL TILES (step 3) */
+.signal-list{display:flex;flex-direction:column;gap:8px;margin-bottom:4px;}
+.signal-tile{background:var(--bg);border:1px solid var(--border);padding:14px 16px 14px 40px;cursor:pointer;transition:all 0.15s;border-radius:2px;text-align:left;font-family:var(--mono);position:relative;}
+.signal-tile:hover{border-color:var(--red);background:var(--bg3);}
+.signal-tile.selected{border-color:var(--red);background:var(--rdim);}
+.signal-check{position:absolute;left:14px;top:16px;width:14px;height:14px;border:1px solid var(--border2);border-radius:2px;background:var(--bg);transition:all 0.15s;}
+.signal-tile.selected .signal-check{background:var(--red);border-color:var(--red);}
+.signal-tile.selected .signal-check::after{content:'';position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);}
+.signal-state{font-size:13px;color:var(--t1);line-height:1.6;}
+.signal-name{font-size:9px;color:var(--t3);letter-spacing:0.12em;text-transform:uppercase;margin-top:6px;font-family:var(--mono);}
+.signal-ind{font-size:10px;color:var(--t3);margin-top:4px;font-style:italic;}
+.signal-empty{padding:28px 20px;text-align:center;font-size:12px;color:var(--t3);border:1px dashed var(--border2);border-radius:2px;line-height:1.6;}
+.signal-footer{display:flex;align-items:center;justify-content:space-between;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);}
+.signal-count{font-size:10px;color:var(--t2);letter-spacing:0.04em;}
+.signal-count b{color:var(--t1);font-weight:500;}
+.signal-count .sc-warn{color:var(--amber);}
+.signal-continue{padding:8px 18px;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#fff;background:var(--red);border:none;border-radius:1px;cursor:pointer;font-family:var(--mono);transition:background 0.15s;}
+.signal-continue:hover:not(:disabled){background:var(--red2);}
+.signal-continue:disabled{background:var(--border2);cursor:not-allowed;color:var(--t3);}
 
 /* METRICS */
 .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:20px;animation:fadeUp 0.3s ease;}
@@ -145,6 +174,9 @@ html,body{height:100%;background:var(--black);color:var(--t1);font-family:var(--
 .scen-card{background:var(--bg);border:1px solid var(--border);border-radius:2px;overflow:hidden;animation:fadeUp 0.25s ease;border-left:2px solid var(--red);cursor:pointer;transition:background 0.15s,border-color 0.15s;}
 .scen-card:hover{background:var(--bg2);}
 .scen-card.off{opacity:0.4;border-left-color:var(--t3);}
+.scen-card.grounded{border-left-color:var(--green);border-left-width:3px;}
+.scen-card.grounded .sc-val{color:var(--green);}
+.scen-card.grounded .sc-check{color:var(--green);font-size:13px;margin-right:2px;}
 .scen-card.shadowed{border-left-color:var(--amber);}
 .sc-head{padding:10px 14px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border-bottom:1px solid var(--border);background:rgba(0,0,0,0.2);}
 .sc-theme{font-size:8px;letter-spacing:0.1em;text-transform:uppercase;color:var(--t3);margin-bottom:3px;}
@@ -260,11 +292,6 @@ body::before{
     </div>
     <div id="chat"></div>
     <div id="foot">
-      <div class="chips" id="chips">
-        <div class="chip" onclick="useChip(this)">I sell RFID to retail</div>
-        <div class="chip" onclick="useChip(this)">Enterprise AI platform, mid-market</div>
-        <div class="chip" onclick="useChip(this)">What's my cost of inaction?</div>
-      </div>
       <div class="inp-wrap">
         <textarea id="inp" rows="1" placeholder="Describe your solution and buyer…" onkeydown="onKey(event)" oninput="grow(this)" disabled></textarea>
         <button id="send" onclick="send()" disabled>↑</button>
@@ -278,20 +305,14 @@ body::before{
     <div class="right-head">
       <span class="rh-label">Value Analysis</span>
       <span class="rh-domain" id="rh-domain" style="display:none;"></span>
+      <button class="rh-appraisal" id="rh-appraisal" style="display:none;" onclick="generateAppraisal()">Generate Appraisal →</button>
       <div class="tier-toggle">
         <div class="tier" onclick="setTier(this,'conservative')">Conservative</div>
         <div class="tier on" onclick="setTier(this,'typical')">Typical</div>
         <div class="tier" onclick="setTier(this,'aggressive')">Aggressive</div>
       </div>
     </div>
-    <div id="rbody">
-      <div class="gathering" id="gathering">
-        <div class="g-hex"></div>
-        <div class="g-title">Gathering</div>
-        <div class="g-sub">Tell Meridian your solution, buyer, and use case. Your value analysis builds here as the conversation narrows.</div>
-      </div>
-      <div id="analysis" style="display:none;"></div>
-    </div>
+    <div id="rbody"></div>
   </div>
 </div>
 
@@ -338,6 +359,9 @@ const TH = {
 const S = {
   conf: 'typical',
   engines: [], scenarios: [], defs: {}, defsByKeyDomain: {},
+  // Appraisal data (Act 3): both tables are small and loaded once on init.
+  // evidenceById keyed by evidence_id, domainById keyed by domain_id.
+  evidenceById: {}, domainById: {},
   inputs: {},
   pendingSliderChanges: {},
   activeScens: new Set(),
@@ -348,8 +372,15 @@ const S = {
   ctx: '', loading: false,
   gateUnlocked: false, gateShown: false,
   govInputs: 0, skipDiscovery: false,
+  onboarding: { step: 1, solution: null, complete: false },
+  signals: [], selectedSignals: new Set(), signalScenarioIds: new Set(),
   lastDomains: [], lastStructured: null,
   scenarioActivatedTurn: {},
+  // Interview engine (Act 2): the scenario Meridian just asked about, the set
+  // of scenarios confirmed-answered this session, and the flag that flips when
+  // every active scenario has been grounded. interviewComplete drives the
+  // Generate Appraisal button visibility in the right-pane header.
+  currentScenario: null, groundedScenarios: new Set(), interviewComplete: false,
   saveState: 'idle',
 };
 
@@ -398,12 +429,25 @@ async function load() {
         bucket[dk] = d;
       }
     });
+    // Appraisal reference data — both small, parallel fetch. Registry rows are
+    // referenced by vef_value_scenarios.evidence_ids (CSV). vef_domains gives
+    // us the domain notes used for the appraisal Background page.
+    const [evidence, domains] = await Promise.all([
+      sbGet('vef_evidence_registry', 'select=*'),
+      sbGet('vef_domains', 'select=*'),
+    ]);
+    S.evidenceById = {};
+    evidence.forEach(e => { if (e.evidence_id) S.evidenceById[e.evidence_id] = e; });
+    S.domainById = {};
+    domains.forEach(d => { if (d.domain_id) S.domainById[d.domain_id] = d; });
     resolveDefs();
     seedDefaults();
     S.loaded = true;
-    document.getElementById('inp').disabled = false;
-    document.getElementById('send').disabled = false;
-    document.getElementById('inp').placeholder = 'Describe your solution and buyer…';
+    // Chat input stays disabled until the seller finishes onboarding —
+    // clicking a vertical tile is the required unlock.
+    document.getElementById('inp').placeholder = 'Pick a solution type to start…';
+    document.getElementById('skip-link')?.classList.add('hidden');
+    renderOnboarding();
     showWelcome();
   } catch (e) {
     console.error('load failed:', e);
@@ -488,16 +532,442 @@ function fmt(n) {
 function pctFmt(n) { return Math.round(n * 100) + '%'; }
 function rawFmt(n, unit) {
   n = Number(n);
-  if (unit === '$') return fmt(n);
-  if (unit === 'decimal') return pctFmt(n);
-  if (Math.abs(n) >= 1e6) return (n/1e6).toFixed(1) + 'M' + (unit?' '+unit:'');
-  if (Math.abs(n) >= 1e3) return Math.round(n/1000) + 'K' + (unit?' '+unit:'');
-  return n.toLocaleString(undefined, {maximumFractionDigits:1}) + (unit?' '+unit:'');
+  if (unit === '$' || unit === 'USD' || unit === 'usd') return fmt(n);
+  if (isPctUnit(unit)) return pctFmt(n);
+  if (Math.abs(n) >= 1e6) return (n/1e6).toFixed(1) + 'M';
+  if (Math.abs(n) >= 1e3) return Math.round(n/1000) + 'K';
+  return n.toLocaleString(undefined, {maximumFractionDigits:1});
 }
 function esc(t) {
   return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function rmId(id) { const el = document.getElementById(id); if (el) el.remove(); }
+
+// DB unit values like 'decimal_pct' and 'fte_count' are engineering-facing —
+// clean them for display. Returns '' when the unit adds no information to the
+// reader (a bare count). Returns the mapped short form otherwise.
+function isPctUnit(unit) {
+  return unit === 'decimal' || unit === 'decimal_pct' || unit === 'pct';
+}
+function displayUnit(unit) {
+  if (!unit) return '';
+  const u = String(unit).trim();
+  if (isPctUnit(u))              return '%';
+  if (u === '$' || /^usd$/i.test(u)) return '$';
+  if (/^fte(_count)?$/i.test(u)) return 'FTEs';
+  if (u === 'count_annual')      return '/yr';
+  if (u === 'count')             return '';
+  if (u === 'months' || u === 'mo') return 'mo';
+  if (u === 'hours' || u === 'hr')  return 'hr';
+  return u;
+}
+
+// discovery_questions comes as a single string with ' | '-separated questions,
+// each ending in '?'. Some rows omit the ' | ' separator and just run-on with
+// '?' punctuation. Return the first question, adding a '?' back if it was
+// consumed by the split.
+function firstQuestion(raw) {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+  const piped = s.split(' | ').map(x => x.trim()).filter(Boolean);
+  if (piped.length > 1) {
+    return /[?!.]$/.test(piped[0]) ? piped[0] : piped[0] + '?';
+  }
+  const qmark = s.split('?').map(x => x.trim()).filter(Boolean);
+  if (qmark.length > 1) return qmark[0] + '?';
+  return s;
+}
+
+// First sentence of a paragraph, for the scenario-card name fallback when
+// one_liner is missing. Splits on '. ' and keeps the first part, restoring
+// the period if the source had more than one sentence.
+function firstSentence(text) {
+  if (!text) return '';
+  const parts = String(text).split('. ');
+  const head = parts[0].trim();
+  if (!head) return '';
+  if (parts.length === 1) return head;
+  return /[.!?]$/.test(head) ? head : head + '.';
+}
+// ─── ONBOARDING DATA ────────────────────────────────────────────────────────
+// Step 1 solution types. Keys are arbitrary client-side IDs used to pick the
+// corresponding verticals list in step 2; they never hit the DB.
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * STEP 3 (planned — not yet implemented): signal selection
+ *
+ * vef_value_signals coverage as of 2026-04-23:
+ *   domain_id = 'AIP'      →  8 signals
+ *   domain_id = 'BLE-3PL'  →  5 signals
+ *   domain_id = 'CAT-RISK' →  3 signals
+ *   domain_id = 'CV-MFG'   →  3 signals
+ *   domain_id = 'MOTO-IND' → 11 signals
+ *   domain_id = 'VEN-VEF'  →  8 signals
+ *   domain_id IS NULL      → 19 signals (the entire RFID family)
+ *   domain_id = 'GEO-POI'  →  0 signals (gap — handle with empty-state)
+ *
+ * None of the RFID vertical domain_ids (WH-RFD, RET-RFD, HC-RFD, TL-RFD,
+ * MTL-RFD, AVN-RFD, CAR-RFD, DC-RFD, FED-RFD, FS-RFD, HOS-RFD, IE-RFD) have
+ * signals keyed to them. Instead, the 19 null-domain signals (IDs like
+ * VS-RFID-01, VS-XDOM-01 …) reference specific vertical scenarios in their
+ * scenario_ids CSV column — e.g. "RET-RFD-01, RET-RFD-08, WH-RFD-01".
+ *
+ * Loading logic:
+ *   1. If the active domain has signals with matching domain_id → use those.
+ *   2. Else, if the active domain ends with '-RFD' → fetch WHERE domain_id
+ *      IS NULL, then filter to signals whose scenario_ids CSV contains at
+ *      least one scenario with the vertical prefix (e.g. for WH-RFD, keep
+ *      any signal whose parsed scenario_ids include a token starting with
+ *      'WH-RFD-').
+ *   3. Else (GEO-POI today) → zero signals; render an empty state and
+ *      allow the seller to proceed to defaults without grounding.
+ *
+ * Parse scenario_ids with: split(',').map(s => s.trim()).filter(Boolean).
+ *
+ * Tile display:
+ *   - signal_name        → tile headline (e.g. "The Confidence Gap")
+ *   - before_state       → tile subtitle (the pain description, 1-2 sentences)
+ *   - observable_indicators → SKIPPED for null-domain RFID signals (null in
+ *     DB). Render only when non-null (AIP/BLE/CAT/CV signals populate it).
+ *
+ * Selection constraint: 3 ≤ selected ≤ 6 (soft — can be relaxed later).
+ *
+ * Activation on confirm: take the union of scenario_ids across all selected
+ * signals, parse each CSV, intersect with the active domain's scenarios in
+ * vef_value_scenarios (i.e. s.scenario_id appears in the parsed set), and
+ * activate ONLY those scenarios. This replaces the current "top 6 by
+ * print_priority" activation path for the signal-driven onboarding route.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
+const SOLUTIONS = [
+  { key:'tracking',   title:'Tracking & Visibility', sub:'RFID, BLE, IoT hardware' },
+  { key:'enterprise', title:'Enterprise Software',   sub:'SaaS, platforms, workflow tools' },
+  { key:'ai',         title:'AI & Analytics',        sub:'AI platforms, data products, ML' },
+  { key:'sensor',     title:'Sensor & IoT',          sub:'Ambient sensing, cold chain, monitoring' },
+  { key:'risk',       title:'Risk Intelligence',     sub:'Insurance, climate, underwriting data' },
+  { key:'location',   title:'Location & Geospatial', sub:'POI data, mobility, site intelligence' },
+];
+
+// Step 2 verticals per solution type. domain_id matches vef_value_scenarios.
+const VERTICALS = {
+  tracking: [
+    { domain_id:'WH-RFD',  title:'Warehouse & 3PL',        sub:'Distribution centers, fulfillment' },
+    { domain_id:'RET-RFD', title:'Retail & Apparel',       sub:'Stores, inventory accuracy' },
+    { domain_id:'HC-RFD',  title:'Healthcare',             sub:'Hospitals, medical asset tracking' },
+    { domain_id:'MTL-RFD', title:'Manufacturing',          sub:'Production, WIP, assembly' },
+    { domain_id:'TL-RFD',  title:'Transport & Logistics',  sub:'Fleet, carriers, routing' },
+  ],
+  enterprise: [
+    { domain_id:'AIP', title:'Enterprise cross-vertical',  sub:'Any large enterprise buyer' },
+  ],
+  ai: [
+    { domain_id:'AIP',     title:'Enterprise cross-vertical', sub:'AI platform for enterprise' },
+    { domain_id:'GEO-POI', title:'Location Intelligence',     sub:'POI, mobility, trade area' },
+  ],
+  sensor: [
+    { domain_id:'BLE-3PL', title:'Cold Chain / 3PL',  sub:'Temperature, asset tracking' },
+    { domain_id:'CV-MFG',  title:'Manufacturing',     sub:'Computer vision, defect detection' },
+  ],
+  risk: [
+    { domain_id:'CAT-RISK', title:'P&C Insurance',    sub:'Catastrophe + climate risk' },
+  ],
+  location: [
+    { domain_id:'GEO-POI', title:'Location Intelligence', sub:'POI, mobility, trade area' },
+  ],
+};
+
+// ─── ONBOARDING RENDER ──────────────────────────────────────────────────────
+function renderOnboarding() {
+  const host = document.getElementById('rbody');
+  if (!host || S.onboarding.complete) return;
+  if (S.onboarding.step === 1) {
+    host.innerHTML = `<div class="onboard">
+      <div class="onboard-step"><b>01</b> / 02</div>
+      <div class="onboard-head">What do you sell?</div>
+      <div class="onboard-sub">Pick the closest match.</div>
+      <div class="onboard-grid">
+        ${SOLUTIONS.map(s => `<button class="onboard-tile" onclick="selectSolution('${s.key}')">
+          <div class="ot-title">${esc(s.title)}</div>
+          <div class="ot-sub">${esc(s.sub)}</div>
+        </button>`).join('')}
+      </div>
+    </div>`;
+  } else if (S.onboarding.step === 2) {
+    const verticals = VERTICALS[S.onboarding.solution] || [];
+    const solTitle = SOLUTIONS.find(s => s.key === S.onboarding.solution)?.title || '';
+    host.innerHTML = `<div class="onboard">
+      <button class="onboard-back" onclick="onboardingBack()">← Back</button>
+      <div class="onboard-step">01 / <b>02</b> / 03</div>
+      <div class="onboard-head">Who is your buyer?</div>
+      <div class="onboard-sub">Pick their primary vertical for ${esc(solTitle)}.</div>
+      <div class="onboard-grid">
+        ${verticals.map(v => `<button class="onboard-tile" onclick="selectVertical('${v.domain_id}')">
+          <div class="ot-title">${esc(v.title)}</div>
+          <div class="ot-sub">${esc(v.sub)}</div>
+        </button>`).join('')}
+      </div>
+    </div>`;
+  } else if (S.onboarding.step === 3) {
+    renderSignalStep();
+  }
+}
+
+function selectSolution(key) {
+  S.onboarding.step = 2;
+  S.onboarding.solution = key;
+  renderOnboarding();
+}
+
+function onboardingBack() {
+  if (S.onboarding.step === 3) {
+    // Step 3 → 2: keep the solution, drop any signal picks. selectVertical
+    // re-loads signals from scratch on re-entry, so no need to wipe S.signals
+    // here — but the selection set must clear so the Continue button resets.
+    S.onboarding.step = 2;
+    S.selectedSignals = new Set();
+    S.signalScenarioIds = new Set();
+  } else {
+    S.onboarding.step = 1;
+    S.onboarding.solution = null;
+  }
+  renderOnboarding();
+}
+
+// ─── STEP 3: SIGNALS ────────────────────────────────────────────────────────
+// Load signals for the active domain. Three-branch logic per the design note:
+//   1. domain-keyed rows (AIP / BLE-3PL / CAT-RISK / CV-MFG / MOTO-IND /
+//      VEN-VEF) returned directly.
+//   2. *-RFD vertical → domain_id IS NULL rows, client-side filtered to
+//      those whose scenario_ids CSV contains a token with the vertical prefix.
+//   3. else (e.g. GEO-POI) → [] (renderSignalStep shows an empty state).
+// Seeds S.signals and resets S.selectedSignals / S.signalScenarioIds so the
+// counter starts at zero on every re-entry.
+async function loadSignals(domainId) {
+  S.signals = [];
+  S.selectedSignals = new Set();
+  S.signalScenarioIds = new Set();
+  if (!domainId) return;
+  try {
+    let rows = await sbGet('vef_value_signals',
+      `domain_id=eq.${encodeURIComponent(domainId)}&select=*`);
+    if (!rows.length && /-RFD$/.test(domainId)) {
+      const all = await sbGet('vef_value_signals', 'domain_id=is.null&select=*');
+      const prefix = domainId + '-';
+      rows = all.filter(sig => {
+        const ids = (sig.scenario_ids || '').split(',').map(x => x.trim()).filter(Boolean);
+        return ids.some(id => id.startsWith(prefix));
+      });
+    }
+    S.signals = rows || [];
+  } catch (e) {
+    console.error('loadSignals failed:', e);
+    S.signals = [];
+  }
+}
+
+function renderSignalStep() {
+  const host = document.getElementById('rbody');
+  if (!host) return;
+  const count = S.selectedSignals.size;
+  const warn = count > 6;
+  const continueDisabled = count < 1;
+  const continueLabel = count === 0 ? 'Continue →'
+    : `Continue with ${count} signal${count===1?'':'s'} →`;
+
+  // Empty state: no signals catalogued for this vertical (e.g. GEO-POI).
+  if (!S.signals.length) {
+    host.innerHTML = `<div class="onboard">
+      <button class="onboard-back" onclick="onboardingBack()">← Back</button>
+      <div class="onboard-step">01 / 02 / <b>03</b></div>
+      <div class="onboard-head">What signals are present?</div>
+      <div class="onboard-sub">No signals catalogued for this vertical yet.</div>
+      <div class="signal-empty">
+        You can proceed — scenarios will activate with industry defaults and
+        we'll ground them through chat instead.
+      </div>
+      <div class="signal-footer">
+        <span class="signal-count"></span>
+        <button class="signal-continue" onclick="activateFromSignalSelection()">Proceed with defaults →</button>
+      </div>
+    </div>`;
+    return;
+  }
+
+  // Signal tiles — flipped hierarchy: before_state is the primary read, the
+  // signal_name becomes a small uppercase label below. Show the first two
+  // sentences of before_state in full (split on '. '); longer copy surfaces
+  // via the title attribute on hover. Single-sentence values render whole.
+  const rows = S.signals.map(sig => {
+    const sel = S.selectedSignals.has(sig.signal_id);
+    const primary = sig.before_state || sig.definition || '';
+    const sentences = primary.split('. ');
+    let shown = sentences.slice(0, 2).join('. ');
+    const truncated = sentences.length > 2;
+    if (truncated && !/[.!?]$/.test(shown)) shown += '.';
+    const titleAttr = truncated ? ` title="${esc(primary)}"` : '';
+    const label = sig.signal_name || sig.signal_id || '';
+    return `<div class="signal-tile${sel?' selected':''}" onclick="toggleSignal('${esc(sig.signal_id)}')"${titleAttr}>
+      <div class="signal-check"></div>
+      <div class="signal-state">${esc(shown)}</div>
+      <div class="signal-name">${esc(label)}</div>
+    </div>`;
+  }).join('');
+
+  host.innerHTML = `<div class="onboard">
+    <button class="onboard-back" onclick="onboardingBack()">← Back</button>
+    <div class="onboard-step">01 / 02 / <b>03</b></div>
+    <div class="onboard-head">What signals are present?</div>
+    <div class="onboard-sub">Pick 3–6 that match your buyer's situation.</div>
+    <div class="signal-list">${rows}</div>
+    <div class="signal-footer">
+      <span class="signal-count"><b class="${warn?'sc-warn':''}">${count}</b> selected${warn?' · over the recommended 6':''}</span>
+      <button class="signal-continue" onclick="activateFromSignalSelection()"${continueDisabled?' disabled':''}>${continueLabel}</button>
+    </div>
+  </div>`;
+}
+
+function toggleSignal(signalId) {
+  if (S.selectedSignals.has(signalId)) S.selectedSignals.delete(signalId);
+  else                                 S.selectedSignals.add(signalId);
+  // Recompute the union of referenced scenario_ids across all selected signals.
+  S.signalScenarioIds = new Set();
+  S.signals.forEach(sig => {
+    if (!S.selectedSignals.has(sig.signal_id)) return;
+    (sig.scenario_ids || '').split(',').map(x => x.trim()).filter(Boolean)
+      .forEach(id => S.signalScenarioIds.add(id));
+  });
+  renderSignalStep();
+}
+
+// Continue-button handler on step 3. Activates only the scenarios referenced
+// by the selected signals (intersected against the active domain), falling
+// back to the domain-default activation when the empty-state 'Proceed with
+// defaults' button fires. Then flips the right pane out of onboarding,
+// enables chat, and kicks off the discovery interview.
+function activateFromSignalSelection() {
+  const domainId = S.engine;
+  if (!domainId) { toast('No vertical selected yet.'); return; }
+
+  // Intersect signal-referenced scenario_ids with the active domain's scenarios.
+  // Empty-state / Proceed-with-defaults path falls back to top-N by priority.
+  let matched;
+  if (S.signalScenarioIds.size > 0) {
+    matched = S.scenarios
+      .filter(s => s.domain_id === domainId && S.signalScenarioIds.has(s.scenario_id))
+      .sort((a,b) => (a.print_priority || 99) - (b.print_priority || 99));
+  } else {
+    matched = S.scenarios
+      .filter(s => s.domain_id === domainId)
+      .filter(s => s.print_priority != null)
+      .sort((a,b) => (a.print_priority || 99) - (b.print_priority || 99))
+      .slice(0, 6);
+  }
+
+  if (!matched.length) {
+    toast('No scenarios matched the selected signals.');
+    return;
+  }
+
+  S.activeScens.clear();
+  matched.forEach(s => S.activeScens.add(s.scenario_id));
+  S.lastDomains = [domainId];
+  const tag = document.getElementById('rh-domain');
+  const dom = S.engines.find(e => e.domain_id === domainId || e.engine_id === domainId);
+  tag.textContent = (dom && (dom.vendor_category || dom.engine_id)) || domainId;
+  tag.style.display = '';
+  resolveDefs(); seedDefaults();
+
+  S.onboarding.complete = true;
+
+  const solTitle = SOLUTIONS.find(s => s.key === S.onboarding.solution)?.title || '';
+  const verticals = VERTICALS[S.onboarding.solution] || [];
+  const vertTitle = verticals.find(v => v.domain_id === domainId)?.title || domainId;
+  // Synthetic lastStructured unblocks updateAnalysis so the Exploratory pane
+  // renders from scenario defaults on first paint, no edge-fn call required.
+  S.lastStructured = { type:'analysis', title: `${solTitle} for ${vertTitle}` };
+
+  // updateAnalysis rewrites #rbody in full — no explicit visibility toggle
+  // needed now that onboarding and analysis share the same container.
+  updateAnalysis();
+  renderScenPanel();
+
+  const inp = document.getElementById('inp');
+  inp.disabled = false;
+  inp.placeholder = "Answer Meridian's question…";
+  document.getElementById('send').disabled = false;
+  document.getElementById('skip-link')?.classList.remove('hidden');
+
+  // Priming block: the first entry in S.history tells Claude where the
+  // session is so subsequent edge-fn calls don't re-ask 'what do you sell?'
+  // and don't loop on the same discovery question. Kept out of the chat
+  // (addMsg not called for it) — chat stays a clean discovery transcript.
+  const signalNames = [...S.selectedSignals]
+    .map(id => S.signals.find(s => s.signal_id === id)?.signal_name)
+    .filter(Boolean);
+  const scenarioNames = matched.map(s => s.one_liner || s.mechanism_label || s.scenario_id);
+  const primer = `[Onboarding complete. Domain: ${domainId}. `
+    + `Signals confirmed: ${signalNames.length ? signalNames.join('; ') : '(none — signals skipped)'}. `
+    + `Activated scenarios: ${scenarioNames.join('; ')}. `
+    + `Do not ask the user to describe their solution — it has already been captured. `
+    + `Ask only for the next discovery input.]`;
+  S.history = [{ role:'user', content:primer, primer:true }];
+
+  // One system confirmation + Meridian's first question, both constructed
+  // locally from the DB. No edge-function call happens until the seller
+  // types their first response (send → discTurn).
+  const signalCount = S.selectedSignals.size;
+  addMsg('system',
+    `${matched.length} scenario${matched.length===1?'':'s'} activated across ${signalCount} signal${signalCount===1?'':'s'}. Numbers are defaults — we'll ground them together.`);
+  const q = pickNextScenarioQuestion();
+  if (q) addMsg('ai', q);
+  else   addMsg('ai', "Tell me about your buyer's most-affected operating pattern so I can ground the defaults.");
+}
+
+// Step-2 tile click. Stores the picked vertical, advances to step 3, and
+// fetches signals in the background. The heavy activation work (scenario
+// filter by signal union, pane flip, chat kickoff) happens in
+// activateFromSignalSelection() when the seller hits Continue on step 3.
+async function selectVertical(domainId) {
+  if (!S.loaded) { toast('Still loading the engine…'); return; }
+  const verticals = VERTICALS[S.onboarding.solution] || [];
+  const title = verticals.find(v => v.domain_id === domainId)?.title || domainId;
+  S.engine = domainId;
+  S.onboarding.step = 3;
+  // Brief loading state so the pane doesn't feel frozen during the fetch.
+  const host = document.getElementById('rbody');
+  if (host) host.innerHTML = `<div class="onboard">
+    <div class="onboard-step">01 / 02 / <b>03</b></div>
+    <div class="onboard-head">Loading signals…</div>
+    <div class="onboard-sub">Pulling the relevant value signals for ${esc(title)}.</div>
+  </div>`;
+  await loadSignals(domainId);
+  renderOnboarding();
+}
+
+// Interview cursor: walk S.activeScens in print_priority order and return the
+// first discovery_questions entry from the next scenario not yet grounded.
+// Side effect — sets S.currentScenario so the next numeric capture in discTurn
+// is attributed to this scenario. Returns null when every active scenario has
+// been grounded (interview complete).
+//
+// Scenarios with neither discovery_questions nor cfo_challenge are auto-
+// grounded and skipped so the interview never stalls on a data hole.
+function pickNextScenarioQuestion() {
+  const ordered = S.scenarios
+    .filter(s => S.activeScens.has(s.scenario_id))
+    .sort((a,b) => (a.print_priority || 99) - (b.print_priority || 99));
+  for (const scen of ordered) {
+    if (S.groundedScenarios.has(scen.scenario_id)) continue;
+    const q = firstQuestion(scen.discovery_questions || scen.cfo_challenge || '');
+    if (!q) { S.groundedScenarios.add(scen.scenario_id); continue; }
+    S.currentScenario = scen.scenario_id;
+    return q;
+  }
+  S.currentScenario = null;
+  return null;
+}
+
 // ─── AGGREGATE MATH ─────────────────────────────────────────────────────────
 // Activation ramps per scenario.activation_type
 const RAMP = {
@@ -543,7 +1013,10 @@ function computeAggregates(activeSet) {
   const implInput = S.inputs['implementation_cost'];
   const impl = (implInput && implInput.value > 0 && implInput.source !== 'engine') ? implInput.value : null;
 
-  const npv = impl != null ? (y1/1.10 + y2/1.21 + y3/1.331 - impl) : null;
+  // NPV at a 10% discount rate applied to years 2 and 3 only; Y1 is credited
+  // at face value because the realized figure already reflects the activation
+  // ramp within the first year.
+  const npv = impl != null ? (y1 + y2/1.10 + y3/1.21 - impl) : null;
   const bcrRaw = (impl != null && impl > 0) ? (y1+y2+y3)/impl : null;
   const bcrCapped = bcrRaw != null && bcrRaw > 10;
   const bcr = bcrRaw != null ? Math.min(bcrRaw, 10) : null;
@@ -557,13 +1030,25 @@ function computeAggregates(activeSet) {
 }
 
 // ─── PANEL DISPATCH ─────────────────────────────────────────────────────────
+// Pre-analysis pane: always the onboarding flow. #rbody holds exactly one of
+// {onboarding markup, analysis markup} at a time — a single container swap.
 function renderGatheringState() {
-  document.getElementById('gathering').style.display = '';
-  document.getElementById('analysis').style.display = 'none';
+  renderOnboarding();
+}
+
+// Right-pane header button. Shows once every active scenario has been
+// grounded (S.interviewComplete), hides on new session or while the interview
+// is still running. Called from updateAnalysis on every pane refresh, so the
+// visibility tracks S.interviewComplete without any extra wiring elsewhere.
+function renderAppraisalButton() {
+  const btn = document.getElementById('rh-appraisal');
+  if (!btn) return;
+  btn.style.display = S.interviewComplete ? '' : 'none';
 }
 
 function updateAnalysis() {
-  // Panel stays in gathering state until a structured analysis has landed.
+  renderAppraisalButton();
+  // Before activation (or if the analysis cleared), fall back to onboarding.
   if (!S.lastStructured || S.lastStructured.type !== 'analysis') {
     renderGatheringState();
     return;
@@ -571,11 +1056,8 @@ function updateAnalysis() {
   const agg = computeAggregates(S.activeScens);
   if (agg.computed.length === 0) { renderGatheringState(); return; }
 
-  document.getElementById('gathering').style.display = 'none';
-  const analysis = document.getElementById('analysis');
-  analysis.style.display = '';
-
-  analysis.innerHTML =
+  const host = document.getElementById('rbody');
+  host.innerHTML =
       renderGovBanner()
     + renderMetrics(agg)
     + renderPoolNote(agg)
@@ -586,17 +1068,33 @@ function updateAnalysis() {
   wireSliders();
 }
 
-// Derived UI state: exploratory until 3 chat-captured inputs have landed.
-function isExploratory() { return S.govInputs < 3; }
+// Derived UI state. Two independent governed unlocks — either the seller
+// captured 3+ numeric inputs in free-form chat (legacy path), OR the interview
+// engine walked every active scenario and each got an answer (Act 2 path).
+// The scenario-grounded path is robust to edge cases where a seller
+// answers with the same number across scenarios — every scenario still got
+// explicit attention, which is what makes the output defensible.
+function isExploratory() {
+  if (S.govInputs >= 3) return false;
+  if (S.activeScens.size > 0
+      && S.groundedScenarios.size === S.activeScens.size) return false;
+  return true;
+}
 
 function renderGovBanner() {
   const ex = isExploratory();
   const label = ex
     ? 'Exploratory — industry defaults only. Not defensible.'
     : 'Governed — buyer inputs applied';
-  const count = ex
-    ? `${S.govInputs} of 3 buyer inputs captured`
-    : `${S.govInputs} buyer inputs applied`;
+  // Progress readout: once scenarios are active, the banner reflects the
+  // interview cursor (N of M scenarios grounded) rather than the raw
+  // buyer-inputs counter. Pre-activation (no scenarios yet) falls back to the
+  // legacy count so the banner always has something to say.
+  const interviewActive = S.activeScens.size > 0;
+  const count = interviewActive
+    ? `${S.groundedScenarios.size} of ${S.activeScens.size} scenarios grounded`
+    : (ex ? `${S.govInputs} of 3 buyer inputs captured`
+          : `${S.govInputs} buyer inputs applied`);
   return `<div class="gov-banner ${ex?'exploratory':'governed'}">
     <span class="gb-dot"></span>
     <span>${esc(label)}</span>
@@ -669,8 +1167,10 @@ function renderScenCards(agg) {
   const rows = display.slice(0, 8).map(r => {
     const s = r.s;
     const on = S.activeScens.size === 0 || S.activeScens.has(s.scenario_id);
+    const grounded = S.groundedScenarios.has(s.scenario_id);
     const cls = ['scen-card'];
     if (!on) cls.push('off');
+    if (grounded) cls.push('grounded');
     if (r.shadowed) cls.push('shadowed');
     if (r.fading) cls.push('off');
     const coi = r.y1 > 0
@@ -680,14 +1180,18 @@ function renderScenCards(agg) {
     const ev = s.evidence_strength
       ? `<div class="sc-row"><span class="sc-rk">Evidence</span><span class="sc-rv">${esc(s.evidence_strength)}</span></div>` : '';
     const shadowTag = r.shadowed ? ' <span style="font-size:8px;color:var(--amber);letter-spacing:0.08em;text-transform:uppercase">· shadowed</span>' : '';
+    const groundedTag = grounded && !r.shadowed
+      ? ' <span style="font-size:8px;color:var(--green);letter-spacing:0.08em;text-transform:uppercase">· grounded</span>'
+      : '';
+    const check = grounded ? '<span class="sc-check">✓</span> ' : '';
     return `<div class="${cls.join(' ')}" onclick="toggleScen('${s.scenario_id}')" data-sid="${s.scenario_id}">
       <div class="sc-head">
         <div class="sc-left">
-          <div class="sc-theme">${esc(s.value_theme || 'Value')}${shadowTag}</div>
-          <div class="sc-name">${esc(s.mechanism_label || s.one_liner || (s.description||'').slice(0,90))}</div>
+          <div class="sc-theme">${esc(s.value_theme || 'Value')}${shadowTag}${groundedTag}</div>
+          <div class="sc-name">${esc(s.one_liner || firstSentence(s.description))}</div>
         </div>
         <div class="sc-right">
-          <div class="sc-val">${fmt(r.y1)}</div>
+          <div class="sc-val">${check}${fmt(r.y1)}</div>
           <div class="sc-sub">Y1 realized</div>
         </div>
       </div>
@@ -729,7 +1233,7 @@ function renderScenPanel() {
       <div class="scen-num">${String(i+1).padStart(2,'0')}</div>
       <div style="flex:1;min-width:0">
         <div class="scen-theme">${esc(s.value_theme || 'Value')}</div>
-        <div class="scen-desc">${esc(s.one_liner || (s.description||'').slice(0,80))}</div>
+        <div class="scen-desc">${esc(s.one_liner || firstSentence(s.description))}</div>
         ${v && v > 0 ? `<div class="scen-v">${fmt(v)}/yr</div>` : ''}
       </div>
     </div>`;
@@ -770,13 +1274,16 @@ function renderInputsSection() {
     const src = inp?.source || 'engine';
     const mn  = parseFloat(def.min_value) || 0;
     const mx  = parseFloat(def.max_value) || Math.max(cur*3, 100);
-    const isDec = def.unit === 'decimal';
+    const isDec = isPctUnit(def.unit);
     const step = isDec ? 0.01 : Math.max(1, Math.round((mx-mn)/100));
     const disp = isDec ? pctFmt(cur) : rawFmt(cur, def.unit);
     const valCls = src === 'buyer' || src === 'chat' ? 'sl-val buyer' : 'sl-val';
+    const uTag = displayUnit(def.unit);
+    const uSpan = uTag ? `<span class="sl-unit">${esc(uTag)}</span>` : '';
+    const labelText = def.label || key;
     return `<div class="sl-row">
       <div class="sl-top">
-        <span class="sl-label">${esc(def.label)}<span class="sl-unit">${esc(def.unit||'')}</span></span>
+        <span class="sl-label">${esc(labelText)}${uSpan}</span>
         <span class="${valCls}" id="sv-${key}">${disp}</span>
       </div>
       <input type="range" class="sl-input" data-key="${key}" data-unit="${esc(def.unit||'')}"
@@ -868,6 +1375,10 @@ async function send() {
   const inp = document.getElementById('inp');
   const text = (inp.value || '').trim();
   if (!text || S.loading) return;
+  // Defense in depth: the textarea is disabled until activateFromSignalSelection
+  // flips S.onboarding.complete, but if any path ever re-enables it early this
+  // check stops a stray edge-fn call during onboarding.
+  if (!S.onboarding.complete) return;
   if (S.gateShown && !S.gateUnlocked) { document.getElementById('gate-email')?.focus(); return; }
   inp.value = ''; inp.style.height = 'auto';
   if (S.turns === 0) S.ctx = text;
@@ -919,17 +1430,37 @@ async function discTurn(text) {
     const data = await res.json();
     const structured = data.structured || { type:'text', text: data.error || 'Unable to generate.' };
     S.history.push({ role:'assistant', structured, content: JSON.stringify(structured) });
-    if (S.history.length > 14) S.history = S.history.slice(-14);
+    if (S.history.length > 14) {
+      // Preserve the onboarding primer across history trims so Claude never
+      // loses the session context (domain, signals, activated scenarios).
+      const primer = S.history.find(m => m.primer);
+      S.history = S.history.slice(-14);
+      if (primer && !S.history.some(m => m.primer)) S.history = [primer, ...S.history];
+    }
     S.lastStructured = structured;
 
     // Capture chat-extracted inputs first — may push govInputs across the
     // exploratory→governed threshold before we decide how to render.
     const captured = extractNums(text);
 
+    // Attribute this turn's capture to the scenario Meridian just asked about.
+    // pickNextScenarioQuestion set S.currentScenario when it posed the last Q;
+    // any numeric capture (scenario-agnostic per design) confirms the seller
+    // answered that scenario's question. The cursor advances on the next
+    // pickNextScenarioQuestion call, which happens in the renderer below.
+    if (captured.length > 0 && S.currentScenario
+        && !S.groundedScenarios.has(S.currentScenario)) {
+      S.groundedScenarios.add(S.currentScenario);
+      S.currentScenario = null;
+    }
+
     // Activate domain BEFORE rendering the chat bubble so S.activeScens
-    // reflects the new analysis when we pick a discovery question.
+    // reflects the new analysis when we pick a discovery question. Skipped
+    // once onboarding is complete — the signal-selected scenario set is
+    // authoritative for the interview and the edge function must not
+    // mutate S.activeScens (or drop grounded scenarios) mid-flow.
     const wasActiveBefore = S.activeScens.size > 0;
-    if (structured.type === 'analysis') {
+    if (structured.type === 'analysis' && !S.onboarding.complete) {
       const prev = new Set(S.activeScens);
       if (data.domains_matched?.length) activateDomain(data.domains_matched);
       if (S.activeScens.size === 0) {
@@ -944,13 +1475,27 @@ async function discTurn(text) {
       }
     }
 
-    // Decide the chat bubble: in Exploratory mode with scenarios active and
-    // not skipped, override Claude's narrative with a discovery-mode prompt.
-    // Claude still generated the analysis (the right pane needs it) — we just
-    // don't show its words here until the seller has grounded the model.
+    // Interview completion: this turn was the last ungrounded scenario if the
+    // grounded set now equals the active set. Fires exactly once (guarded by
+    // S.interviewComplete). Drives the Generate Appraisal button visibility,
+    // wired into the right-pane header in Chunk D.
+    const justCompleted = !S.interviewComplete
+      && S.activeScens.size > 0
+      && S.groundedScenarios.size === S.activeScens.size;
+    if (justCompleted) S.interviewComplete = true;
+
+    // Decide the chat bubble. Three-way:
+    //   justCompleted → closing acknowledgment + "Analysis complete" system
+    //                   line; skip the discovery bubble so Meridian doesn't
+    //                   ask "next question?" after there are no more.
+    //   inDiscovery   → discovery-mode prompt (next scenario's question or
+    //                   a grounding nudge if the turn didn't capture).
+    //   else          → Claude's structured narrative as-is.
     const inDiscovery = isExploratory() && !S.skipDiscovery
       && S.activeScens.size > 0 && structured.type === 'analysis';
-    if (inDiscovery) {
+    if (justCompleted) {
+      renderInterviewComplete(captured);
+    } else if (inDiscovery) {
       renderDiscoveryTurn(captured, !wasActiveBefore);
     } else {
       renderStructured(structured);
@@ -989,14 +1534,30 @@ function buildModelState() {
   const agg = computeAggregates(S.activeScens);
   const changed = Object.entries(S.pendingSliderChanges).map(([k,v]) => {
     const def = S.defs[k];
-    const isDec = def?.unit === 'decimal';
+    const isDec = isPctUnit(def?.unit);
     return `${def?.label || k}=${isDec ? pctFmt(v) : rawFmt(v, def?.unit || '')}`;
   });
+  // Onboarding context — the edge function's formatModelState only consumes
+  // total/scenarios/conf/changed today, but these extra keys ride along so a
+  // future edge-fn update can surface them without another client change.
+  const signalNames = [...S.selectedSignals]
+    .map(id => S.signals.find(s => s.signal_id === id)?.signal_name)
+    .filter(Boolean);
+  const scenarioNames = [...S.activeScens]
+    .map(id => {
+      const s = S.scenarios.find(x => x.scenario_id === id);
+      return s?.one_liner || s?.mechanism_label || s?.scenario_id;
+    })
+    .filter(Boolean);
   return {
     total: Math.round(agg.y1),
     scenarios: agg.winners.length,
     conf: S.conf,
     changed: changed.length ? changed : undefined,
+    domain: S.engine || undefined,
+    signals: signalNames.length ? signalNames : undefined,
+    activated_scenarios: scenarioNames.length ? scenarioNames : undefined,
+    gov_inputs: S.govInputs || undefined,
   };
 }
 
@@ -1132,27 +1693,26 @@ function extractNums(text) {
   return captured;
 }
 
-// ─── DISCOVERY QUESTION PICKER ──────────────────────────────────────────────
-// Walks active scenarios in print_priority order and returns the Nth question
-// (N = S.govInputs) from its discovery_questions column. Falls back to
-// cfo_challenge if a scenario has no discovery_questions. Null means we've
-// exhausted questions — the renderer can degrade gracefully.
-function pickDiscoveryQuestion() {
-  const ordered = S.scenarios
-    .filter(s => S.activeScens.has(s.scenario_id))
-    .sort((a,b) => (a.print_priority || 99) - (b.print_priority || 99));
-  const scen = ordered[S.govInputs] || ordered[0];
-  if (!scen) return null;
-  const raw = scen.discovery_questions || scen.cfo_challenge || '';
-  if (!raw) return null;
-  const parts = String(raw).split(/[\n|;]/).map(x => x.trim()).filter(Boolean);
-  return parts[0] || null;
+// Emitted once when the final scenario is grounded. Acknowledges the closing
+// capture (so the seller's last number isn't silently dropped) and drops a
+// system line that cues Generate Appraisal. The button itself is rendered by
+// the right-pane header in Chunk D — it observes S.interviewComplete and
+// appears on the next updateAnalysis() pass.
+function renderInterviewComplete(captured) {
+  const ackParts = captured.map(({key, val}) => {
+    const def = S.defs[key];
+    const disp = def?.unit === 'decimal' ? pctFmt(val) : rawFmt(val, def?.unit || '');
+    return `${def?.label || key} = ${disp}`;
+  });
+  if (ackParts.length) addMsg('ai', `Noted — ${ackParts.join(', ')}.`);
+  addMsg('system', 'Analysis complete. Ready to generate your appraisal.');
 }
 
 // Render the AI's chat turn as a discovery-mode bubble instead of Claude's
-// narrative. Acknowledges captures from this turn and asks the next question.
+// narrative. Acknowledges captures from this turn and asks the next question
+// from the interview cursor (pickNextScenarioQuestion).
 function renderDiscoveryTurn(captured, isFirstActivation) {
-  const q = pickDiscoveryQuestion();
+  const q = pickNextScenarioQuestion();
   const ackParts = captured.map(({key, val}) => {
     const def = S.defs[key];
     const disp = def?.unit === 'decimal' ? pctFmt(val) : rawFmt(val, def?.unit || '');
@@ -1376,10 +1936,6 @@ function toast(msg) {
   el.textContent = msg; el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 3000);
 }
-function useChip(el) {
-  const inp = document.getElementById('inp');
-  inp.value = el.textContent; grow(inp); send();
-}
 function grow(el) {
   el.style.height = 'auto';
   el.style.height = Math.min(el.scrollHeight, 100) + 'px';
@@ -1398,16 +1954,352 @@ function newSession() {
   S.engine = null; S.scenarioActivatedTurn = {};
   S.gateShown = false; S.gateUnlocked = false;
   S.govInputs = 0; S.skipDiscovery = false;
-  document.getElementById('skip-link')?.classList.remove('hidden');
+  S.currentScenario = null; S.groundedScenarios = new Set();
+  S.interviewComplete = false;
+  S.onboarding = { step: 1, solution: null, complete: false };
+  S.signals = []; S.selectedSignals = new Set(); S.signalScenarioIds = new Set();
   S.saveState = 'idle'; S.pendingSliderChanges = {};
   S.sid = 's' + Date.now() + '-' + Math.random().toString(36).slice(2,6);
-  seedDefaults();
+  // Wipe any buyer/chat overrides so onboarding starts from true defaults.
+  Object.keys(S.inputs).forEach(k => { if (S.inputs[k]?.source !== 'engine') delete S.inputs[k]; });
+  resolveDefs(); seedDefaults();
+
   document.getElementById('chat').innerHTML = '';
   document.getElementById('rh-domain').style.display = 'none';
+  document.getElementById('rh-appraisal').style.display = 'none';
   document.getElementById('gate').style.display = 'none';
+
+  // Disable chat input again until the seller completes onboarding.
+  const inp = document.getElementById('inp');
+  if (inp) { inp.disabled = true; inp.placeholder = 'Pick a solution type to start…'; }
+  const send = document.getElementById('send'); if (send) send.disabled = true;
+  document.getElementById('skip-link')?.classList.add('hidden');
+
   renderScenPanel();
   renderGatheringState();
   showWelcome();
+}
+
+// ─── APPRAISAL (Act 3) ──────────────────────────────────────────────────────
+// Turn a value_scenario_formula into a readable sentence by substituting each
+// input_key with its human label from S.defs and switching to Unicode math
+// operators. Handles flat product/sum formulas (which is all the scenarios
+// in vef_value_scenarios use today). Falls back to the raw formula if parsing
+// produces something empty — worst case the appraisal prints the token string
+// rather than pretty prose.
+function formulaToPlainEnglish(formula) {
+  if (!formula || typeof formula !== 'string') return '';
+  const OPS = { '*':' × ', '+':' + ', '-':' − ', '/':' ÷ ' };
+  // Split while keeping the operators so we can remap them without losing order.
+  const parts = formula.split(/(\s*[*+\-/]\s*)/).filter(p => p.trim() !== '');
+  const pretty = parts.map(tok => {
+    const t = tok.trim();
+    if (OPS[t]) return OPS[t];
+    const def = S.defs[t];
+    if (def?.label) return def.label;
+    // Strip underscores so raw keys still read OK when there's no def.
+    return t.replace(/_/g, ' ');
+  }).join('');
+  return pretty || formula;
+}
+
+// Look up evidence rows by a CSV of evidence_ids from a scenario. Missing
+// ids are silently skipped — a scenario with a typo in evidence_ids still
+// renders (just without that row).
+function lookupEvidence(csv) {
+  if (!csv) return [];
+  return csv.split(',')
+    .map(id => id.trim())
+    .filter(Boolean)
+    .map(id => S.evidenceById[id])
+    .filter(Boolean);
+}
+
+// Monthly cost of inaction for a single scenario. Prefers the scenario's own
+// delay_cost_formula when it resolves to a number, falls back to annual/12,
+// zero as a final safe default.
+function scenarioMonthlyDelay(s) {
+  const delay = evalF(s.delay_cost_formula);
+  if (delay && isFinite(delay) && delay > 0) return delay;
+  const annual = evalF(s.value_scenario_formula);
+  if (annual && isFinite(annual) && annual > 0) return annual / 12;
+  return 0;
+}
+
+// Resolve the implementation cost used for BCR/payback on the summary page.
+// Order: buyer-provided input → one-shot prompt pre-filled with ARV × 0.25 →
+// ARV × 0.25 default. Returns { value, source } so the summary page can tag
+// default-derived figures. prompt() is MVP UX; swap to a modal in a polish
+// pass. Null/NaN/cancel all resolve to the 25% default.
+function resolveImplCost(agg) {
+  const existing = S.inputs['implementation_cost'];
+  if (existing && isFinite(existing.value) && existing.value > 0) {
+    return { value: existing.value, source: existing.source || 'buyer' };
+  }
+  const fallback = Math.round((agg.y1 || 0) * 0.25);
+  const raw = prompt(
+    'Implementation cost (USD) for payback calculation.\n\n' +
+    'Leave blank to use the default: 25% of Y1 realized value.',
+    String(fallback)
+  );
+  if (raw === null) return { value: fallback, source: 'default' };
+  const n = parseFloat(String(raw).replace(/[^\d.]/g, ''));
+  if (!isFinite(n) || n <= 0) return { value: fallback, source: 'default' };
+  S.inputs['implementation_cost'] = { value: n, source: 'buyer' };
+  return { value: n, source: 'buyer' };
+}
+
+// Multi-page Investment Appraisal PDF. Layout follows a Zebra-style clean
+// white professional format — black 42pt header band with the ALT MERIDIAN
+// wordmark on every page, red accent rules, Helvetica body. Scenarios get
+// one page each (chunk G), summary closes (chunk H).
+function generateAppraisal() {
+  if (!S.interviewComplete) { toast('Complete the interview first.'); return; }
+  if (!window.jspdf) { toast('PDF library not loaded.'); return; }
+  // Double-click guard — PDF generation is synchronous but a second click
+  // during a slow browser paint still triggers twice. Disable the button for
+  // the duration; restore in a finally so a thrown error doesn't wedge it.
+  const btn = document.getElementById('rh-appraisal');
+  if (btn?.disabled) return;
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.style.cursor = 'wait'; }
+  try {
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'pt', format:'letter' });
+  const W = 612, H = 792, L = 40, R = W - 40, TW = W - 80;
+  const ACC=[200,75,47], INK=[15,15,15], MUT=[136,128,120];
+  const RULE=[224,221,214], WHITE=[255,255,255], LTBG=[249,247,243];
+  const setC=c=>doc.setTextColor(...c), setF=c=>doc.setFillColor(...c),
+        setD=c=>doc.setDrawColor(...c), px=n=>doc.setFontSize(n);
+
+  const solTitle = SOLUTIONS.find(s=>s.key===S.onboarding.solution)?.title || 'Value Appraisal';
+  const verts = VERTICALS[S.onboarding.solution] || [];
+  const vertTitle = verts.find(v=>v.domain_id===S.engine)?.title || S.engine || '';
+  const today = new Date().toISOString().slice(0,10);
+
+  // Header band repeated on every page so the document reads cohesively when
+  // printed or scrolled. Called at the top of each new page.
+  const pageHeader = () => {
+    setF(INK); doc.rect(0, 0, W, 42, 'F');
+    px(11); setC(ACC); doc.setFont('helvetica','bold');
+    doc.text('ALT', L, 26);
+    setC(WHITE); doc.text(' MERIDIAN', L + doc.getTextWidth('ALT'), 26);
+    px(7); setC(MUT); doc.setFont('helvetica','normal');
+    doc.text('INVESTMENT APPRAISAL', R, 26, { align:'right' });
+  };
+
+  let y;
+  const section = (lbl) => {
+    setD(RULE); doc.setLineWidth(0.5); doc.line(L, y, R, y); y += 10;
+    px(8); setC(MUT); doc.setFont('helvetica','bold');
+    doc.text(lbl.toUpperCase(), L, y); y += 14;
+  };
+  const body = (t, opts = {}) => {
+    px(opts.size || 10); setC(opts.color || INK);
+    doc.setFont('helvetica', opts.weight || 'normal');
+    const lines = doc.splitTextToSize(t, opts.w || TW);
+    doc.text(lines, L, y);
+    y += lines.length * (opts.lh || 13) + (opts.after != null ? opts.after : 6);
+  };
+  const newPage = () => { doc.addPage(); pageHeader(); y = 70; };
+
+  // ── COVER ────────────────────────────────────────────────────────────────
+  pageHeader();
+  setF(LTBG); doc.rect(0, 42, W, H - 42, 'F');
+  y = 260;
+  px(10); setC(ACC); doc.setFont('helvetica','bold');
+  doc.text('INVESTMENT APPRAISAL', W/2, y, { align:'center' }); y += 30;
+  px(26); setC(INK); doc.setFont('helvetica','bold');
+  const coverLines = doc.splitTextToSize(solTitle, TW);
+  doc.text(coverLines, W/2, y, { align:'center' });
+  y += coverLines.length * 30;
+  px(14); setC(MUT); doc.setFont('helvetica','normal');
+  doc.text(`for ${vertTitle}`, W/2, y, { align:'center' }); y += 20;
+  setD(ACC); doc.setLineWidth(1);
+  doc.line(W/2 - 36, y + 6, W/2 + 36, y + 6); y += 26;
+  px(9); setC(MUT); doc.setFont('courier','normal');
+  doc.text(`Prepared ${today}`, W/2, y, { align:'center' });
+  px(7.5); setC(MUT); doc.setFont('helvetica','normal');
+  doc.text('Alt Meridian · Value belongs to mechanisms, not solutions. · altmeridian.com',
+    W/2, H - 30, { align:'center' });
+
+  // ── BASIS + BACKGROUND ──────────────────────────────────────────────────
+  newPage();
+  section('Basis of Preparation');
+  body(
+    "This appraisal uses Alt Meridian's Value Engineering Framework. Every scenario " +
+    'below was activated by a seller-confirmed market signal and grounded by a ' +
+    'buyer-side input during discovery. Industry defaults are used only where a ' +
+    'buyer input is absent. Net Present Value applies a 10% discount rate over a ' +
+    'three-year horizon. Where scenarios compete for the same buyer budget (value ' +
+    "pool), only the highest-value scenario per pool is credited to the total — " +
+    "avoiding double-counting. Payback uses the buyer's stated implementation cost; " +
+    'absent that, 25% of Year-1 realized value is used as a reasonable default.',
+    { after: 14 }
+  );
+  section('Background');
+  const dom = S.domainById[S.engine] || null;
+  const bgText = (dom && dom.notes)
+    || (dom ? `${dom.domain_name || vertTitle} — ${dom.technology || ''}`.trim().replace(/ —\s*$/,'') : '')
+    || `This analysis covers ${solTitle} for ${vertTitle}. The scenarios that follow ` +
+       'reflect the value pools typically addressed by this solution in this segment.';
+  body(bgText, { after: 14 });
+
+  // ── PER-SCENARIO PAGES ──────────────────────────────────────────────────
+  // Walk grounded scenarios in print_priority order so the appraisal reads in
+  // the same order the right pane presented during discovery. One page each.
+  const grounded = S.scenarios
+    .filter(s => S.groundedScenarios.has(s.scenario_id))
+    .sort((a,b) => (a.print_priority||99) - (b.print_priority||99));
+  const M = grounded.length;
+  const overflowCheck = (need) => { if (y + need > H - 50) newPage(); };
+
+  grounded.forEach((s, i) => {
+    newPage();
+    px(9); setC(MUT); doc.setFont('helvetica','bold');
+    doc.text(`SCENARIO ${i+1} OF ${M} · ${(s.value_theme || 'Value').toUpperCase()}`, L, y);
+    y += 16;
+    px(18); setC(INK); doc.setFont('helvetica','bold');
+    const titleLines = doc.splitTextToSize(s.one_liner || 'Value scenario', TW);
+    doc.text(titleLines, L, y);
+    y += titleLines.length * 20 + 6;
+
+    // Annual value block — red accent on the standard beige card.
+    const annual = evalF(s.value_scenario_formula) || 0;
+    setF(LTBG); setD(RULE); doc.setLineWidth(0.5);
+    doc.roundedRect(L, y, TW, 52, 2, 2, 'FD');
+    px(8); setC(MUT); doc.setFont('helvetica','normal');
+    doc.text('ANNUAL VALUE', L + 14, y + 18);
+    px(22); setC(ACC); doc.setFont('helvetica','bold');
+    doc.text(fmt(annual), L + 14, y + 42);
+    y += 64;
+
+    section('Purpose');
+    body(s.description || s.one_liner || '—', { after: 10 });
+
+    // Assumption: evidence tier + typical baseline in one paragraph so the
+    // page doesn't fragment. Either field alone still renders.
+    section('Assumption');
+    const evStr   = s.evidence_strength ? `Evidence: ${s.evidence_strength}.` : '';
+    const baseStr = s.typical_baseline_assumption || '';
+    body([evStr, baseStr].filter(Boolean).join(' ') || '—', { after: 10 });
+
+    section('Theory');
+    const mechStr = s.mechanism_label ? `${s.mechanism_label}. ` : '';
+    const formStr = s.value_scenario_formula
+      ? `Computed as: ${formulaToPlainEnglish(s.value_scenario_formula)}.`
+      : '';
+    body((mechStr + formStr).trim() || '—', { after: 10 });
+
+    section('Cost of Inaction');
+    const monthly = scenarioMonthlyDelay(s);
+    body(
+      monthly > 0
+        ? `${fmt(monthly)} per month of inaction, or ${fmt(monthly * 12)} over a full year.`
+        : 'No delay cost modelled for this scenario.',
+      { after: 10 }
+    );
+
+    // Evidence citations from vef_evidence_registry. Compact cards — one row
+    // each. overflowCheck before each card so long evidence lists auto-page.
+    const refs = lookupEvidence(s.evidence_ids);
+    if (refs.length) {
+      section('Evidence');
+      refs.forEach(ev => {
+        overflowCheck(38);
+        setF(LTBG); setD(RULE); doc.setLineWidth(0.5);
+        doc.roundedRect(L, y, TW, 32, 2, 2, 'FD');
+        px(9.5); setC(INK); doc.setFont('helvetica','bold');
+        const titleL = doc.splitTextToSize(ev.evidence_title || '—', TW - 20);
+        doc.text(titleL[0] || '—', L + 10, y + 14);
+        px(8); setC(MUT); doc.setFont('courier','normal');
+        const meta = [ev.evidence_publisher, ev.evidence_year].filter(Boolean).join(' · ');
+        doc.text(meta, L + 10, y + 26);
+        y += 38;
+      });
+    }
+  });
+
+  // ── SUMMARY ─────────────────────────────────────────────────────────────
+  newPage();
+  section('Summary');
+
+  const agg  = computeAggregates(S.activeScens);
+  const impl = resolveImplCost(agg);
+
+  // Per-scenario table. Columns: name (left-aligned wide), monthly (right),
+  // annual (far-right). Rows show the gross annual value for each grounded
+  // scenario; the financial-summary block below applies the ramp/pool guards.
+  const colName = L, colMonthly = L + 320, colAnnual = R;
+  px(8); setC(MUT); doc.setFont('helvetica','bold');
+  doc.text('SCENARIO', colName, y);
+  doc.text('MONTHLY',  colMonthly, y, { align:'right' });
+  doc.text('ANNUAL',   colAnnual,  y, { align:'right' });
+  y += 6;
+  setD(RULE); doc.setLineWidth(0.5); doc.line(L, y, R, y); y += 14;
+
+  let totalMonthly = 0, totalAnnual = 0;
+  grounded.forEach(s => {
+    const annualValue  = evalF(s.value_scenario_formula) || 0;
+    const monthlyValue = annualValue / 12;
+    totalMonthly += monthlyValue;
+    totalAnnual  += annualValue;
+    overflowCheck(22);
+    px(9.5); setC(INK); doc.setFont('helvetica','normal');
+    const nameL = doc.splitTextToSize(s.one_liner || s.scenario_id, 300);
+    doc.text(nameL[0] || '—', colName, y);
+    doc.setFont('helvetica','bold');
+    doc.text(fmt(monthlyValue), colMonthly, y, { align:'right' });
+    doc.text(fmt(annualValue),  colAnnual,  y, { align:'right' });
+    y += 18;
+  });
+
+  setD(RULE); doc.setLineWidth(0.5); doc.line(L, y, R, y); y += 14;
+  px(10); setC(INK); doc.setFont('helvetica','bold');
+  doc.text('Total', colName, y);
+  setC(ACC);
+  doc.text(fmt(totalMonthly), colMonthly, y, { align:'right' });
+  doc.text(fmt(totalAnnual),  colAnnual,  y, { align:'right' });
+  y += 22;
+  px(8); setC(MUT); doc.setFont('helvetica','italic');
+  doc.text('Gross values shown above. The Y1 figure below applies the activation ramp and pool-share guard.',
+    L, y, { maxWidth: TW });
+  y += 20;
+
+  // Financial summary — ramp-adjusted Y1, 3yr CDN, NPV, payback, delay.
+  section('Financial Summary');
+  const cdn3 = agg.y1 + agg.y2 + agg.y3;
+  const paybackMo = totalMonthly > 0 ? (impl.value / totalMonthly) : null;
+  const implLabel = impl.source === 'default'
+    ? `${fmt(impl.value)}  (default — 25% of Year-1)`
+    : fmt(impl.value);
+  const fin = [
+    ['Year-1 realized (pool-adjusted)',         fmt(agg.y1)],
+    ['3-year cost of doing nothing',            fmt(cdn3)],
+    ['NPV (10% DCF, 3 years)',                  agg.npv != null ? fmt(agg.npv) : '—'],
+    ['Implementation cost',                     implLabel],
+    ['Payback',                                 paybackMo != null ? `${paybackMo.toFixed(1)} mo` : '—'],
+    ['Cost of delay per month',                 fmt(agg.y1/12)],
+  ];
+  fin.forEach(([k, v]) => {
+    overflowCheck(18);
+    px(9); setC(MUT); doc.setFont('helvetica','normal');
+    doc.text(k, L, y);
+    px(10); setC(INK); doc.setFont('helvetica','bold');
+    doc.text(v, R, y, { align:'right' });
+    y += 18;
+  });
+
+  px(7.5); setC(MUT); doc.setFont('helvetica','normal');
+  doc.text('Alt Meridian · Value belongs to mechanisms, not solutions. · altmeridian.com',
+    W/2, H - 30, { align:'center' });
+
+  doc.save(`appraisal-${(S.engine||'unknown').toLowerCase()}-${today}.pdf`);
+  toast(`Appraisal generated — ${M} scenario${M===1?'':'s'}, ${fmt(totalAnnual)} annual.`);
+
+  } finally {
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.style.cursor = ''; }
+  }
 }
 
 // ─── PDF EXPORT ─────────────────────────────────────────────────────────────
