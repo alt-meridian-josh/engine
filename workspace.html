@@ -84,6 +84,36 @@ input,select,textarea{font:inherit;color:inherit}
 .muted{color:var(--ink-3)} .mono{font-family:var(--font-mono)} .display{font-family:var(--font-display)}
 .row-flex{display:flex;align-items:center;gap:12px}
 .boot{padding:80px 24px;text-align:center;color:var(--ink-3);font-size:13px}
+/* Home */
+.sub-header{background:#fff;border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.home-tabs{display:flex;gap:4px}
+.home-tab{padding:6px 14px;border-radius:999px;font-size:12px;font-family:var(--font-mono);color:var(--ink-3);background:transparent;border:1px solid transparent;transition:all .15s}
+.home-tab:hover{color:var(--ink)}
+.home-tab.is-active{background:var(--accent);color:#fff}
+.sub-header-search{flex:1;max-width:340px;margin-left:auto}
+.sub-header-sort{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--ink-3)}
+.sub-header-sort .label{margin:0}
+.sub-header-sort .select{width:auto;padding:6px 10px;font-size:12px}
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:28px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:18px 20px}
+.stat-label{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3);margin-bottom:8px}
+.stat-value{font-family:var(--font-display);font-size:28px;font-weight:600;letter-spacing:-.02em;color:var(--ink);line-height:1.1}
+.stat-value.accent{color:var(--accent)}
+.stat-value.small{font-size:22px}
+/* Table */
+.table-wrap{background:#fff;border:1px solid var(--border);border-radius:8px;overflow:hidden;box-shadow:var(--shadow-sm)}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl thead th{background:#faf9f7;text-align:left;padding:11px 16px;font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);font-weight:500;border-bottom:1px solid var(--border);white-space:nowrap}
+.tbl tbody td{padding:14px 16px;border-bottom:1px solid var(--border);color:var(--ink-2);vertical-align:middle}
+.tbl tbody tr{cursor:pointer;transition:background .12s}
+.tbl tbody tr:hover{background:var(--row-hover)}
+.tbl tbody tr:last-child td{border-bottom:0}
+.analysis-cell{min-width:220px}
+.analysis-name{font-family:var(--font-display);font-weight:600;color:var(--ink);font-size:14px;margin-bottom:2px}
+.analysis-customer{font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em}
+.cell-arv{font-family:var(--font-mono);color:var(--accent);font-weight:500;text-align:right;white-space:nowrap}
+.cell-mono{font-family:var(--font-mono);font-size:12px;color:var(--ink-2);white-space:nowrap}
+.empty-state{padding:48px 24px;text-align:center;color:var(--ink-3);font-size:13px}
 /* Login */
 .login-page{display:flex;align-items:flex-start;justify-content:center;padding:72px 24px}
 .login-wrap{width:100%;max-width:440px}
@@ -237,7 +267,7 @@ const outputsByAnalysis={
 function render(){
   const app = document.getElementById('app');
   if (state.screen === 'login')      app.innerHTML = renderLogin();
-  else if (state.screen === 'home')  app.innerHTML = '<div class="boot">Analysis Home — lands in Chunk 4</div>';
+  else if (state.screen === 'home')  app.innerHTML = renderHome();
   else if (state.screen === 'workspace') app.innerHTML = '<div class="boot">Workspace — lands in Chunk 7</div>';
   renderModal();
 }
@@ -283,6 +313,95 @@ function onLoginSubmit(e){
   setState({ screen: 'home', user: email });
 }
 
+/* ---------- SCREEN 2 — ANALYSIS HOME ---------- */
+function renderHome(){
+  const s = computeHomeStats();
+  return `
+    <header class="topbar">
+      <div class="wordmark"><span class="alt">ALT</span> <span class="meridian">MERIDIAN</span></div>
+      <span class="topbar-label">Value Workspace</span>
+      <div class="topbar-right">
+        <span class="topbar-user">${escapeHtml(state.user || 'seller@altmeridian.com')}</span>
+        <span class="topbar-divider"></span>
+        <button class="btn btn-primary btn-sm" data-action="open-new-analysis">+ New Analysis</button>
+      </div>
+    </header>
+    <nav class="sub-header">
+      <div class="home-tabs">
+        ${['all','active','pilot','completed'].map(t => `
+          <button class="home-tab ${state.homeFilterTab===t?'is-active':''}" data-action="home-tab" data-tab="${t}">${t[0].toUpperCase()+t.slice(1)}</button>
+        `).join('')}
+      </div>
+      <input class="input sub-header-search" placeholder="Search analyses…" value="${escapeHtml(state.homeSearch)}" data-action="home-search"/>
+      <div class="sub-header-sort">
+        <span class="label">Sort</span>
+        <select class="select" data-action="home-sort">
+          <option value="updated" ${state.homeSort==='updated'?'selected':''}>Updated</option>
+          <option value="arv"     ${state.homeSort==='arv'?'selected':''}>ARV</option>
+          <option value="stage"   ${state.homeSort==='stage'?'selected':''}>Stage</option>
+        </select>
+      </div>
+    </nav>
+    <main class="page">
+      <div class="container">
+        <div class="stats-row">
+          <div class="stat-card"><div class="stat-label">Total Analyses</div><div class="stat-value">${s.total}</div></div>
+          <div class="stat-card"><div class="stat-label">Active Deals</div><div class="stat-value">${s.active}</div></div>
+          <div class="stat-card"><div class="stat-label">In Pilot</div><div class="stat-value">${s.pilot}</div></div>
+          <div class="stat-card"><div class="stat-label">Avg ARV</div><div class="stat-value accent">${fmtMoney(s.avgArv)}</div></div>
+        </div>
+        ${renderAnalysisTable(analyses)}
+      </div>
+    </main>
+  `;
+}
+
+function computeHomeStats(){
+  const total  = analyses.length;
+  const active = analyses.filter(a => ['Discovery','Validation','Proposal','Finance Review'].includes(a.stage)).length;
+  const pilot  = analyses.filter(a => a.phase && a.phase.startsWith('Pilot')).length;
+  const nonZero = analyses.filter(a => a.arv > 0);
+  const avgArv = nonZero.length ? nonZero.reduce((s,a)=>s+a.arv,0) / nonZero.length : 0;
+  return { total, active, pilot, avgArv };
+}
+
+function renderAnalysisTable(rows){
+  if (!rows.length) return `<div class="table-wrap"><div class="empty-state">No analyses match the current filters.</div></div>`;
+  return `
+    <div class="table-wrap">
+      <table class="tbl">
+        <thead><tr>
+          <th class="analysis-cell">Analysis · Customer</th>
+          <th>Domain</th><th>Stage</th><th>Phase</th>
+          <th>Champion</th><th>Pilot Start</th><th>Next Follow-Up</th>
+          <th style="text-align:right">ARV</th><th>Status</th><th>Updated</th>
+        </tr></thead>
+        <tbody>${rows.map(renderAnalysisRow).join('')}</tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderAnalysisRow(a){
+  return `
+    <tr data-action="open-analysis" data-id="${a.id}">
+      <td class="analysis-cell">
+        <div class="analysis-name">${escapeHtml(a.name)}</div>
+        <div class="analysis-customer">${escapeHtml(a.customer)}</div>
+      </td>
+      <td class="cell-mono">${escapeHtml(a.domain)}</td>
+      <td><span class="chip ${STAGE_CHIP[a.stage]||'chip-grey'}">${escapeHtml(a.stage)}</span></td>
+      <td><span class="chip ${PHASE_CHIP[a.phase]||'chip-grey'}">${escapeHtml(a.phase)}</span></td>
+      <td class="cell-mono">${escapeHtml(a.championEmail)}</td>
+      <td class="cell-mono">${fmtDate(a.pilotStart)}</td>
+      <td class="cell-mono">${fmtDate(a.nextFollowUp)}</td>
+      <td class="cell-arv">${fmtMoney(a.arv)}</td>
+      <td><span class="chip ${STATUS_CHIP[a.status]||'chip-grey'}">${escapeHtml(a.status)}</span></td>
+      <td class="cell-mono">${fmtDate(a.updated)}</td>
+    </tr>
+  `;
+}
+
 /* ---------- EVENT DELEGATION ---------- */
 document.addEventListener('submit', e => {
   const form = e.target.closest('form[data-action]');
@@ -294,7 +413,14 @@ document.addEventListener('submit', e => {
 document.addEventListener('click', e => {
   const node = e.target.closest('[data-action]');
   if (!node || node.tagName === 'FORM') return;
-  // click handlers for subsequent chunks will be dispatched here
+  const action = node.getAttribute('data-action');
+  if (action === 'open-analysis'){
+    const id = node.getAttribute('data-id');
+    return goTo('workspace', { activeAnalysisId:id, workspaceTab:'overview' });
+  }
+  if (action === 'open-new-analysis'){
+    return toast('New Analysis modal lands in Chunk 6');
+  }
 });
 
 /* ---------- BOOT ---------- */
