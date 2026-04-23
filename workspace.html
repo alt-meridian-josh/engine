@@ -350,7 +350,7 @@ function renderHome(){
           <div class="stat-card"><div class="stat-label">In Pilot</div><div class="stat-value">${s.pilot}</div></div>
           <div class="stat-card"><div class="stat-label">Avg ARV</div><div class="stat-value accent">${fmtMoney(s.avgArv)}</div></div>
         </div>
-        ${renderAnalysisTable(analyses)}
+        ${renderAnalysisTable(homeRows())}
       </div>
     </main>
   `;
@@ -358,12 +358,42 @@ function renderHome(){
 
 function computeHomeStats(){
   const total  = analyses.length;
-  const active = analyses.filter(a => ['Discovery','Validation','Proposal','Finance Review'].includes(a.stage)).length;
-  const pilot  = analyses.filter(a => a.phase && a.phase.startsWith('Pilot')).length;
+  const active = analyses.filter(isActive).length;
+  const pilot  = analyses.filter(isPilot).length;
   const nonZero = analyses.filter(a => a.arv > 0);
   const avgArv = nonZero.length ? nonZero.reduce((s,a)=>s+a.arv,0) / nonZero.length : 0;
   return { total, active, pilot, avgArv };
 }
+
+/* ---------- HOME FILTER / SORT ---------- */
+const ACTIVE_STAGES = ['Discovery','Validation','Proposal','Finance Review'];
+function isActive(a){    return ACTIVE_STAGES.includes(a.stage) && a.status !== 'Draft'; }
+function isPilot(a){     return a.phase && a.phase.startsWith('Pilot'); }
+function isCompleted(a){ return a.status === 'Completed'; }
+
+function filterAnalyses(list){
+  let out = list;
+  if (state.homeFilterTab === 'active')         out = out.filter(isActive);
+  else if (state.homeFilterTab === 'pilot')     out = out.filter(isPilot);
+  else if (state.homeFilterTab === 'completed') out = out.filter(isCompleted);
+  const q = state.homeSearch.trim().toLowerCase();
+  if (q){
+    out = out.filter(a => [
+      a.name, a.customer, a.domain, a.championEmail, a.stage, a.phase, a.status
+    ].some(v => v && String(v).toLowerCase().includes(q)));
+  }
+  return out;
+}
+
+function sortAnalyses(list){
+  const out = list.slice();
+  if (state.homeSort === 'updated')    out.sort((a,b) => (b.updated||'').localeCompare(a.updated||''));
+  else if (state.homeSort === 'arv')   out.sort((a,b) => (b.arv||0) - (a.arv||0));
+  else if (state.homeSort === 'stage') out.sort((a,b) => STAGES.indexOf(a.stage) - STAGES.indexOf(b.stage));
+  return out;
+}
+
+function homeRows(){ return sortAnalyses(filterAnalyses(analyses)); }
 
 function renderAnalysisTable(rows){
   if (!rows.length) return `<div class="table-wrap"><div class="empty-state">No analyses match the current filters.</div></div>`;
@@ -420,6 +450,28 @@ document.addEventListener('click', e => {
   }
   if (action === 'open-new-analysis'){
     return toast('New Analysis modal lands in Chunk 6');
+  }
+  if (action === 'home-tab'){
+    return setState({ homeFilterTab: node.getAttribute('data-tab') });
+  }
+});
+
+document.addEventListener('input', e => {
+  const node = e.target.closest('[data-action]');
+  if (!node) return;
+  if (node.getAttribute('data-action') === 'home-search'){
+    state.homeSearch = node.value;
+    // targeted table update preserves search input focus
+    const wrap = document.querySelector('.table-wrap');
+    if (wrap) wrap.outerHTML = renderAnalysisTable(homeRows());
+  }
+});
+
+document.addEventListener('change', e => {
+  const node = e.target.closest('[data-action]');
+  if (!node) return;
+  if (node.getAttribute('data-action') === 'home-sort'){
+    setState({ homeSort: node.value });
   }
 });
 
