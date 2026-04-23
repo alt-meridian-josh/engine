@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alt Meridian — Value Workspace</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f8f7f5; --card:#ffffff; --topbar:#141414;
+  --ink:#1a1a1a; --ink-2:#444; --ink-3:#888; --ink-4:#bbb;
+  --accent:#d63b2f; --accent-hover:#b8322a; --accent-soft:#fbeceb;
+  --border:#e5e3e0; --border-strong:#d8d5d0; --row-hover:#faf9f7;
+  --ok:#2f8f5a; --ok-dark:#1d6b42;
+  --warn:#c98a1f; --warn-2:#c96b1f; --info:#2d6fb8;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.04);
+  --shadow-md:0 1px 2px rgba(0,0,0,.04),0 4px 16px rgba(0,0,0,.04);
+  --font-display:'Syne',system-ui,sans-serif;
+  --font-mono:'DM Mono',ui-monospace,SFMono-Regular,monospace;
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--font-mono);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+h1,h2,h3,h4{font-family:var(--font-display);font-weight:600;letter-spacing:-.01em;margin:0;color:var(--ink)}
+h1{font-size:28px} h2{font-size:20px} h3{font-size:16px} h4{font-size:14px}
+p{margin:0} a{color:inherit;text-decoration:none}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer}
+input,select,textarea{font:inherit;color:inherit}
+/* Topbar */
+.topbar{position:sticky;top:0;z-index:50;background:var(--topbar);color:#f5f5f5;height:56px;display:flex;align-items:center;padding:0 24px;gap:20px;border-bottom:1px solid #000}
+.wordmark{font-family:var(--font-display);font-weight:700;letter-spacing:.02em;font-size:16px}
+.wordmark .alt{color:var(--accent)} .wordmark .meridian{color:#f5f5f5}
+.topbar-label{font-family:var(--font-mono);font-size:11px;color:#888;text-transform:uppercase;letter-spacing:.1em}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:14px}
+.topbar-user{color:var(--ink-4);font-size:12px}
+.topbar-divider{width:1px;height:20px;background:#2a2a2a}
+/* Buttons */
+.btn{display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:6px;font-family:var(--font-mono);font-size:13px;font-weight:500;transition:background .15s,color .15s,border-color .15s;border:1px solid transparent;white-space:nowrap}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-hover)}
+.btn-ghost{background:transparent;color:var(--ink);border-color:var(--border)}
+.btn-ghost:hover{background:#f0eeeb}
+.btn-dark-ghost{background:transparent;color:#f5f5f5;border-color:#2a2a2a}
+.btn-dark-ghost:hover{background:#1f1f1f}
+.btn-sm{padding:6px 12px;font-size:12px}
+/* Cards */
+.card{background:var(--card);border:1px solid var(--border);border-radius:8px;box-shadow:var(--shadow-sm)}
+.card-pad{padding:20px}
+/* Chips */
+.chip{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:11px;font-weight:500;padding:3px 9px;border-radius:999px;background:#efece8;color:var(--ink-2);letter-spacing:.02em;white-space:nowrap}
+.chip-grey{background:#eeece8;color:#555}
+.chip-blue{background:#e4eef8;color:#1f4d82}
+.chip-amber{background:#faeed0;color:#8a5e0e}
+.chip-orange{background:#fbe0cf;color:#a24815}
+.chip-green{background:#dcefe2;color:#1d6b42}
+.chip-dark-green{background:#c8e0d0;color:#0f4a2b}
+.chip-red{background:var(--accent-soft);color:var(--accent)}
+.chip-ink{background:#eceae6;color:var(--ink)}
+/* Forms */
+.input,.select,.textarea{display:block;width:100%;background:#fff;border:1px solid var(--border);border-radius:6px;padding:9px 12px;font-family:var(--font-mono);font-size:13px;color:var(--ink);transition:border-color .15s,box-shadow .15s}
+.textarea{resize:vertical;min-height:80px}
+.input:focus,.select:focus,.textarea:focus{outline:0;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+.label{display:block;font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);margin-bottom:6px}
+.field{margin-bottom:16px}
+.field-row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+/* Layout */
+.page{min-height:calc(100vh - 56px)}
+.container{max-width:1400px;margin:0 auto;padding:32px 24px}
+/* Toast */
+#toast-root{position:fixed;bottom:24px;right:24px;z-index:200;display:flex;flex-direction:column;gap:8px}
+.toast{background:var(--ink);color:#fff;padding:10px 16px;border-radius:6px;font-size:13px;box-shadow:var(--shadow-md);animation:toast-in .2s ease-out}
+@keyframes toast-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+/* Modal */
+.modal-overlay{position:fixed;inset:0;z-index:100;background:rgba(20,20,20,.45);display:flex;align-items:center;justify-content:center;padding:24px;animation:fade-in .15s ease-out}
+.modal-card{background:#fff;border-radius:10px;width:100%;max-width:600px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.2);animation:modal-in .2s ease-out}
+.modal-head{padding:22px 24px 14px;border-bottom:1px solid var(--border)}
+.modal-body{padding:20px 24px}
+.modal-foot{padding:14px 24px 20px;display:flex;justify-content:flex-end;gap:10px;border-top:1px solid var(--border)}
+@keyframes fade-in{from{opacity:0}to{opacity:1}}
+@keyframes modal-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+/* Utility */
+.muted{color:var(--ink-3)} .mono{font-family:var(--font-mono)} .display{font-family:var(--font-display)}
+.row-flex{display:flex;align-items:center;gap:12px}
+.boot{padding:80px 24px;text-align:center;color:var(--ink-3);font-size:13px}
+</style>
+</head>
+<body>
+<div id="app"><div class="boot">Loading workspace…</div></div>
+<div id="modal-root"></div>
+<div id="toast-root"></div>
+<script>
+/* State machine + screens land in Chunk 2. */
+</script>
+</body>
+</html>
