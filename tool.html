@@ -750,7 +750,225 @@ function setTier(el, tier) {
   if (S.lastStructured?.type === 'analysis') updateAnalysis();
   renderScenPanel();
 }
-/* === JS_SLOT_4 === */
+// ─── CHAT UI ────────────────────────────────────────────────────────────────
+function addMsg(role, text, isErr) {
+  const chat = document.getElementById('chat');
+  const el = document.createElement('div');
+  el.className = 'msg ' + role;
+  const formatted = esc(text)
+    .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+    .replace(/\n/g,'<br>');
+  const label = role === 'ai' ? 'Meridian' : role === 'system' ? 'system' : 'You';
+  el.innerHTML = `<div class="msg-role">${label}</div><div class="msg-bubble${isErr?' msg-err':''}">${formatted}</div>`;
+  chat.appendChild(el); chat.scrollTop = chat.scrollHeight;
+  return el;
+}
+
+function addTyping() {
+  const chat = document.getElementById('chat');
+  const el = document.createElement('div');
+  el.className = 'msg ai'; el.id = 'typing';
+  el.innerHTML = `<div class="msg-role">Meridian</div><div class="typing"><div class="td"></div><div class="td"></div><div class="td"></div></div>`;
+  chat.appendChild(el); chat.scrollTop = chat.scrollHeight;
+  return el;
+}
+
+function showWelcome() {
+  addMsg('ai', "Describe what you sell and who your buyer is. I'll match it to scenarios from the governed database, build a live value model, and walk you through the inputs that make the number defensible.");
+}
+
+function setLoad(on) {
+  S.loading = on;
+  const send = document.getElementById('send');
+  if (send) send.disabled = on || !S.loaded;
+  if (on) addTyping(); else rmId('typing');
+}
+
+// ─── SEND ───────────────────────────────────────────────────────────────────
+async function send() {
+  const inp = document.getElementById('inp');
+  const text = (inp.value || '').trim();
+  if (!text || S.loading) return;
+  if (S.gateShown && !S.gateUnlocked) { document.getElementById('gate-email')?.focus(); return; }
+  inp.value = ''; inp.style.height = 'auto';
+  if (S.turns === 0) S.ctx = text;
+
+  // Slider-change chip shown above the user message
+  const changed = Object.keys(S.pendingSliderChanges);
+  if (changed.length) {
+    const list = changed.map(k => {
+      const def = S.defs[k]; const v = S.pendingSliderChanges[k];
+      const isDec = def?.unit === 'decimal';
+      return `${def?.label || k}: ${isDec ? pctFmt(v) : rawFmt(v, def?.unit || '')}`;
+    }).join(', ');
+    const chat = document.getElementById('chat');
+    const badge = document.createElement('div');
+    badge.className = 'change-badge';
+    badge.innerHTML = `<div class="cb">⟳ ${esc(list)}</div>`;
+    chat.appendChild(badge);
+  }
+
+  addMsg('user', text);
+  S.history.push({ role:'user', content:text });
+  S.turns++;
+
+  // Fast-path domain match before calling the edge function
+  if (S.turns === 1) detectEng(text);
+
+  await discTurn(text);
+}
+
+async function discTurn(text) {
+  setLoad(true);
+  const modelState = buildModelState();
+  const consumedChanges = { ...S.pendingSliderChanges };
+  S.pendingSliderChanges = {};
+
+  try {
+    const res = await fetch(CHAT, {
+      method:'POST',
+      headers:{ 'Content-Type':'application/json', 'Authorization':`Bearer ${KEY}`, 'apikey':KEY },
+      body: JSON.stringify({
+        query: text,
+        history: S.history.slice(0, -1),
+        session_id: S.sid,
+        solution_context: S.ctx,
+        model_state: modelState,
+      })
+    });
+    if (!res.ok) throw new Error(`edge ${res.status}`);
+    const data = await res.json();
+    const structured = data.structured || { type:'text', text: data.error || 'Unable to generate.' };
+    S.history.push({ role:'assistant', structured, content: JSON.stringify(structured) });
+    if (S.history.length > 14) S.history = S.history.slice(-14);
+    S.lastStructured = structured;
+
+    extractNums(text);
+    renderStructured(structured);
+
+    // Refine active scenarios when the edge function returns a domain match
+    if (structured.type === 'analysis' && data.domains_matched?.length) {
+      const prev = new Set(S.activeScens);
+      activateDomain(data.domains_matched);
+      const dropped = [...prev].filter(id => !S.activeScens.has(id));
+      [...S.activeScens].filter(id => !prev.has(id)).forEach(id => S.scenarioActivatedTurn[id] = S.turns);
+      if (dropped.length) {
+        S.droppedSoon = new Set(dropped);
+        setTimeout(() => { S.droppedSoon = new Set(); renderScenPanel(); updateAnalysis(); }, 1800);
+      }
+    }
+
+    renderScenPanel();
+    updateAnalysis();
+
+    if (S.turns === 1 && !S.gateShown && !S.gateUnlocked && structured.type === 'analysis') {
+      setTimeout(showGate, 1400);
+    }
+  } catch (e) {
+    console.error('discTurn failed:', e);
+    S.pendingSliderChanges = consumedChanges; // restore so the retry resends them
+    botMsgError(text);
+  }
+  setLoad(false);
+}
+
+function botMsgError(failedText) {
+  const el = addMsg('ai', 'Connection error — couldn\'t reach the governed model. Check your network and retry.', true);
+  const btn = document.createElement('button');
+  btn.className = 'retry-btn'; btn.textContent = '↻ Retry';
+  btn.onclick = () => { el.remove(); discTurn(failedText); };
+  el.querySelector('.msg-bubble').appendChild(document.createElement('br'));
+  el.querySelector('.msg-bubble').appendChild(btn);
+}
+
+// Compact state for the edge function — ~50 tokens of grounding.
+function buildModelState() {
+  const agg = computeAggregates(S.activeScens);
+  const changed = Object.entries(S.pendingSliderChanges).map(([k,v]) => {
+    const def = S.defs[k];
+    const isDec = def?.unit === 'decimal';
+    return `${def?.label || k}=${isDec ? pctFmt(v) : rawFmt(v, def?.unit || '')}`;
+  });
+  return {
+    total: Math.round(agg.y1),
+    scenarios: agg.winners.length,
+    conf: S.conf,
+    changed: changed.length ? changed : undefined,
+  };
+}
+
+// ─── DOMAIN ACTIVATION ──────────────────────────────────────────────────────
+function activateDomain(domains) {
+  S.lastDomains = domains;
+  S.activeScens.clear();
+  const matched = S.scenarios
+    .filter(s => domains.some(d =>
+      s.domain_id === d || (s.scenario_id || '').toLowerCase().startsWith(d.substring(0,3).toLowerCase())))
+    .filter(s => s.print_priority != null)
+    .sort((a,b) => (a.print_priority || 99) - (b.print_priority || 99))
+    .slice(0, 6);
+  matched.forEach(s => S.activeScens.add(s.scenario_id));
+
+  // Set domain tag in header
+  const dom = S.engines.find(e => domains.includes(e.engine_id) || domains.includes(e.domain_id));
+  const tag = document.getElementById('rh-domain');
+  if (dom) { tag.textContent = dom.vendor_category || dom.engine_id; tag.style.display = ''; }
+}
+
+// Keyword fast-path for first turn — runs before the edge function responds.
+function detectEng(text) {
+  const lc = text.toLowerCase();
+  const map = {
+    'ENG-RFD-001': ['rfid','radio frequency','item level','warehouse','3pl','retail shrink','inventory accuracy'],
+    'ENG-AIP-001': ['ai platform','enterprise ai','machine learning','foundation model','ontology','palantir','aip'],
+    'VEN-VEF-001': ['value engineering','value case','roi tool'],
+  };
+  for (const [id, kws] of Object.entries(map)) {
+    if (kws.some(kw => lc.includes(kw))) { S.engine = id; return; }
+  }
+  if (S.engines.length) S.engine = S.engines[0].engine_id;
+}
+
+// Extract numbers from user text → inputs (unless slider already set manually)
+function extractNums(text) {
+  const pats = [
+    { re: /(\d[\d,]*)\s*(?:store|location|site|facility)/i,           key:'num_stores' },
+    { re: /(\d[\d,]*)\s*(?:sku|item|style)/i,                         key:'total_sku_locations' },
+    { re: /(\d[\d,.]+)\s*(?:million|M)\s*(?:revenue|sales)/i,         key:'annual_store_revenue', m:1e6 },
+    { re: /\$?(\d[\d,]+)[kK]\s*(?:deal|contract|acv)/i,               key:'implementation_cost', m:1e3 },
+    { re: /(\d[\d,]*)\s*(?:associate|employee|staff|fte)/i,           key:'associates_per_store' },
+    { re: /(\d[\d,]*)\s*(?:cycle|count per year)/i,                   key:'annual_count_cycles' },
+    { re: /\$?(\d[\d,]+)\s*(?:per hour|\/hr|loaded rate)/i,           key:'loaded_rate' },
+    { re: /(\d[\d,.]+)\s*%\s*(?:margin|gm|gross margin)/i,            key:'gross_margin_pct', d:100 },
+    { re: /(\d[\d,.]+)\s*%\s*(?:shrink)/i,                            key:'shrink_pct_baseline', d:100 },
+  ];
+  pats.forEach(({re, key, m=1, d=1}) => {
+    if (S.inputs[key]?.source === 'buyer') return;
+    const match = text.match(re);
+    if (match) {
+      const v = parseFloat(match[1].replace(/,/g,''));
+      if (!isNaN(v)) S.inputs[key] = { value:(v*m)/d, source:'chat' };
+    }
+  });
+}
+
+// Render the assistant's structured response into the chat bubble.
+// Rich detail (mechanism/evidence/scenarios) lives in the right pane — the
+// chat shows the conversational text + title + follow-up.
+function renderStructured(s) {
+  if (!s || s.type === 'text') { addMsg('ai', s?.text || '—'); return; }
+  if (s.type === 'analysis') {
+    const parts = [];
+    if (s.title) parts.push(`**${s.title}**`);
+    if (s.mechanism?.description) parts.push(s.mechanism.description);
+    else if (s.signals?.length) parts.push(s.signals.map(x => '• ' + x.name).join('\n'));
+    if (s.follow_up) parts.push('\n' + s.follow_up);
+    addMsg('ai', parts.join('\n\n') || 'Analysis built — see the right pane.');
+    return;
+  }
+  // Any other shape — fall back to the text or a notice.
+  addMsg('ai', s.text || 'Response received.');
+}
 /* === JS_SLOT_5 === */
 </script>
 </body>
