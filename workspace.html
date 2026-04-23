@@ -227,6 +227,35 @@ input,select,textarea{font:inherit;color:inherit}
 .prompt-icon{width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:#eceae6;color:var(--ink-3);font-size:11px;cursor:help;font-family:var(--font-mono);font-weight:700;position:relative}
 .prompt-icon:hover{background:var(--accent-soft);color:var(--accent)}
 .prompt-icon:hover::after{content:attr(data-prompt);position:absolute;bottom:26px;right:0;background:var(--ink);color:#fff;padding:8px 12px;border-radius:6px;font-size:12px;font-family:var(--font-mono);font-weight:400;white-space:normal;width:260px;z-index:10;box-shadow:var(--shadow-md);letter-spacing:0;text-transform:none;line-height:1.4}
+/* Outputs tab */
+.three-q{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:24px}
+.big-card{background:#fff;border:1px solid var(--border);border-radius:8px;padding:24px;box-shadow:var(--shadow-sm);display:flex;flex-direction:column;gap:8px}
+.big-card.acting{border-top:4px solid var(--accent)}
+.big-card.delay{border-top:4px solid var(--warn)}
+.big-card.nothing{border-top:4px solid var(--ink)}
+.big-card-label{font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3)}
+.big-card-value{font-family:var(--font-display);font-size:34px;font-weight:600;letter-spacing:-.02em;line-height:1.05}
+.big-card-value.acting{color:var(--accent)} .big-card-value.delay{color:var(--warn-2)} .big-card-value.nothing{color:var(--ink)}
+.big-card-value .u{font-size:14px;opacity:.6;margin-left:4px;font-weight:500}
+.big-card-sub{font-family:var(--font-mono);font-size:12px;color:var(--ink-2)}
+.big-card-detail{font-family:var(--font-mono);font-size:11px;color:var(--ink-3);margin-top:2px}
+.waterfall{background:#fff;border:1px solid var(--border);border-radius:8px;padding:18px 24px;box-shadow:var(--shadow-sm)}
+.waterfall-row{display:grid;grid-template-columns:220px 1fr 110px;gap:14px;align-items:center;padding:7px 0}
+.waterfall-label{font-size:12px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:var(--font-mono)}
+.waterfall-label.inactive{color:var(--ink-3);text-decoration:line-through}
+.waterfall-bar-wrap{background:#f5f2ed;border-radius:4px;height:22px;overflow:hidden}
+.waterfall-bar{height:100%;border-radius:4px;transition:width .3s;background:#d1ccc5}
+.waterfall-bar.Labor{background:#4d7bbe} .waterfall-bar.Compliance{background:#d48a1f}
+.waterfall-bar.Risk{background:var(--accent)} .waterfall-bar.Strategic{background:#3d8c5f}
+.waterfall-value{font-family:var(--font-mono);font-size:12px;color:var(--ink);font-weight:500;text-align:right}
+.waterfall-value.inactive{color:var(--ink-3)}
+.waterfall-total{margin-top:10px;padding-top:12px;border-top:1px solid var(--border);font-family:var(--font-display);font-weight:600;font-size:15px;display:flex;justify-content:space-between;align-items:center}
+.waterfall-total-value{color:var(--accent);font-size:18px}
+.fin-wrap{background:#fff;border:1px solid var(--border);border-radius:8px;overflow:hidden;box-shadow:var(--shadow-sm)}
+.fin-table{width:100%;border-collapse:collapse;font-size:13px}
+.fin-table th{background:#faf9f7;text-align:left;padding:11px 18px;font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);font-weight:500;border-bottom:1px solid var(--border)}
+.fin-table td{padding:16px 18px;font-family:var(--font-mono);color:var(--ink);font-size:15px;font-weight:500}
+.fin-table td.accent{color:var(--accent)}
 /* Next actions */
 .mini-section-title{font-family:var(--font-display);font-size:15px;font-weight:600;margin-bottom:10px}
 .action-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);font-size:13px}
@@ -732,7 +761,98 @@ function applyPreset(preset){
   render();
   toast(`Preset · ${preset}`);
 }
-function renderOutputs(a){   return `<div class="tab-placeholder">Outputs tab lands in Chunk 11</div>`; }
+/* ---------- OUTPUTS tab ---------- */
+function computeFinancial(a){
+  const pre = outputsByAnalysis[a.id]?.financial;
+  if (pre) return pre;
+  const arv = computeArv(a);
+  if (!arv) return null;
+  return {
+    y1: Math.round(arv * 0.75),
+    y2: arv,
+    y3: Math.round(arv * 1.1),
+    npv: Math.round(arv * 2.8),
+    payback: 12,
+    irr: 0.35
+  };
+}
+
+function renderOutputs(a){
+  const arv = computeArv(a);
+  const monthly = arv / 12;
+  const threeYr = arv * 3;
+  const scenarios = scenariosByAnalysis[a.id] || [];
+  const maxImpact = Math.max(1, ...scenarios.map(s => s.active ? s.annualImpact : 0));
+  const fin = computeFinancial(a);
+
+  return `
+    <div class="section-head">
+      <h2 class="section-title">Three Questions</h2>
+      <div class="preset-bar">
+        ${['Conservative','Typical','Aggressive'].map(p =>
+          `<button class="preset-btn ${state.assumptionTier===p?'is-active':''}" data-action="preset" data-preset="${p}">${p}</button>`
+        ).join('')}
+      </div>
+    </div>
+    <div class="three-q">
+      <div class="big-card acting">
+        <div class="big-card-label">Value of Acting</div>
+        <div class="big-card-value acting">${fmtMoney(arv)}</div>
+        <div class="big-card-sub">Annual run-rate once live</div>
+        <div class="big-card-detail">Sum of active-scenario impacts</div>
+      </div>
+      <div class="big-card delay">
+        <div class="big-card-label">Cost of Delay</div>
+        <div class="big-card-value delay">${fmtMoney(monthly)}<span class="u">/mo</span></div>
+        <div class="big-card-sub">Per month the decision is deferred</div>
+        <div class="big-card-detail">Value of Acting ÷ 12</div>
+      </div>
+      <div class="big-card nothing">
+        <div class="big-card-label">Cost of Doing Nothing</div>
+        <div class="big-card-value nothing">${fmtMoney(threeYr)}</div>
+        <div class="big-card-sub">Cumulative 3-year miss</div>
+        <div class="big-card-detail">Assumes flat baseline · no degradation</div>
+      </div>
+    </div>
+    <section class="ws-section">
+      <div class="section-head"><h2 class="section-title">Scenario Waterfall</h2></div>
+      ${scenarios.length ? `
+        <div class="waterfall">
+          ${scenarios.map(s => {
+            const pct = s.active ? Math.max(4, Math.round(s.annualImpact / maxImpact * 100)) : 3;
+            const cls = s.active ? s.theme : '';
+            return `
+              <div class="waterfall-row">
+                <div class="waterfall-label ${s.active?'':'inactive'}">${escapeHtml(s.name)}</div>
+                <div class="waterfall-bar-wrap"><div class="waterfall-bar ${cls}" style="width:${pct}%"></div></div>
+                <div class="waterfall-value ${s.active?'':'inactive'}">${fmtMoney(s.annualImpact)}</div>
+              </div>`;
+          }).join('')}
+          <div class="waterfall-total">
+            <span>Total ARV · active scenarios</span>
+            <span class="waterfall-total-value">${fmtMoney(arv)}</span>
+          </div>
+        </div>` : `<div class="tab-placeholder">No scenarios to chart.</div>`}
+    </section>
+    <section class="ws-section">
+      <div class="section-head"><h2 class="section-title">Financial Summary</h2></div>
+      ${fin ? `
+        <div class="fin-wrap">
+          <table class="fin-table">
+            <thead><tr><th>Y1 Realized</th><th>Y2</th><th>Y3</th><th>NPV</th><th>Payback</th><th>IRR</th></tr></thead>
+            <tbody><tr>
+              <td>${fmtMoney(fin.y1)}</td>
+              <td>${fmtMoney(fin.y2)}</td>
+              <td>${fmtMoney(fin.y3)}</td>
+              <td class="accent">${fmtMoney(fin.npv)}</td>
+              <td>${fin.payback} mo</td>
+              <td>${Math.round(fin.irr*100)}%</td>
+            </tr></tbody>
+          </table>
+        </div>` : `<div class="tab-placeholder">Activate scenarios to produce a financial summary.</div>`}
+    </section>
+  `;
+}
 function renderSnapshots(a){ return `<div class="tab-placeholder">Snapshots tab lands in Chunk 12</div>`; }
 
 function onNewAnalysisSubmit(e){
