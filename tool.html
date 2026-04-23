@@ -367,6 +367,11 @@ const S = {
   signals: [], selectedSignals: new Set(), signalScenarioIds: new Set(),
   lastDomains: [], lastStructured: null,
   scenarioActivatedTurn: {},
+  // Interview engine (Act 2): the scenario Meridian just asked about, the set
+  // of scenarios confirmed-answered this session, and the flag that flips when
+  // every active scenario has been grounded. interviewComplete drives the
+  // Generate Appraisal button visibility in the right-pane header.
+  currentScenario: null, groundedScenarios: new Set(), interviewComplete: false,
   saveState: 'idle',
 };
 
@@ -894,7 +899,7 @@ function activateFromSignalSelection() {
   const signalCount = S.selectedSignals.size;
   addMsg('system',
     `${matched.length} scenario${matched.length===1?'':'s'} activated across ${signalCount} signal${signalCount===1?'':'s'}. Numbers are defaults — we'll ground them together.`);
-  const q = pickHighestARVQuestion();
+  const q = pickNextScenarioQuestion();
   if (q) addMsg('ai', q);
   else   addMsg('ai', "Tell me about your buyer's most-affected operating pattern so I can ground the defaults.");
 }
@@ -920,23 +925,27 @@ async function selectVertical(domainId) {
   renderOnboarding();
 }
 
-// First-turn question: find the activated scenario with the highest Y1 ARV
-// at current defaults, then return its first discovery_questions entry.
-// Differs from pickDiscoveryQuestion (which walks by govInputs index) — this
-// picks by dollar impact so the opening interview question is the one that
-// moves the biggest number in the model.
-function pickHighestARVQuestion() {
-  const ranked = [...S.activeScens]
-    .map(id => {
-      const s = S.scenarios.find(x => x.scenario_id === id);
-      if (!s) return null;
-      return { s, arv: evalF(s.value_scenario_formula) || 0 };
-    })
-    .filter(Boolean)
-    .sort((a,b) => b.arv - a.arv);
-  const top = ranked[0]?.s;
-  if (!top) return null;
-  return firstQuestion(top.discovery_questions || top.cfo_challenge || '');
+// Interview cursor: walk S.activeScens in print_priority order and return the
+// first discovery_questions entry from the next scenario not yet grounded.
+// Side effect — sets S.currentScenario so the next numeric capture in discTurn
+// is attributed to this scenario. Returns null when every active scenario has
+// been grounded (interview complete).
+//
+// Scenarios with neither discovery_questions nor cfo_challenge are auto-
+// grounded and skipped so the interview never stalls on a data hole.
+function pickNextScenarioQuestion() {
+  const ordered = S.scenarios
+    .filter(s => S.activeScens.has(s.scenario_id))
+    .sort((a,b) => (a.print_priority || 99) - (b.print_priority || 99));
+  for (const scen of ordered) {
+    if (S.groundedScenarios.has(scen.scenario_id)) continue;
+    const q = firstQuestion(scen.discovery_questions || scen.cfo_challenge || '');
+    if (!q) { S.groundedScenarios.add(scen.scenario_id); continue; }
+    S.currentScenario = scen.scenario_id;
+    return q;
+  }
+  S.currentScenario = null;
+  return null;
 }
 
 // ─── AGGREGATE MATH ─────────────────────────────────────────────────────────
@@ -1600,24 +1609,11 @@ function extractNums(text) {
   return captured;
 }
 
-// ─── DISCOVERY QUESTION PICKER ──────────────────────────────────────────────
-// Walks active scenarios in print_priority order and returns the Nth question
-// (N = S.govInputs) from its discovery_questions column. Falls back to
-// cfo_challenge if a scenario has no discovery_questions. Null means we've
-// exhausted questions — the renderer can degrade gracefully.
-function pickDiscoveryQuestion() {
-  const ordered = S.scenarios
-    .filter(s => S.activeScens.has(s.scenario_id))
-    .sort((a,b) => (a.print_priority || 99) - (b.print_priority || 99));
-  const scen = ordered[S.govInputs] || ordered[0];
-  if (!scen) return null;
-  return firstQuestion(scen.discovery_questions || scen.cfo_challenge || '');
-}
-
 // Render the AI's chat turn as a discovery-mode bubble instead of Claude's
-// narrative. Acknowledges captures from this turn and asks the next question.
+// narrative. Acknowledges captures from this turn and asks the next question
+// from the interview cursor (pickNextScenarioQuestion).
 function renderDiscoveryTurn(captured, isFirstActivation) {
-  const q = pickDiscoveryQuestion();
+  const q = pickNextScenarioQuestion();
   const ackParts = captured.map(({key, val}) => {
     const def = S.defs[key];
     const disp = def?.unit === 'decimal' ? pctFmt(val) : rawFmt(val, def?.unit || '');
@@ -1859,6 +1855,8 @@ function newSession() {
   S.engine = null; S.scenarioActivatedTurn = {};
   S.gateShown = false; S.gateUnlocked = false;
   S.govInputs = 0; S.skipDiscovery = false;
+  S.currentScenario = null; S.groundedScenarios = new Set();
+  S.interviewComplete = false;
   S.onboarding = { step: 1, solution: null, complete: false };
   S.signals = []; S.selectedSignals = new Set(); S.signalScenarioIds = new Set();
   S.saveState = 'idle'; S.pendingSliderChanges = {};
