@@ -1148,7 +1148,158 @@ function newSession() {
   showWelcome();
 }
 
-/* === JS_SLOT_6 === */
+// ─── PDF EXPORT ─────────────────────────────────────────────────────────────
+function downloadPDF() {
+  const s = S.lastStructured;
+  if (!s) { toast('Run a value analysis first.'); return; }
+  if (!window.jspdf) { toast('PDF library not loaded.'); return; }
+  if (!S.gateUnlocked) { showGate(); return; }
+
+  const agg = computeAggregates(S.activeScens);
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'pt', format:'letter' });
+  const W = 612, L = 20, R = W - 20, TW = W - 40;
+  const ACC=[200,75,47], INK=[15,15,15], MUT=[136,128,120];
+  const RULE=[224,221,214], WHITE=[255,255,255], LTBG=[249,247,243];
+  const GREEN=[58,155,96], AMBER=[196,133,42], RED=[189,66,66];
+  const TIER_C = { T1:GREEN, T2:ACC, T3:AMBER, T4:RED };
+  let y = 0;
+
+  const setC=c=>doc.setTextColor(...c), setF=c=>doc.setFillColor(...c),
+        setD=c=>doc.setDrawColor(...c), px=n=>doc.setFontSize(n);
+
+  // HEADER
+  setF(INK); doc.rect(0, 0, W, 60, 'F');
+  px(11); setC(ACC); doc.setFont('helvetica','bold');
+  doc.text('ALT', L, 22);
+  setC(WHITE); doc.text(' MERIDIAN', L + doc.getTextWidth('ALT'), 22);
+  px(7); setC(MUT); doc.setFont('helvetica','normal');
+  doc.text('GOVERNED VALUE ANALYSIS', L, 36);
+  px(18); setC(WHITE); doc.setFont('helvetica','bold');
+  const titleLines = doc.splitTextToSize(s.title || 'Value Analysis', TW);
+  doc.text(titleLines, L, 52);
+  y = 60 + titleLines.length * 20 + 8;
+  setD(ACC); doc.setLineWidth(1.5); doc.line(L, y, R, y); y += 16;
+
+  const section = lbl => {
+    if (y > 700) { doc.addPage(); y = 30; }
+    setD(RULE); doc.setLineWidth(0.5); doc.line(L, y, R, y); y += 8;
+    px(7); setC(MUT); doc.setFont('helvetica','bold');
+    doc.text(lbl.toUpperCase(), L, y); y += 12;
+  };
+  const body = (t, maxW, color) => {
+    px(9.5); setC(color || INK); doc.setFont('helvetica','normal');
+    const lines = doc.splitTextToSize(t, maxW || TW);
+    if (y + lines.length * 13 > 740) { doc.addPage(); y = 30; }
+    doc.text(lines, L, y); y += lines.length * 13 + 4;
+  };
+
+  // COMPUTED METRICS (from our aggregation)
+  section('Computed Metrics');
+  const metrics = [
+    ['Year-1 realized', fmt(agg.y1)],
+    ['Monthly cost of inaction', fmt(agg.y1/12)],
+    ['3-yr cumulative', fmt(agg.y1+agg.y2+agg.y3)],
+    ['Payback', agg.pay != null ? agg.pay.toFixed(1)+' mo' : '—'],
+    ['BCR', agg.bcr != null ? agg.bcr.toFixed(1)+'x'+(agg.bcrCapped?' (cap)':'') : '—'],
+    ['NPV (10% DCF)', agg.npv != null ? fmt(agg.npv) : '—'],
+    ['Tier', S.conf],
+    ['Active scenarios', String(agg.winners.length) + (agg.poolGuard.length ? ' (+'+agg.poolGuard.length+' shadowed)' : '')],
+  ];
+  metrics.forEach(([k,v], i) => {
+    const col = i % 2;
+    const rowY = y + Math.floor(i/2) * 18;
+    px(8); setC(MUT); doc.setFont('helvetica','normal');
+    doc.text(k, L + col * (TW/2), rowY);
+    px(10); setC(INK); doc.setFont('helvetica','bold');
+    doc.text(v, L + col * (TW/2) + 110, rowY);
+  });
+  y += Math.ceil(metrics.length/2) * 18 + 8;
+
+  if (s.signals?.length) {
+    section('Signals');
+    s.signals.forEach(sig => {
+      if (y > 700) { doc.addPage(); y = 30; }
+      setF(ACC); doc.circle(L + 3, y - 3, 2.5, 'F');
+      px(10); setC(INK); doc.setFont('helvetica','bold');
+      doc.text(sig.name || '', L + 10, y); y += 13;
+      body(sig.description || '', TW - 10, MUT); y += 2;
+    });
+  }
+
+  if (s.mechanism) {
+    section('Primary Mechanism');
+    px(11); setC(ACC); doc.setFont('helvetica','bold');
+    doc.text(s.mechanism.name || '', L, y); y += 14;
+    body(s.mechanism.description || '', TW, [58,56,50]);
+  }
+
+  if (s.evidence?.length) {
+    section('Evidence');
+    s.evidence.forEach(ev => {
+      if (y > 700) { doc.addPage(); y = 30; }
+      const tc = TIER_C[ev.tier] || MUT;
+      setF(LTBG); setD(RULE); doc.setLineWidth(0.5);
+      doc.roundedRect(L, y - 10, TW, 36, 2, 2, 'FD');
+      setF(tc); doc.roundedRect(L + 4, y - 7, 22, 14, 2, 2, 'F');
+      px(8); setC(WHITE); doc.setFont('courier','bold');
+      doc.text(ev.tier || '', L + 6, y + 3);
+      px(9); setC(INK); doc.setFont('helvetica','normal');
+      const claimLines = doc.splitTextToSize(ev.claim || '', TW - 36);
+      doc.text(claimLines[0] || '', L + 32, y + 3);
+      px(7.5); setC(MUT); doc.setFont('courier','normal');
+      doc.text(`${ev.publisher || ''} · ${ev.year || ''}`, L + 32, y + 16);
+      y += 40;
+    });
+  }
+
+  if (s.scenarios?.length) {
+    section('Value Scenarios');
+    s.scenarios.forEach((sc, i) => {
+      if (y > 680) { doc.addPage(); y = 30; }
+      setF(LTBG); setD(RULE); doc.setLineWidth(0.5);
+      doc.roundedRect(L, y - 10, TW, 54, 2, 2, 'FD');
+      px(10); setC(ACC); doc.setFont('helvetica','bold');
+      doc.text(String(i+1).padStart(2,'0'), L + 6, y + 4);
+      px(10); setC(INK); doc.text(sc.name || '', L + 22, y + 4);
+      px(8.5); setC(MUT); doc.setFont('helvetica','normal');
+      const whatLines = doc.splitTextToSize(sc.what || '', TW - 160);
+      doc.text(whatLines[0] || '', L + 22, y + 18);
+      px(13); setC(ACC); doc.setFont('helvetica','bold');
+      const range = `${sc.range_low || ''} – ${sc.range_high || ''}`;
+      doc.text(range, R - 8 - doc.getTextWidth(range), y + 6);
+      px(7.5); setC(MUT); doc.setFont('courier','normal');
+      doc.text(sc.horizon || '', R - 8 - doc.getTextWidth(sc.horizon || ''), y + 22);
+      y += 62;
+    });
+  }
+
+  if (s.coi) {
+    if (y > 660) { doc.addPage(); y = 30; }
+    y += 8;
+    setF(INK); doc.rect(L - 8, y - 14, TW + 16, 70, 'F');
+    px(7); setC(MUT); doc.setFont('helvetica','normal');
+    doc.text('COST OF INACTION', L, y - 2); y += 6;
+    px(26); setC(ACC); doc.setFont('helvetica','bold');
+    doc.text(s.coi.monthly || fmt(agg.y1/12), L, y + 14); y += 22;
+    px(9.5); setC(WHITE); doc.setFont('helvetica','normal');
+    const framingLines = doc.splitTextToSize(s.coi.framing || `Every month without a decision costs ${fmt(agg.y1/12)}.`, TW);
+    doc.text(framingLines, L, y + 4); y += framingLines.length * 13 + 20;
+  }
+
+  // FOOTER
+  if (y > 720) { doc.addPage(); y = 760; } else { y = 760; }
+  setD(RULE); doc.setLineWidth(0.5); doc.line(L, y, R, y);
+  px(7.5); setC(MUT); doc.setFont('helvetica','normal');
+  doc.text('Alt Meridian · Value belongs to mechanisms, not solutions. · altmeridian.com',
+    W / 2, y + 12, { align:'center' });
+
+  const slug = (s.title || 'value-analysis').toLowerCase().replace(/[^a-z0-9]+/g,'-').slice(0, 40);
+  doc.save(`${slug}.pdf`);
+}
+
+// ─── INIT ───────────────────────────────────────────────────────────────────
+load();
 </script>
 </body>
 </html>
