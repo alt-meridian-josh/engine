@@ -23,3 +23,24 @@
 **Root cause:** N/A — intentional design
 **Rule going forward:** Read this file before every session. Apply tagged rules to active project.
 **Applies to:** all
+
+## 2026-04-23 — Search-input focus loss on full re-render
+**Context:** Building workspace.html home screen. `setState()` replaces `#app.innerHTML`, which destroys the currently-focused search input mid-keystroke — the field loses focus and the user has to click back in to keep typing.
+**What happened:** First pass wired the search box through `setState({ homeSearch: val })`. Every keystroke rerendered the full home and dropped focus. Fix: set `state.homeSearch` silently and replace only `.table-wrap` via `outerHTML = renderAnalysisTable(homeRows())`.
+**Root cause:** A single `render()` function tied to the whole screen can't preserve DOM identity for an input being typed into. Vanilla-JS re-render pattern ≠ React's reconciliation.
+**Rule going forward:** When a render function owns the full screen, live text inputs need targeted DOM updates (replace just the dependent subtree), NOT `setState → render`. Apply the pattern: mutate state, then `node.outerHTML = renderFragment(...)` for the consumers.
+**Applies to:** alt-meridian, other single-file SPAs
+
+## 2026-04-23 — 150-line chunk cap forced a cleaner scope cut
+**Context:** Chunk 8 (Overview tab) naturally included KPIs, Health, Scenarios-mini, Timeline, Next Actions AND Stakeholders + inline-edit. First pass hit 193 lines of diff.
+**What happened:** Rather than breaking the cap, I moved Stakeholders + inline-edit to Chunk 13 (the polish chunk). Chunk 8 landed at 150. Chunk 13 took the deferred work plus Esc/Enter key handling — which grouped cleanly as 'all cross-tab interaction polish.'
+**Root cause:** First pass sized work by 'what belongs on this tab,' not 'what belongs in this commit.' The cap forced a commit-boundary view.
+**Rule going forward:** Commit-size caps aren't overhead — they surface the right scope cuts. When over budget, ask 'what here is polish vs structure?' and move the polish.
+**Applies to:** alt-meridian, all
+
+## 2026-04-23 — `applyPreset` baseline snapshot prevents compounding
+**Context:** Inputs tab preset buttons multiply scenario.annualImpact by 0.75/1/1.25. Naïve implementation compounds on repeated clicks.
+**What happened:** First sketch multiplied the live `annualImpact` in-place. Clicking Aggressive → Aggressive → Conservative left values at 1.25·1.25·0.75·original, not 0.75·original.
+**Root cause:** Forgot to separate baseline from derived state.
+**Rule going forward:** Any state that can be rescaled or re-expressed needs an explicit baseline stored on first mutation (`baselineImpact ??= annualImpact`). Derive rendered values from baseline every time; never mutate the baseline.
+**Applies to:** alt-meridian, any modeling UI
