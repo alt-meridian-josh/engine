@@ -172,6 +172,9 @@ html,body{height:100%;background:var(--black);color:var(--t1);font-family:var(--
 .scen-card{background:var(--bg);border:1px solid var(--border);border-radius:2px;overflow:hidden;animation:fadeUp 0.25s ease;border-left:2px solid var(--red);cursor:pointer;transition:background 0.15s,border-color 0.15s;}
 .scen-card:hover{background:var(--bg2);}
 .scen-card.off{opacity:0.4;border-left-color:var(--t3);}
+.scen-card.grounded{border-left-color:var(--green);border-left-width:3px;}
+.scen-card.grounded .sc-val{color:var(--green);}
+.scen-card.grounded .sc-check{color:var(--green);font-size:13px;margin-right:2px;}
 .scen-card.shadowed{border-left-color:var(--amber);}
 .sc-head{padding:10px 14px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border-bottom:1px solid var(--border);background:rgba(0,0,0,0.2);}
 .sc-theme{font-size:8px;letter-spacing:0.1em;text-transform:uppercase;color:var(--t3);margin-bottom:3px;}
@@ -1034,17 +1037,33 @@ function updateAnalysis() {
   wireSliders();
 }
 
-// Derived UI state: exploratory until 3 chat-captured inputs have landed.
-function isExploratory() { return S.govInputs < 3; }
+// Derived UI state. Two independent governed unlocks — either the seller
+// captured 3+ numeric inputs in free-form chat (legacy path), OR the interview
+// engine walked every active scenario and each got an answer (Act 2 path).
+// The scenario-grounded path is robust to edge cases where a seller
+// answers with the same number across scenarios — every scenario still got
+// explicit attention, which is what makes the output defensible.
+function isExploratory() {
+  if (S.govInputs >= 3) return false;
+  if (S.activeScens.size > 0
+      && S.groundedScenarios.size === S.activeScens.size) return false;
+  return true;
+}
 
 function renderGovBanner() {
   const ex = isExploratory();
   const label = ex
     ? 'Exploratory — industry defaults only. Not defensible.'
     : 'Governed — buyer inputs applied';
-  const count = ex
-    ? `${S.govInputs} of 3 buyer inputs captured`
-    : `${S.govInputs} buyer inputs applied`;
+  // Progress readout: once scenarios are active, the banner reflects the
+  // interview cursor (N of M scenarios grounded) rather than the raw
+  // buyer-inputs counter. Pre-activation (no scenarios yet) falls back to the
+  // legacy count so the banner always has something to say.
+  const interviewActive = S.activeScens.size > 0;
+  const count = interviewActive
+    ? `${S.groundedScenarios.size} of ${S.activeScens.size} scenarios grounded`
+    : (ex ? `${S.govInputs} of 3 buyer inputs captured`
+          : `${S.govInputs} buyer inputs applied`);
   return `<div class="gov-banner ${ex?'exploratory':'governed'}">
     <span class="gb-dot"></span>
     <span>${esc(label)}</span>
@@ -1117,8 +1136,10 @@ function renderScenCards(agg) {
   const rows = display.slice(0, 8).map(r => {
     const s = r.s;
     const on = S.activeScens.size === 0 || S.activeScens.has(s.scenario_id);
+    const grounded = S.groundedScenarios.has(s.scenario_id);
     const cls = ['scen-card'];
     if (!on) cls.push('off');
+    if (grounded) cls.push('grounded');
     if (r.shadowed) cls.push('shadowed');
     if (r.fading) cls.push('off');
     const coi = r.y1 > 0
@@ -1128,14 +1149,18 @@ function renderScenCards(agg) {
     const ev = s.evidence_strength
       ? `<div class="sc-row"><span class="sc-rk">Evidence</span><span class="sc-rv">${esc(s.evidence_strength)}</span></div>` : '';
     const shadowTag = r.shadowed ? ' <span style="font-size:8px;color:var(--amber);letter-spacing:0.08em;text-transform:uppercase">· shadowed</span>' : '';
+    const groundedTag = grounded && !r.shadowed
+      ? ' <span style="font-size:8px;color:var(--green);letter-spacing:0.08em;text-transform:uppercase">· grounded</span>'
+      : '';
+    const check = grounded ? '<span class="sc-check">✓</span> ' : '';
     return `<div class="${cls.join(' ')}" onclick="toggleScen('${s.scenario_id}')" data-sid="${s.scenario_id}">
       <div class="sc-head">
         <div class="sc-left">
-          <div class="sc-theme">${esc(s.value_theme || 'Value')}${shadowTag}</div>
+          <div class="sc-theme">${esc(s.value_theme || 'Value')}${shadowTag}${groundedTag}</div>
           <div class="sc-name">${esc(s.one_liner || firstSentence(s.description))}</div>
         </div>
         <div class="sc-right">
-          <div class="sc-val">${fmt(r.y1)}</div>
+          <div class="sc-val">${check}${fmt(r.y1)}</div>
           <div class="sc-sub">Y1 realized</div>
         </div>
       </div>
