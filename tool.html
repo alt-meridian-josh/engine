@@ -922,13 +922,13 @@ async function discTurn(text) {
     if (S.history.length > 14) S.history = S.history.slice(-14);
     S.lastStructured = structured;
 
-    extractNums(text);
-    renderStructured(structured);
+    // Capture chat-extracted inputs first — may push govInputs across the
+    // exploratory→governed threshold before we decide how to render.
+    const captured = extractNums(text);
 
-    // Refine active scenarios when the edge function returns a domain match,
-    // then fall back to client-side domain detection if the edge's short-code
-    // activation produced zero scenarios (short codes don't always align with
-    // vef_value_scenarios.scenario_id prefixes).
+    // Activate domain BEFORE rendering the chat bubble so S.activeScens
+    // reflects the new analysis when we pick a discovery question.
+    const wasActiveBefore = S.activeScens.size > 0;
     if (structured.type === 'analysis') {
       const prev = new Set(S.activeScens);
       if (data.domains_matched?.length) activateDomain(data.domains_matched);
@@ -942,6 +942,18 @@ async function discTurn(text) {
         S.droppedSoon = new Set(dropped);
         setTimeout(() => { S.droppedSoon = new Set(); renderScenPanel(); updateAnalysis(); }, 1800);
       }
+    }
+
+    // Decide the chat bubble: in Exploratory mode with scenarios active and
+    // not skipped, override Claude's narrative with a discovery-mode prompt.
+    // Claude still generated the analysis (the right pane needs it) — we just
+    // don't show its words here until the seller has grounded the model.
+    const inDiscovery = isExploratory() && !S.skipDiscovery
+      && S.activeScens.size > 0 && structured.type === 'analysis';
+    if (inDiscovery) {
+      renderDiscoveryTurn(captured, !wasActiveBefore);
+    } else {
+      renderStructured(structured);
     }
 
     renderScenPanel();
@@ -1100,7 +1112,7 @@ function extractNums(text) {
     { re: /(\d[\d,.]+)\s*%\s*(?:margin|gm|gross margin)/i,            key:'gross_margin_pct', d:100 },
     { re: /(\d[\d,.]+)\s*%\s*(?:shrink)/i,                            key:'shrink_pct_baseline', d:100 },
   ];
-  let newChatKeys = 0;
+  const captured = [];  // new chat-sourced keys captured this turn
   pats.forEach(({re, key, m=1, d=1}) => {
     if (S.inputs[key]?.source === 'buyer') return;
     const match = text.match(re);
@@ -1111,12 +1123,57 @@ function extractNums(text) {
         // later mentions ("actually 150 stores") overwrite the value but
         // don't double-count toward the Governed threshold.
         const wasChat = S.inputs[key]?.source === 'chat';
-        S.inputs[key] = { value:(v*m)/d, source:'chat' };
-        if (!wasChat) newChatKeys++;
+        const val = (v*m)/d;
+        S.inputs[key] = { value:val, source:'chat' };
+        if (!wasChat) { S.govInputs++; captured.push({ key, val }); }
       }
     }
   });
-  if (newChatKeys > 0) S.govInputs += newChatKeys;
+  return captured;
+}
+
+// ─── DISCOVERY QUESTION PICKER ──────────────────────────────────────────────
+// Walks active scenarios in print_priority order and returns the Nth question
+// (N = S.govInputs) from its discovery_questions column. Falls back to
+// cfo_challenge if a scenario has no discovery_questions. Null means we've
+// exhausted questions — the renderer can degrade gracefully.
+function pickDiscoveryQuestion() {
+  const ordered = S.scenarios
+    .filter(s => S.activeScens.has(s.scenario_id))
+    .sort((a,b) => (a.print_priority || 99) - (b.print_priority || 99));
+  const scen = ordered[S.govInputs] || ordered[0];
+  if (!scen) return null;
+  const raw = scen.discovery_questions || scen.cfo_challenge || '';
+  if (!raw) return null;
+  const parts = String(raw).split(/[\n|;]/).map(x => x.trim()).filter(Boolean);
+  return parts[0] || null;
+}
+
+// Render the AI's chat turn as a discovery-mode bubble instead of Claude's
+// narrative. Acknowledges captures from this turn and asks the next question.
+function renderDiscoveryTurn(captured, isFirstActivation) {
+  const q = pickDiscoveryQuestion();
+  const ackParts = captured.map(({key, val}) => {
+    const def = S.defs[key];
+    const disp = def?.unit === 'decimal' ? pctFmt(val) : rawFmt(val, def?.unit || '');
+    return `${def?.label || key} = ${disp}`;
+  });
+  const ack = ackParts.length ? `Noted — ${ackParts.join(', ')}.` : '';
+  let msg;
+  if (isFirstActivation) {
+    msg = q
+      ? `The scenarios that fit your buyer are loaded — see the right pane. The numbers are industry defaults; we'll ground them together.\n\n${q}`
+      : `The scenarios that fit your buyer are loaded — see the right pane. Tell me about your buyer's most-affected use case so I can ground the defaults.`;
+  } else if (ack && q) {
+    msg = `${ack} Next: ${q}`;
+  } else if (ack) {
+    msg = `${ack} What else would help ground the model?`;
+  } else if (q) {
+    msg = `Still need a numeric anchor — ${q}`;
+  } else {
+    msg = `Tell me more about your buyer's operating pattern so I can ground the defaults.`;
+  }
+  addMsg('ai', msg);
 }
 
 // ─── SKIP TO DEFAULTS ──────────────────────────────────────────────────────
