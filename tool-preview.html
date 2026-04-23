@@ -564,7 +564,7 @@ function renderOnboarding() {
       <div class="onboard-head">Who is your buyer?</div>
       <div class="onboard-sub">Pick their primary vertical for ${esc(solTitle)}.</div>
       <div class="onboard-grid">
-        ${verticals.map(v => `<button class="onboard-tile" onclick="selectVertical('${v.domain_id}', ${JSON.stringify(v.title)})">
+        ${verticals.map(v => `<button class="onboard-tile" onclick="selectVertical('${v.domain_id}')">
           <div class="ot-title">${esc(v.title)}</div>
           <div class="ot-sub">${esc(v.sub)}</div>
         </button>`).join('')}
@@ -589,8 +589,13 @@ function onboardingBack() {
 // of onboarding into the Exploratory analysis, enables chat input with the
 // post-onboarding placeholder, posts a system confirmation and immediately
 // asks the first discovery question from the top active scenario.
-function selectVertical(domainId, title) {
+function selectVertical(domainId) {
   if (!S.loaded) { toast('Still loading the engine…'); return; }
+  // Resolve title from the active solution's verticals list. Passing the
+  // title through an HTML attribute broke on &/" characters in titles like
+  // "P&C Insurance" and "Warehouse & 3PL".
+  const verticals = VERTICALS[S.onboarding.solution] || [];
+  const title = verticals.find(v => v.domain_id === domainId)?.title || domainId;
   const activated = activateFromDomainId(domainId);
   if (!activated) {
     toast('No scenarios for this vertical yet.');
