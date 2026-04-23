@@ -913,8 +913,13 @@ async function discTurn(text) {
     renderScenPanel();
     updateAnalysis();
 
-    if (S.turns === 1 && !S.gateShown && !S.gateUnlocked && structured.type === 'analysis') {
-      setTimeout(showGate, 1400);
+    // Gate triggers only after the seller has had a real conversation AND
+    // the right pane has a number worth emailing about: 3+ user turns, a
+    // domain activated, and a non-zero Year-1 aggregate. 2s delay feels
+    // like a natural pause, not an immediate popup.
+    if (!S.gateShown && !S.gateUnlocked && S.turns >= 3 && S.activeScens.size > 0) {
+      const gateAgg = computeAggregates(S.activeScens);
+      if (gateAgg.y1 > 0) setTimeout(showGate, 2000);
     }
   } catch (e) {
     console.error('discTurn failed:', e);
