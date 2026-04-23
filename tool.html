@@ -1452,9 +1452,12 @@ async function discTurn(text) {
     }
 
     // Activate domain BEFORE rendering the chat bubble so S.activeScens
-    // reflects the new analysis when we pick a discovery question.
+    // reflects the new analysis when we pick a discovery question. Skipped
+    // once onboarding is complete — the signal-selected scenario set is
+    // authoritative for the interview and the edge function must not
+    // mutate S.activeScens (or drop grounded scenarios) mid-flow.
     const wasActiveBefore = S.activeScens.size > 0;
-    if (structured.type === 'analysis') {
+    if (structured.type === 'analysis' && !S.onboarding.complete) {
       const prev = new Set(S.activeScens);
       if (data.domains_matched?.length) activateDomain(data.domains_matched);
       if (S.activeScens.size === 0) {
@@ -2050,6 +2053,13 @@ function resolveImplCost(agg) {
 function generateAppraisal() {
   if (!S.interviewComplete) { toast('Complete the interview first.'); return; }
   if (!window.jspdf) { toast('PDF library not loaded.'); return; }
+  // Double-click guard — PDF generation is synchronous but a second click
+  // during a slow browser paint still triggers twice. Disable the button for
+  // the duration; restore in a finally so a thrown error doesn't wedge it.
+  const btn = document.getElementById('rh-appraisal');
+  if (btn?.disabled) return;
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.style.cursor = 'wait'; }
+  try {
 
   const { jsPDF } = window.jspdf;
   const doc = new jsPDF({ unit:'pt', format:'letter' });
@@ -2283,6 +2293,10 @@ function generateAppraisal() {
 
   doc.save(`appraisal-${(S.engine||'unknown').toLowerCase()}-${today}.pdf`);
   toast(`Appraisal generated — ${M} scenario${M===1?'':'s'}, ${fmt(totalAnnual)} annual.`);
+
+  } finally {
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.style.cursor = ''; }
+  }
 }
 
 // ─── PDF EXPORT ─────────────────────────────────────────────────────────────
