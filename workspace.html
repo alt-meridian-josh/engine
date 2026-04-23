@@ -119,6 +119,30 @@ input,select,textarea{font:inherit;color:inherit}
 .cell-arv{font-family:var(--font-mono);color:var(--accent);font-weight:500;text-align:right;white-space:nowrap}
 .cell-mono{font-family:var(--font-mono);font-size:12px;color:var(--ink-2);white-space:nowrap}
 .empty-state{padding:48px 24px;text-align:center;color:var(--ink-3);font-size:13px}
+/* Workspace */
+.ws-topbar{padding:0 20px;gap:14px}
+.ws-back{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:6px;color:#f5f5f5;font-size:18px;transition:background .15s}
+.ws-back:hover{background:#1f1f1f}
+.ws-breadcrumb{display:flex;flex-direction:column;line-height:1.2;min-width:0;margin-right:4px}
+.ws-crumb-name{font-family:var(--font-display);font-weight:600;color:#f5f5f5;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:320px}
+.ws-crumb-customer{font-size:10px;color:var(--ink-4);text-transform:uppercase;letter-spacing:.1em}
+.ws-layout{display:grid;grid-template-columns:220px 1fr;min-height:calc(100vh - 56px)}
+.ws-sidebar{background:#f1efeb;border-right:1px solid var(--border);padding:22px 0;display:flex;flex-direction:column;gap:16px;position:sticky;top:56px;align-self:start;height:calc(100vh - 56px);overflow-y:auto}
+.ws-meta{padding:0 20px 18px;display:flex;flex-direction:column;gap:10px;border-bottom:1px solid var(--border)}
+.ws-meta-row{display:flex;flex-direction:column;gap:2px}
+.ws-meta-label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3)}
+.ws-meta-value{font-size:12px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ws-nav{display:flex;flex-direction:column;gap:2px}
+.ws-nav-item{display:flex;align-items:center;gap:10px;padding:10px 20px;font-family:var(--font-mono);font-size:13px;color:var(--ink-2);text-align:left;border-left:3px solid transparent;transition:background .12s,color .12s,border-color .12s;width:100%}
+.ws-nav-item:hover{background:#e8e6e2;color:var(--ink)}
+.ws-nav-item.is-active{background:var(--accent-soft);color:var(--accent);border-left-color:var(--accent);font-weight:500}
+.ws-nav-item svg{width:14px;height:14px;flex-shrink:0;opacity:.8}
+.ws-main{padding:28px 32px;overflow-x:auto}
+.ws-section{margin-bottom:32px}
+.section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:12px}
+.section-title{font-family:var(--font-display);font-size:18px;font-weight:600;color:var(--ink)}
+.section-count{font-family:var(--font-mono);font-size:12px;color:var(--ink-3);margin-left:8px;font-weight:400}
+.tab-placeholder{padding:48px 24px;text-align:center;color:var(--ink-3);font-size:13px;background:#fff;border:1px dashed var(--border);border-radius:8px}
 /* Login */
 .login-page{display:flex;align-items:flex-start;justify-content:center;padding:72px 24px}
 .login-wrap{width:100%;max-width:440px}
@@ -273,7 +297,7 @@ function render(){
   const app = document.getElementById('app');
   if (state.screen === 'login')      app.innerHTML = renderLogin();
   else if (state.screen === 'home')  app.innerHTML = renderHome();
-  else if (state.screen === 'workspace') app.innerHTML = '<div class="boot">Workspace — lands in Chunk 7</div>';
+  else if (state.screen === 'workspace') app.innerHTML = renderWorkspace();
   renderModal();
 }
 function renderModal(){
@@ -318,6 +342,86 @@ function renderNewAnalysisModal(){
     </div>
   `;
 }
+
+/* ---------- SCREEN 3 — WORKSPACE SHELL ---------- */
+const NAV_ITEMS = [
+  { id:'overview',  label:'Overview' },
+  { id:'scenarios', label:'Scenarios' },
+  { id:'inputs',    label:'Inputs' },
+  { id:'outputs',   label:'Outputs' },
+  { id:'snapshots', label:'Snapshots' }
+];
+const NAV_ICON = {
+  overview:  '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1" y="1" width="12" height="12" rx="2"/><path d="M1 5h12M5 5v8"/></svg>',
+  scenarios: '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 3h10M2 7h10M2 11h6"/></svg>',
+  inputs:    '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="1" y="3" width="12" height="8" rx="1.5"/><path d="M4 7h6"/></svg>',
+  outputs:   '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M2 11L12 3M6 3h6v6"/></svg>',
+  snapshots: '<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.4"><circle cx="7" cy="7" r="5.5"/><circle cx="7" cy="7" r="2.5"/></svg>'
+};
+
+function renderWorkspace(){
+  const a = findAnalysis(state.activeAnalysisId);
+  if (!a){ goTo('home'); return ''; }
+  return `
+    ${renderWorkspaceTopbar(a)}
+    <div class="ws-layout">
+      ${renderSidebar(a)}
+      <main class="ws-main">${renderWorkspaceMain(a)}</main>
+    </div>
+  `;
+}
+
+function renderWorkspaceTopbar(a){
+  return `
+    <header class="topbar ws-topbar">
+      <button class="ws-back" data-action="back-to-home" title="Back to analyses">←</button>
+      <div class="ws-breadcrumb">
+        <div class="ws-crumb-name">${escapeHtml(a.name)}</div>
+        <div class="ws-crumb-customer">${escapeHtml(a.customer)}</div>
+      </div>
+      <span class="chip ${STAGE_CHIP[a.stage]||'chip-grey'}">${escapeHtml(a.stage)}</span>
+      <span class="chip ${PHASE_CHIP[a.phase]||'chip-grey'}">${escapeHtml(a.phase)}</span>
+      <div class="topbar-right">
+        <button class="btn btn-dark-ghost btn-sm" data-action="open-save-snapshot">Save Snapshot</button>
+        <button class="btn btn-primary btn-sm" data-action="generate-report">Generate Report</button>
+      </div>
+    </header>
+  `;
+}
+
+function renderSidebar(a){
+  return `
+    <aside class="ws-sidebar">
+      <div class="ws-meta">
+        <div class="ws-meta-row"><div class="ws-meta-label">Customer</div><div class="ws-meta-value">${escapeHtml(a.customer)}</div></div>
+        <div class="ws-meta-row"><div class="ws-meta-label">Domain</div><div class="ws-meta-value">${escapeHtml(a.domain)}</div></div>
+        <div class="ws-meta-row"><div class="ws-meta-label">Owner</div><div class="ws-meta-value">${escapeHtml(a.owner||'—')}</div></div>
+        <div class="ws-meta-row"><div class="ws-meta-label">Updated</div><div class="ws-meta-value">${fmtDate(a.updated)}</div></div>
+      </div>
+      <nav class="ws-nav">
+        ${NAV_ITEMS.map(n => `
+          <button class="ws-nav-item ${state.workspaceTab===n.id?'is-active':''}" data-action="ws-tab" data-tab="${n.id}">
+            ${NAV_ICON[n.id]}${n.label}
+          </button>
+        `).join('')}
+      </nav>
+    </aside>
+  `;
+}
+
+function renderWorkspaceMain(a){
+  if (state.workspaceTab === 'overview')  return renderOverview(a);
+  if (state.workspaceTab === 'scenarios') return renderScenarios(a);
+  if (state.workspaceTab === 'inputs')    return renderInputs(a);
+  if (state.workspaceTab === 'outputs')   return renderOutputs(a);
+  if (state.workspaceTab === 'snapshots') return renderSnapshots(a);
+  return '';
+}
+function renderOverview(a){  return `<div class="tab-placeholder">Overview tab lands in Chunk 8</div>`; }
+function renderScenarios(a){ return `<div class="tab-placeholder">Scenarios tab lands in Chunk 9</div>`; }
+function renderInputs(a){    return `<div class="tab-placeholder">Inputs tab lands in Chunk 10</div>`; }
+function renderOutputs(a){   return `<div class="tab-placeholder">Outputs tab lands in Chunk 11</div>`; }
+function renderSnapshots(a){ return `<div class="tab-placeholder">Snapshots tab lands in Chunk 12</div>`; }
 
 function onNewAnalysisSubmit(e){
   e.preventDefault();
@@ -534,6 +638,18 @@ document.addEventListener('click', e => {
   }
   if (action === 'home-tab'){
     return setState({ homeFilterTab: node.getAttribute('data-tab') });
+  }
+  if (action === 'back-to-home'){
+    return goTo('home');
+  }
+  if (action === 'ws-tab'){
+    return setState({ workspaceTab: node.getAttribute('data-tab') });
+  }
+  if (action === 'open-save-snapshot'){
+    return toast('Save Snapshot modal lands in Chunk 12');
+  }
+  if (action === 'generate-report'){
+    return toast('Report export — coming soon');
   }
 });
 
