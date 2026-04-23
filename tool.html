@@ -576,13 +576,32 @@ function updateAnalysis() {
   analysis.style.display = '';
 
   analysis.innerHTML =
-      renderMetrics(agg)
+      renderGovBanner()
+    + renderMetrics(agg)
     + renderPoolNote(agg)
     + renderScenCards(agg)
     + renderInputsSection()
     + renderOutput(agg);
 
   wireSliders();
+}
+
+// Derived UI state: exploratory until 3 chat-captured inputs have landed.
+function isExploratory() { return S.govInputs < 3; }
+
+function renderGovBanner() {
+  const ex = isExploratory();
+  const label = ex
+    ? 'Exploratory — industry defaults only. Not defensible.'
+    : 'Governed — buyer inputs applied';
+  const count = ex
+    ? `${S.govInputs} of 3 buyer inputs captured`
+    : `${S.govInputs} buyer inputs applied`;
+  return `<div class="gov-banner ${ex?'exploratory':'governed'}">
+    <span class="gb-dot"></span>
+    <span>${esc(label)}</span>
+    <span class="gb-count">${esc(count)}</span>
+  </div>`;
 }
 
 function renderMetrics(agg) {
@@ -595,23 +614,24 @@ function renderMetrics(agg) {
     ? '<span class="bcr-cap" title="Raw BCR capped at 10x — CFOs stop reading after the first double-digit multiple">cap</span>'
     : '';
   const payHint = agg.impl == null ? 'enter implementation cost' : 'months to breakeven';
+  const badge = isExploratory() ? '<div class="default-badge">DEFAULT</div>' : '';
   return `<div class="metrics">
-    <div class="mc r">
+    <div class="mc r">${badge}
       <div class="mc-lbl">Value of Acting · Y1</div>
       <div class="mc-val">${fmt(y1)}</div>
       <div class="mc-sub">after activation ramp</div>
     </div>
-    <div class="mc a">
+    <div class="mc a">${badge}
       <div class="mc-lbl">Cost of Delay</div>
       <div class="mc-val">${fmt(y1/12)}</div>
       <div class="mc-sub">per month of inaction</div>
     </div>
-    <div class="mc d">
+    <div class="mc d">${badge}
       <div class="mc-lbl">3-Yr Cumulative</div>
       <div class="mc-val">${fmt(cdn)}</div>
       <div class="mc-sub">Cost of Doing Nothing</div>
     </div>
-    <div class="mc g">
+    <div class="mc g">${badge}
       <div class="mc-lbl">Payback · BCR · NPV</div>
       <div class="mc-val" style="font-size:16px;line-height:1.25">${payStr}</div>
       <div class="mc-sub">${bcrStr}${bcrCapTag} · ${npvStr} NPV · ${payHint}</div>
@@ -1080,14 +1100,35 @@ function extractNums(text) {
     { re: /(\d[\d,.]+)\s*%\s*(?:margin|gm|gross margin)/i,            key:'gross_margin_pct', d:100 },
     { re: /(\d[\d,.]+)\s*%\s*(?:shrink)/i,                            key:'shrink_pct_baseline', d:100 },
   ];
+  let newChatKeys = 0;
   pats.forEach(({re, key, m=1, d=1}) => {
     if (S.inputs[key]?.source === 'buyer') return;
     const match = text.match(re);
     if (match) {
       const v = parseFloat(match[1].replace(/,/g,''));
-      if (!isNaN(v)) S.inputs[key] = { value:(v*m)/d, source:'chat' };
+      if (!isNaN(v)) {
+        // Only count the first time a given input_key lands from chat —
+        // later mentions ("actually 150 stores") overwrite the value but
+        // don't double-count toward the Governed threshold.
+        const wasChat = S.inputs[key]?.source === 'chat';
+        S.inputs[key] = { value:(v*m)/d, source:'chat' };
+        if (!wasChat) newChatKeys++;
+      }
     }
   });
+  if (newChatKeys > 0) S.govInputs += newChatKeys;
+}
+
+// ─── SKIP TO DEFAULTS ──────────────────────────────────────────────────────
+// Fast-path escape hatch: bypass discovery Qs and display the current
+// industry-defaults output as-is. Still Exploratory (buttons disabled) —
+// buyer inputs via chat or slider drag will still unlock Governed.
+function skipToDefaults() {
+  if (S.skipDiscovery) return;
+  S.skipDiscovery = true;
+  document.getElementById('skip-link')?.classList.add('hidden');
+  addMsg('system', 'Showing industry defaults. Output is exploratory — not defensible without buyer inputs.');
+  if (S.lastStructured?.type === 'analysis') updateAnalysis();
 }
 
 // Render the assistant's structured response into the chat bubble.
@@ -1109,18 +1150,26 @@ function renderStructured(s) {
 }
 // ─── OUTPUT CARD ────────────────────────────────────────────────────────────
 function renderOutput(agg) {
+  const ex = isExploratory();
   const winnerCount = agg.winners.length;
   const npvStr = agg.npv != null ? fmt(agg.npv) : '—';
   const payStr = agg.pay != null ? agg.pay.toFixed(1) + 'mo' : '—';
   const bcrStr = agg.bcr != null ? agg.bcr.toFixed(1) + 'x' : '—';
-  const saveDisabled = S.saveState === 'saving' ? 'disabled' : '';
+  // Button lock states: exploratory disables all 3 with a discovery tooltip.
+  // PDF also requires S.lastStructured. Save honors the saveState lifecycle.
+  const lockTip = 'title="Answer discovery questions to unlock"';
+  const copyAttr = ex ? `disabled ${lockTip}` : '';
+  const pdfAttr = ex ? `disabled ${lockTip}`
+    : (!S.lastStructured ? 'disabled title="Run a value analysis first"' : '');
+  const saveAttr = ex ? `disabled ${lockTip}`
+    : (S.saveState === 'saving' || S.saveState === 'saved' ? 'disabled' : '');
   const saveLabel = S.saveState === 'saved' ? 'Saved ✓' : S.saveState === 'saving' ? 'Saving…' : 'Save Engagement';
   return `<div id="output-section">
     <div class="out-head">
       <span class="out-title">Value Summary</span>
       <div class="out-btns">
-        <button class="out-btn" onclick="copyOutput()">Copy</button>
-        <button class="out-btn primary" id="pdf-btn" onclick="downloadPDF()" ${!S.lastStructured ? 'disabled' : ''}>↓ PDF</button>
+        <button class="out-btn" onclick="copyOutput()" ${copyAttr}>Copy</button>
+        <button class="out-btn primary" id="pdf-btn" onclick="downloadPDF()" ${pdfAttr}>↓ PDF</button>
       </div>
     </div>
     <div class="out-body">
@@ -1132,7 +1181,7 @@ function renderOutput(agg) {
       <div class="out-row"><span class="out-k">Active Scenarios</span><span class="out-v">${winnerCount}${agg.poolGuard.length?' (+'+agg.poolGuard.length+' shadowed)':''}</span></div>
       <div class="out-row"><span class="out-k">Assumption Tier</span><span class="out-v">${S.conf.charAt(0).toUpperCase()+S.conf.slice(1)}</span></div>
       <div class="save-row">
-        <button class="save-btn" id="save-btn" onclick="saveEng()" ${saveDisabled}>${saveLabel}</button>
+        <button class="save-btn" id="save-btn" onclick="saveEng()" ${saveAttr}>${saveLabel}</button>
         <span class="save-st" id="save-st"></span>
       </div>
     </div>
@@ -1291,6 +1340,8 @@ function newSession() {
   S.lastDomains = []; S.lastStructured = null;
   S.engine = null; S.scenarioActivatedTurn = {};
   S.gateShown = false; S.gateUnlocked = false;
+  S.govInputs = 0; S.skipDiscovery = false;
+  document.getElementById('skip-link')?.classList.remove('hidden');
   S.saveState = 'idle'; S.pendingSliderChanges = {};
   S.sid = 's' + Date.now() + '-' + Math.random().toString(36).slice(2,6);
   seedDefaults();
