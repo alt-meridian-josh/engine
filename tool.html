@@ -510,16 +510,64 @@ function fmt(n) {
 function pctFmt(n) { return Math.round(n * 100) + '%'; }
 function rawFmt(n, unit) {
   n = Number(n);
-  if (unit === '$') return fmt(n);
-  if (unit === 'decimal') return pctFmt(n);
-  if (Math.abs(n) >= 1e6) return (n/1e6).toFixed(1) + 'M' + (unit?' '+unit:'');
-  if (Math.abs(n) >= 1e3) return Math.round(n/1000) + 'K' + (unit?' '+unit:'');
-  return n.toLocaleString(undefined, {maximumFractionDigits:1}) + (unit?' '+unit:'');
+  if (unit === '$' || unit === 'USD' || unit === 'usd') return fmt(n);
+  if (isPctUnit(unit)) return pctFmt(n);
+  if (Math.abs(n) >= 1e6) return (n/1e6).toFixed(1) + 'M';
+  if (Math.abs(n) >= 1e3) return Math.round(n/1000) + 'K';
+  return n.toLocaleString(undefined, {maximumFractionDigits:1});
 }
 function esc(t) {
   return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function rmId(id) { const el = document.getElementById(id); if (el) el.remove(); }
+
+// DB unit values like 'decimal_pct' and 'fte_count' are engineering-facing —
+// clean them for display. Returns '' when the unit adds no information to the
+// reader (a bare count). Returns the mapped short form otherwise.
+function isPctUnit(unit) {
+  return unit === 'decimal' || unit === 'decimal_pct' || unit === 'pct';
+}
+function displayUnit(unit) {
+  if (!unit) return '';
+  const u = String(unit).trim();
+  if (isPctUnit(u))              return '%';
+  if (u === '$' || /^usd$/i.test(u)) return '$';
+  if (/^fte(_count)?$/i.test(u)) return 'FTEs';
+  if (u === 'count_annual')      return '/yr';
+  if (u === 'count')             return '';
+  if (u === 'months' || u === 'mo') return 'mo';
+  if (u === 'hours' || u === 'hr')  return 'hr';
+  return u;
+}
+
+// discovery_questions comes as a single string with ' | '-separated questions,
+// each ending in '?'. Some rows omit the ' | ' separator and just run-on with
+// '?' punctuation. Return the first question, adding a '?' back if it was
+// consumed by the split.
+function firstQuestion(raw) {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+  const piped = s.split(' | ').map(x => x.trim()).filter(Boolean);
+  if (piped.length > 1) {
+    return /[?!.]$/.test(piped[0]) ? piped[0] : piped[0] + '?';
+  }
+  const qmark = s.split('?').map(x => x.trim()).filter(Boolean);
+  if (qmark.length > 1) return qmark[0] + '?';
+  return s;
+}
+
+// First sentence of a paragraph, for the scenario-card name fallback when
+// one_liner is missing. Splits on '. ' and keeps the first part, restoring
+// the period if the source had more than one sentence.
+function firstSentence(text) {
+  if (!text) return '';
+  const parts = String(text).split('. ');
+  const head = parts[0].trim();
+  if (!head) return '';
+  if (parts.length === 1) return head;
+  return /[.!?]$/.test(head) ? head : head + '.';
+}
 // ─── ONBOARDING DATA ────────────────────────────────────────────────────────
 // Step 1 solution types. Keys are arbitrary client-side IDs used to pick the
 // corresponding verticals list in step 2; they never hit the DB.
@@ -875,10 +923,7 @@ function pickHighestARVQuestion() {
     .sort((a,b) => b.arv - a.arv);
   const top = ranked[0]?.s;
   if (!top) return null;
-  const raw = top.discovery_questions || top.cfo_challenge || '';
-  if (!raw) return null;
-  const parts = String(raw).split(/[\n|;]/).map(x => x.trim()).filter(Boolean);
-  return parts[0] || null;
+  return firstQuestion(top.discovery_questions || top.cfo_challenge || '');
 }
 
 // ─── AGGREGATE MATH ─────────────────────────────────────────────────────────
@@ -1068,7 +1113,7 @@ function renderScenCards(agg) {
       <div class="sc-head">
         <div class="sc-left">
           <div class="sc-theme">${esc(s.value_theme || 'Value')}${shadowTag}</div>
-          <div class="sc-name">${esc(s.mechanism_label || s.one_liner || (s.description||'').slice(0,90))}</div>
+          <div class="sc-name">${esc(s.one_liner || firstSentence(s.description))}</div>
         </div>
         <div class="sc-right">
           <div class="sc-val">${fmt(r.y1)}</div>
@@ -1113,7 +1158,7 @@ function renderScenPanel() {
       <div class="scen-num">${String(i+1).padStart(2,'0')}</div>
       <div style="flex:1;min-width:0">
         <div class="scen-theme">${esc(s.value_theme || 'Value')}</div>
-        <div class="scen-desc">${esc(s.one_liner || (s.description||'').slice(0,80))}</div>
+        <div class="scen-desc">${esc(s.one_liner || firstSentence(s.description))}</div>
         ${v && v > 0 ? `<div class="scen-v">${fmt(v)}/yr</div>` : ''}
       </div>
     </div>`;
@@ -1154,13 +1199,16 @@ function renderInputsSection() {
     const src = inp?.source || 'engine';
     const mn  = parseFloat(def.min_value) || 0;
     const mx  = parseFloat(def.max_value) || Math.max(cur*3, 100);
-    const isDec = def.unit === 'decimal';
+    const isDec = isPctUnit(def.unit);
     const step = isDec ? 0.01 : Math.max(1, Math.round((mx-mn)/100));
     const disp = isDec ? pctFmt(cur) : rawFmt(cur, def.unit);
     const valCls = src === 'buyer' || src === 'chat' ? 'sl-val buyer' : 'sl-val';
+    const uTag = displayUnit(def.unit);
+    const uSpan = uTag ? `<span class="sl-unit">${esc(uTag)}</span>` : '';
+    const labelText = def.label || key;
     return `<div class="sl-row">
       <div class="sl-top">
-        <span class="sl-label">${esc(def.label)}<span class="sl-unit">${esc(def.unit||'')}</span></span>
+        <span class="sl-label">${esc(labelText)}${uSpan}</span>
         <span class="${valCls}" id="sv-${key}">${disp}</span>
       </div>
       <input type="range" class="sl-input" data-key="${key}" data-unit="${esc(def.unit||'')}"
@@ -1531,10 +1579,7 @@ function pickDiscoveryQuestion() {
     .sort((a,b) => (a.print_priority || 99) - (b.print_priority || 99));
   const scen = ordered[S.govInputs] || ordered[0];
   if (!scen) return null;
-  const raw = scen.discovery_questions || scen.cfo_challenge || '';
-  if (!raw) return null;
-  const parts = String(raw).split(/[\n|;]/).map(x => x.trim()).filter(Boolean);
-  return parts[0] || null;
+  return firstQuestion(scen.discovery_questions || scen.cfo_challenge || '');
 }
 
 // Render the AI's chat turn as a discovery-mode bubble instead of Claude's
