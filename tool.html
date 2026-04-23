@@ -725,13 +725,17 @@ function renderSignalStep() {
   }
 
   // Signal tiles — flipped hierarchy: before_state is the primary read, the
-  // signal_name becomes a small uppercase label below. Truncate the primary
-  // at 100 chars and surface the full text via title for hover.
+  // signal_name becomes a small uppercase label below. Show the first two
+  // sentences of before_state in full (split on '. '); longer copy surfaces
+  // via the title attribute on hover. Single-sentence values render whole.
   const rows = S.signals.map(sig => {
     const sel = S.selectedSignals.has(sig.signal_id);
     const primary = sig.before_state || sig.definition || '';
-    const shown = primary.length > 100 ? primary.slice(0, 100).trimEnd() + '…' : primary;
-    const titleAttr = primary.length > 100 ? ` title="${esc(primary)}"` : '';
+    const sentences = primary.split('. ');
+    let shown = sentences.slice(0, 2).join('. ');
+    const truncated = sentences.length > 2;
+    if (truncated && !/[.!?]$/.test(shown)) shown += '.';
+    const titleAttr = truncated ? ` title="${esc(primary)}"` : '';
     const label = sig.signal_name || sig.signal_id || '';
     return `<div class="signal-tile${sel?' selected':''}" onclick="toggleSignal('${esc(sig.signal_id)}')"${titleAttr}>
       <div class="signal-check"></div>
