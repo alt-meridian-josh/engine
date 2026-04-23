@@ -676,7 +676,7 @@ async function sbGet(table, q = '') {
 // ── TABS ──────────────────────────────────────────────────────────────────────
 function setTab(t) {
   document.querySelectorAll('.tab').forEach((b,i) => {
-    const names = ['pipeline','workspace','intake','outcomes','builds'];
+    const names = ['pipeline','workspace','intake','outcomes','builds','sessions'];
     b.classList.toggle('on', names[i] === t);
   });
   document.querySelectorAll('.pane').forEach(p => p.classList.remove('on'));
@@ -685,6 +685,103 @@ function setTab(t) {
   if (t === 'outcomes') loadEngagements();  // refresh dropdown + empty state
   if (t === 'builds') loadBuilds();
   if (t === 'workspace') wsInit();
+  if (t === 'sessions') loadSessions();
+}
+
+// ── SESSIONS ─────────────────────────────────────────────────────────────────
+// Reads vef_chat_leads — the row written per discovery session by tool.html.
+// Signals aren't a column; they live in the onboarding primer message inside
+// the conversation jsonb, so parseSignals greps the first user message for
+// the 'Signals confirmed: …' fragment. Legacy rows without a primer fall
+// through to a '—' display.
+const SES_STATE = { rows: [], openId: null };
+
+function parseSignals(text) {
+  if (!text || typeof text !== 'string') return [];
+  // Match the primer string written by activateFromSignalSelection in tool.html.
+  const m = text.match(/Signals confirmed:\s*([^.\]]+)/i);
+  if (!m) return [];
+  const list = m[1].split(/[;,]/).map(s => s.trim()).filter(Boolean);
+  if (list.length === 1 && /^\(none/i.test(list[0])) return [];
+  return list;
+}
+
+async function loadSessions() {
+  const tbody = document.getElementById('ses-tbody');
+  tbody.innerHTML = '<tr><td colspan="6" class="empty">Loading…</td></tr>';
+  let rows;
+  try {
+    rows = await sbGet('vef_chat_leads', 'select=*&order=created_at.desc');
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="6" class="empty">Failed to load: ${e.message}</td></tr>`;
+    return;
+  }
+  SES_STATE.rows = Array.isArray(rows) ? rows : [];
+  SES_STATE.openId = null;
+
+  // Stats: totals, % with a captured email, avg ARV across rows where coi_number
+  // is set. emailed (boolean) is the notify-sent flag — not the capture flag —
+  // so we test the email column directly for "captured Y/N".
+  const total = SES_STATE.rows.length;
+  const withEmail = SES_STATE.rows.filter(r => r.email && String(r.email).trim()).length;
+  const arvs = SES_STATE.rows.map(r => Number(r.coi_number)).filter(n => isFinite(n) && n > 0);
+  const avgArv = arvs.length ? arvs.reduce((a,b) => a+b, 0) / arvs.length : null;
+  document.getElementById('ses-stat-total').textContent = String(total);
+  document.getElementById('ses-stat-email').textContent = total ? Math.round((withEmail/total)*100) + '%' : '—';
+  document.getElementById('ses-stat-arv').textContent = avgArv != null ? fmt(avgArv) : '—';
+
+  if (!total) {
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">No sessions yet.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = SES_STATE.rows.map(r => {
+    const date = r.created_at ? new Date(r.created_at).toISOString().slice(0,10) : '—';
+    const dom = r.domain_ids ? r.domain_ids.split(',').map(s=>s.trim()).filter(Boolean).join(', ') : '—';
+    const primer = Array.isArray(r.conversation) ? (r.conversation.find(m => m.role==='user')?.content || '') : '';
+    const sigs = parseSignals(primer);
+    const sigDisp = sigs.length ? sigs.slice(0,2).join(' · ') + (sigs.length>2 ? ` +${sigs.length-2}` : '') : '—';
+    const arvDisp = isFinite(r.coi_number) && r.coi_number > 0 ? fmt(r.coi_number) : '—';
+    const emailDisp = r.email && String(r.email).trim() ? '✓' : '—';
+    const sid = r.session_id ? r.session_id.slice(0, 16) + (r.session_id.length>16?'…':'') : '—';
+    return `<tr class="ses-row" onclick="toggleSessionDetail(${r.id})" title="Click to expand conversation">
+        <td>${date}</td><td>${dom||'—'}</td><td>${sigDisp}</td>
+        <td>${arvDisp}</td><td>${emailDisp}</td><td><code>${sid}</code></td>
+      </tr>`;
+  }).join('');
+}
+
+function toggleSessionDetail(id) {
+  const tbody = document.getElementById('ses-tbody');
+  // Collapse any existing detail row before opening a new one.
+  const existing = tbody.querySelector('tr.ses-detail');
+  if (existing) existing.remove();
+  if (SES_STATE.openId === id) { SES_STATE.openId = null; return; }
+  SES_STATE.openId = id;
+  const row = SES_STATE.rows.find(r => r.id === id);
+  if (!row) return;
+  const detail = document.createElement('tr');
+  detail.className = 'ses-detail';
+  detail.innerHTML = `<td colspan="6"><div class="conv">${renderConversation(row.conversation)}</div></td>`;
+  // Insert immediately after the clicked row.
+  const trigger = tbody.querySelector(`tr.ses-row[onclick*="(${id})"]`);
+  if (trigger) trigger.after(detail); else tbody.appendChild(detail);
+}
+
+function renderConversation(conv) {
+  if (!Array.isArray(conv) || !conv.length) return '<div class="conv-empty">No messages recorded.</div>';
+  const esc = s => String(s ?? '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  return conv.map(m => {
+    const role = (m.role || 'system').toLowerCase();
+    let body = m.content ?? '';
+    // Assistant turns are JSON strings; flatten the readable bits.
+    if (typeof body === 'string' && /^[{[]/.test(body.trim())) {
+      try {
+        const parsed = JSON.parse(body);
+        body = parsed.text || parsed.title || parsed.follow_up || body;
+      } catch { /* leave raw */ }
+    }
+    return `<div class="msg ${esc(role)}"><div class="role">${esc(role)}</div><div class="body">${esc(body)}</div></div>`;
+  }).join('');
 }
 
 // ── LOAD ENGAGEMENTS ──────────────────────────────────────────────────────────
