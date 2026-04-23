@@ -98,6 +98,8 @@ html,body{height:100%;background:var(--black);color:var(--t1);font-family:var(--
 .right-head{height:var(--bar);border-bottom:1px solid var(--border);display:flex;align-items:center;padding:0 20px;flex-shrink:0;gap:10px;}
 .rh-label{font-size:8px;letter-spacing:0.16em;text-transform:uppercase;color:var(--t3);}
 .rh-domain{font-size:10px;color:var(--t2);padding:3px 8px;border:1px solid var(--border2);border-radius:1px;background:var(--bg2);}
+.rh-appraisal{margin-left:auto;font-size:10px;letter-spacing:0.06em;padding:5px 12px;border:1px solid var(--red);border-radius:1px;background:var(--red);color:#fff;font-family:var(--mono);cursor:pointer;transition:background 0.15s;animation:fadeUp 0.25s ease;}
+.rh-appraisal:hover{background:var(--red2);}
 .tier-toggle{display:flex;margin-left:auto;border:1px solid var(--border2);border-radius:1px;overflow:hidden;}
 .tier{padding:4px 12px;font-size:9px;letter-spacing:0.08em;text-transform:uppercase;cursor:pointer;color:var(--t3);transition:all 0.15s;border-right:1px solid var(--border2);}
 .tier:last-child{border-right:none;}
@@ -303,6 +305,7 @@ body::before{
     <div class="right-head">
       <span class="rh-label">Value Analysis</span>
       <span class="rh-domain" id="rh-domain" style="display:none;"></span>
+      <button class="rh-appraisal" id="rh-appraisal" style="display:none;" onclick="generateAppraisal()">Generate Appraisal →</button>
       <div class="tier-toggle">
         <div class="tier" onclick="setTier(this,'conservative')">Conservative</div>
         <div class="tier on" onclick="setTier(this,'typical')">Typical</div>
@@ -1016,7 +1019,18 @@ function renderGatheringState() {
   renderOnboarding();
 }
 
+// Right-pane header button. Shows once every active scenario has been
+// grounded (S.interviewComplete), hides on new session or while the interview
+// is still running. Called from updateAnalysis on every pane refresh, so the
+// visibility tracks S.interviewComplete without any extra wiring elsewhere.
+function renderAppraisalButton() {
+  const btn = document.getElementById('rh-appraisal');
+  if (!btn) return;
+  btn.style.display = S.interviewComplete ? '' : 'none';
+}
+
 function updateAnalysis() {
+  renderAppraisalButton();
   // Before activation (or if the analysis cleared), fall back to onboarding.
   if (!S.lastStructured || S.lastStructured.type !== 'analysis') {
     renderGatheringState();
@@ -1932,6 +1946,7 @@ function newSession() {
 
   document.getElementById('chat').innerHTML = '';
   document.getElementById('rh-domain').style.display = 'none';
+  document.getElementById('rh-appraisal').style.display = 'none';
   document.getElementById('gate').style.display = 'none';
 
   // Disable chat input again until the seller completes onboarding.
@@ -1943,6 +1958,23 @@ function newSession() {
   renderScenPanel();
   renderGatheringState();
   showWelcome();
+}
+
+// ─── APPRAISAL (Act 3) ──────────────────────────────────────────────────────
+// Stub — Priority 2 replaces this with the multi-page Investment Appraisal
+// PDF (cover / basis / one page per grounded scenario / summary). Kept as a
+// toast-only placeholder so the Chunk D button wiring is testable end-to-end
+// today without the PDF generator.
+function generateAppraisal() {
+  if (!S.interviewComplete) { toast('Complete the interview first.'); return; }
+  toast('Appraisal generator coming next — interview captured, ready to render.');
+  console.log('[appraisal stub]', {
+    activeScens: [...S.activeScens],
+    grounded: [...S.groundedScenarios],
+    inputs: S.inputs,
+    domain: S.engine,
+    solution: S.ctx,
+  });
 }
 
 // ─── PDF EXPORT ─────────────────────────────────────────────────────────────
