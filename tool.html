@@ -1013,7 +1013,10 @@ function computeAggregates(activeSet) {
   const implInput = S.inputs['implementation_cost'];
   const impl = (implInput && implInput.value > 0 && implInput.source !== 'engine') ? implInput.value : null;
 
-  const npv = impl != null ? (y1/1.10 + y2/1.21 + y3/1.331 - impl) : null;
+  // NPV at a 10% discount rate applied to years 2 and 3 only; Y1 is credited
+  // at face value because the realized figure already reflects the activation
+  // ramp within the first year.
+  const npv = impl != null ? (y1 + y2/1.10 + y3/1.21 - impl) : null;
   const bcrRaw = (impl != null && impl > 0) ? (y1+y2+y3)/impl : null;
   const bcrCapped = bcrRaw != null && bcrRaw > 10;
   const bcr = bcrRaw != null ? Math.min(bcrRaw, 10) : null;
