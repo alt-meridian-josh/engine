@@ -573,7 +573,183 @@ function buildStatement(agg) {
   const n = agg.winners.length;
   return `Based on ${n} active scenario${n===1?'':'s'} and ${S.conf} assumptions, this solution delivers ${fmt(agg.y1)} in Year-1 realized value, led by ${theme}. Every month without a decision costs ${fmt(agg.y1/12)}.`;
 }
-/* === JS_SLOT_3 === */
+// ─── SCENARIO CARDS (right pane) ────────────────────────────────────────────
+function renderScenCards(agg) {
+  // Include fading (recently-dropped) scenarios so the refinement diff animates.
+  const display = [...agg.computed];
+  S.droppedSoon.forEach(sid => {
+    if (display.find(r => r.s.scenario_id === sid)) return;
+    const s = S.scenarios.find(x => x.scenario_id === sid);
+    if (!s) return;
+    const annual = evalF(s.value_scenario_formula) || 0;
+    display.push({ s, annual, y1:annual, y2:annual, y3:annual, pool:s.value_pool||'other', shadowed:false, fading:true });
+  });
+  if (display.length === 0) return '';
+
+  const winnerCount = agg.winners.length;
+  const rows = display.slice(0, 8).map(r => {
+    const s = r.s;
+    const on = S.activeScens.size === 0 || S.activeScens.has(s.scenario_id);
+    const cls = ['scen-card'];
+    if (!on) cls.push('off');
+    if (r.shadowed) cls.push('shadowed');
+    if (r.fading) cls.push('off');
+    const coi = r.y1 > 0
+      ? `<div class="sc-coi"><div class="sc-coi-lbl">Cost of inaction</div><div class="sc-coi-val">${fmt(r.y1/12)} per month while you wait</div></div>` : '';
+    const cfo = s.cfo_challenge
+      ? `<div class="sc-row"><span class="sc-rk">CFO ask</span><span class="sc-rv">${esc(s.cfo_challenge.slice(0,180))}${s.cfo_challenge.length>180?'…':''}</span></div>` : '';
+    const ev = s.evidence_strength
+      ? `<div class="sc-row"><span class="sc-rk">Evidence</span><span class="sc-rv">${esc(s.evidence_strength)}</span></div>` : '';
+    const shadowTag = r.shadowed ? ' <span style="font-size:8px;color:var(--amber);letter-spacing:0.08em;text-transform:uppercase">· shadowed</span>' : '';
+    return `<div class="${cls.join(' ')}" onclick="toggleScen('${s.scenario_id}')" data-sid="${s.scenario_id}">
+      <div class="sc-head">
+        <div class="sc-left">
+          <div class="sc-theme">${esc(s.value_theme || 'Value')}${shadowTag}</div>
+          <div class="sc-name">${esc(s.mechanism_label || s.one_liner || (s.description||'').slice(0,90))}</div>
+        </div>
+        <div class="sc-right">
+          <div class="sc-val">${fmt(r.y1)}</div>
+          <div class="sc-sub">Y1 realized</div>
+        </div>
+      </div>
+      <div class="sc-body">${cfo}${ev}${coi}</div>
+    </div>`;
+  }).join('');
+
+  return `<div class="scen-detail-head">
+    <span class="sdh-title">Value Scenarios · ${winnerCount} active${agg.poolGuard.length ? ' + ' + agg.poolGuard.length + ' shadowed' : ''}</span>
+    <span class="sdh-total">${fmt(agg.y1)} Y1 total</span>
+  </div>
+  <div class="scen-cards">${rows}</div>`;
+}
+
+// ─── LEFT PANE SCENARIO LIST ────────────────────────────────────────────────
+function renderScenPanel() {
+  const body = document.getElementById('scen-body');
+  const count = document.getElementById('scen-count');
+  if (S.scenarios.length === 0 || S.lastDomains.length === 0) {
+    body.innerHTML = '<div class="scen-empty">Describe your solution to activate scenarios.</div>';
+    count.textContent = '—';
+    return;
+  }
+  // Show scenarios from matched domains, ranked by print_priority
+  const matched = S.scenarios
+    .filter(s => S.lastDomains.some(d =>
+      s.domain_id === d || (s.scenario_id || '').toLowerCase().startsWith(d.substring(0,3).toLowerCase())))
+    .sort((a,b) => (a.print_priority || 99) - (b.print_priority || 99));
+  const tiles = matched.length ? matched : S.scenarios.slice(0, 6);
+
+  count.textContent = `${S.activeScens.size || tiles.length} of ${S.scenarios.length}`;
+  body.innerHTML = '<div class="scen-list">' + tiles.slice(0, 8).map((s, i) => {
+    const on = S.activeScens.has(s.scenario_id);
+    const cls = ['scen-row'];
+    if (on) cls.push('on');
+    if (S.droppedSoon.has(s.scenario_id)) cls.push('fading');
+    const v = evalF(s.value_scenario_formula);
+    return `<div class="${cls.join(' ')}" onclick="toggleScen('${s.scenario_id}')" data-sid="${s.scenario_id}">
+      <div class="scen-num">${String(i+1).padStart(2,'0')}</div>
+      <div style="flex:1;min-width:0">
+        <div class="scen-theme">${esc(s.value_theme || 'Value')}</div>
+        <div class="scen-desc">${esc(s.one_liner || (s.description||'').slice(0,80))}</div>
+        ${v && v > 0 ? `<div class="scen-v">${fmt(v)}/yr</div>` : ''}
+      </div>
+    </div>`;
+  }).join('') + '</div>';
+}
+
+function toggleScen(sid) {
+  if (S.activeScens.has(sid)) S.activeScens.delete(sid);
+  else S.activeScens.add(sid);
+  renderScenPanel();
+  updateAnalysis();
+}
+
+// ─── INPUTS / SLIDERS ───────────────────────────────────────────────────────
+function priorityKeys(scenarios, max) {
+  const scores = {}, ss = { High:3, high:3, Medium:2, medium:2, Low:1, low:1 };
+  scenarios.forEach(s => {
+    if (!s.inputs_required) return;
+    s.inputs_required.split(/[,|]/).map(k => k.trim()).filter(Boolean).forEach(k => {
+      const def = S.defs[k];
+      if (!def || !def.min_value || !def.max_value) return;
+      scores[k] = (scores[k] || 0) + (ss[def.sensitivity] || 1);
+    });
+  });
+  return Object.entries(scores).sort((a,b) => b[1] - a[1]).slice(0, max).map(([k]) => k);
+}
+
+function renderInputsSection() {
+  const active = S.activeScens.size
+    ? S.scenarios.filter(s => S.activeScens.has(s.scenario_id))
+    : S.scenarios;
+  const pkeys = priorityKeys(active, 6);
+  if (!pkeys.length) return '';
+  const rows = pkeys.map(key => {
+    const def = S.defs[key]; if (!def) return '';
+    const inp = S.inputs[key];
+    const cur = inp?.value ?? parseFloat(cval(def)) ?? 0;
+    const src = inp?.source || 'engine';
+    const mn  = parseFloat(def.min_value) || 0;
+    const mx  = parseFloat(def.max_value) || Math.max(cur*3, 100);
+    const isDec = def.unit === 'decimal';
+    const step = isDec ? 0.01 : Math.max(1, Math.round((mx-mn)/100));
+    const disp = isDec ? pctFmt(cur) : rawFmt(cur, def.unit);
+    const valCls = src === 'buyer' || src === 'chat' ? 'sl-val buyer' : 'sl-val';
+    return `<div class="sl-row">
+      <div class="sl-top">
+        <span class="sl-label">${esc(def.label)}<span class="sl-unit">${esc(def.unit||'')}</span></span>
+        <span class="${valCls}" id="sv-${key}">${disp}</span>
+      </div>
+      <input type="range" class="sl-input" data-key="${key}" data-unit="${esc(def.unit||'')}"
+        min="${mn}" max="${mx}" step="${step}" value="${cur}">
+      <div class="sl-range">
+        <span class="sl-min">${isDec ? pctFmt(mn) : rawFmt(mn, def.unit)}</span>
+        <span class="sl-max">${isDec ? pctFmt(mx) : rawFmt(mx, def.unit)}</span>
+      </div>
+    </div>`;
+  }).join('');
+  return `<div class="inputs-section">
+    <div class="is-head"><span class="is-title">Key Inputs · drag or describe in chat</span></div>
+    <div class="slider-grid">${rows}</div>
+  </div>`;
+}
+
+function wireSliders() {
+  document.querySelectorAll('.sl-input').forEach(el => {
+    el.addEventListener('input', () => onSlide(el.dataset.key, el.value, el.dataset.unit));
+  });
+}
+
+function onSlide(key, val, unit) {
+  const v = parseFloat(val);
+  S.inputs[key] = { value:v, source:'buyer' };
+  S.pendingSliderChanges[key] = v;
+  const el = document.getElementById(`sv-${key}`);
+  if (el) {
+    const isDec = unit === 'decimal';
+    el.textContent = isDec ? pctFmt(v) : rawFmt(v, unit);
+    el.className = 'sl-val just-changed';
+    setTimeout(() => { if (el) el.className = 'sl-val buyer'; }, 1000);
+  }
+  // Re-aggregate in place: easier to just re-render the panel
+  if (S.lastStructured?.type === 'analysis') updateAnalysis();
+  renderScenPanel();
+}
+
+// ─── TIER SWITCH ────────────────────────────────────────────────────────────
+function setTier(el, tier) {
+  document.querySelectorAll('.tier').forEach(t => t.classList.remove('on'));
+  el.classList.add('on');
+  S.conf = tier;
+  Object.values(S.defs).forEach(d => {
+    if (S.inputs[d.input_key]?.source === 'engine') {
+      const v = parseFloat(cval(d));
+      if (!isNaN(v)) S.inputs[d.input_key] = { value:v, source:'engine' };
+    }
+  });
+  if (S.lastStructured?.type === 'analysis') updateAnalysis();
+  renderScenPanel();
+}
 /* === JS_SLOT_4 === */
 /* === JS_SLOT_5 === */
 </script>
