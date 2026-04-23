@@ -85,6 +85,15 @@ select.fi option{background:var(--s3)}
 .eng-table td{padding:9px 10px;border-bottom:1px solid var(--b1);vertical-align:top}
 .eng-table tr:hover td{background:var(--s2)}
 .eng-table tr.selected td{background:var(--adim)}
+.ses-row{cursor:pointer}
+.ses-detail td{padding:0;background:var(--s1);border-bottom:1px solid var(--b1)}
+.ses-detail .conv{padding:14px 18px;display:flex;flex-direction:column;gap:8px;max-height:420px;overflow-y:auto}
+.ses-detail .msg{display:flex;gap:10px;font-size:12px;line-height:1.5}
+.ses-detail .msg .role{font-family:'DM Mono',monospace;font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--t3);width:60px;flex-shrink:0;padding-top:2px}
+.ses-detail .msg.user   .role{color:var(--acc)}
+.ses-detail .msg.assistant .role{color:var(--text)}
+.ses-detail .msg .body{flex:1;color:var(--t2);white-space:pre-wrap;word-break:break-word}
+.ses-detail .conv-empty{color:var(--t3);font-style:italic;font-size:11px}
 
 .status-pill{font-family:'DM Mono',monospace;font-size:9px;padding:2px 7px;border-radius:2px;
   letter-spacing:.04em;display:inline-block;}
@@ -326,6 +335,7 @@ select.fi option{background:var(--s3)}
   <button class="tab" onclick="setTab('intake')">New Engagement</button>
   <button class="tab" onclick="setTab('outcomes')">Record Outcome</button>
   <button class="tab" onclick="setTab('builds')">Engine Builds</button>
+  <button class="tab" onclick="setTab('sessions')">Sessions</button>
 </div>
 
 <div class="body">
@@ -615,6 +625,34 @@ select.fi option{background:var(--s3)}
       </thead>
       <tbody id="builds-tbody">
         <tr><td colspan="7" class="empty">Loading…</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- SESSIONS TAB — vef_chat_leads (tool.html discovery sessions) -->
+  <div class="pane" id="pane-sessions">
+    <div class="pipe-grid">
+      <div class="pipe-card"><div class="pipe-lbl">Total Sessions</div><div class="pipe-num" id="ses-stat-total">—</div><div class="pipe-sub">all-time</div></div>
+      <div class="pipe-card"><div class="pipe-lbl">Email Captured</div><div class="pipe-num" id="ses-stat-email">—</div><div class="pipe-sub">% of sessions</div></div>
+      <div class="pipe-card"><div class="pipe-lbl">Avg ARV</div><div class="pipe-num" id="ses-stat-arv">—</div><div class="pipe-sub">where computed</div></div>
+    </div>
+
+    <div class="sec-hd">Discovery Sessions <div class="line"></div>
+      <button class="action-btn" onclick="loadSessions()" style="margin-left:10px">↻ Refresh</button>
+    </div>
+    <table class="eng-table">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Domain</th>
+          <th>Signals</th>
+          <th>ARV</th>
+          <th>Email</th>
+          <th>Session ID</th>
+        </tr>
+      </thead>
+      <tbody id="ses-tbody">
+        <tr><td colspan="6" class="empty">Loading…</td></tr>
       </tbody>
     </table>
   </div>
