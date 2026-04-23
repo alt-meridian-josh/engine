@@ -846,10 +846,17 @@ async function discTurn(text) {
     extractNums(text);
     renderStructured(structured);
 
-    // Refine active scenarios when the edge function returns a domain match
-    if (structured.type === 'analysis' && data.domains_matched?.length) {
+    // Refine active scenarios when the edge function returns a domain match,
+    // then fall back to client-side domain detection if the edge's short-code
+    // activation produced zero scenarios (short codes don't always align with
+    // vef_value_scenarios.scenario_id prefixes).
+    if (structured.type === 'analysis') {
       const prev = new Set(S.activeScens);
-      activateDomain(data.domains_matched);
+      if (data.domains_matched?.length) activateDomain(data.domains_matched);
+      if (S.activeScens.size === 0) {
+        const fallback = clientSideDomainMatch((text || '') + ' ' + (S.ctx || ''));
+        if (fallback) activateFromDomainId(fallback);
+      }
       const dropped = [...prev].filter(id => !S.activeScens.has(id));
       [...S.activeScens].filter(id => !prev.has(id)).forEach(id => S.scenarioActivatedTurn[id] = S.turns);
       if (dropped.length) {
@@ -915,18 +922,68 @@ function activateDomain(domains) {
   if (dom) { tag.textContent = dom.vendor_category || dom.engine_id; tag.style.display = ''; }
 }
 
-// Keyword fast-path for first turn — runs before the edge function responds.
-function detectEng(text) {
-  const lc = text.toLowerCase();
-  const map = {
-    'ENG-RFD-001': ['rfid','radio frequency','item level','warehouse','3pl','retail shrink','inventory accuracy'],
-    'ENG-AIP-001': ['ai platform','enterprise ai','machine learning','foundation model','ontology','palantir','aip'],
-    'VEN-VEF-001': ['value engineering','value case','roi tool'],
-  };
-  for (const [id, kws] of Object.entries(map)) {
-    if (kws.some(kw => lc.includes(kw))) { S.engine = id; return; }
+// Client-side domain matcher — returns a real vef_value_scenarios.domain_id
+// (not a short code). Used both by detectEng (first-turn fast-path that sets
+// S.engine for the save path) and by the post-edge-function fallback in
+// discTurn, when the edge function's short codes don't activate any scenario.
+//
+// For RFID, picks the vertical variant (WH/RET/HC/TL/MTL) from context clues
+// in the user's description — defaults to WH-RFD if no vertical signal.
+function clientSideDomainMatch(text) {
+  const lc = (text || '').toLowerCase();
+
+  // AIP — includes Palantir + Foundry references and the governed-AI framing.
+  if (/palantir|\baip\b|ontology|enterprise ai|governed ai|foundry|ai platform/.test(lc))
+    return 'AIP';
+
+  // Location intelligence
+  if (/\bpoi\b|location intelligence|geospatial|foot traffic|site selection|mobility data|trade area|\bgis\b/.test(lc))
+    return 'GEO-POI';
+
+  // Ambient IoT / BLE
+  if (/\bble\b|bluetooth|cold chain|temperature monitoring|ambient iot|pallet tracking|food safety/.test(lc))
+    return 'BLE-3PL';
+
+  // RFID — resolve vertical
+  if (/rfid|radio frequency|item level|inventory accuracy|asset tracking|shrink/.test(lc)) {
+    if (/retail|apparel|footwear|omni|\bstore\b|\bstores\b/.test(lc))        return 'RET-RFD';
+    if (/hospital|healthcare|medical|clinical|\bnurse/.test(lc))             return 'HC-RFD';
+    if (/carrier|parcel|transport|truck|\bfleet\b|\b3pl\b|logistics/.test(lc)) return 'TL-RFD';
+    if (/manufactur|assembly|production line|\bfactory\b|\bwip\b|\bplant\b/.test(lc)) return 'MTL-RFD';
+    return 'WH-RFD';
   }
-  if (S.engines.length) S.engine = S.engines[0].engine_id;
+
+  if (/value engineering|value case|roi tool/.test(lc)) return 'VEF';
+  return null;
+}
+
+// Activate scenarios by exact domain_id match (not scenario_id prefix).
+// Used as the fallback path when the edge function's short codes don't align
+// with our vef_value_scenarios.scenario_id conventions.
+function activateFromDomainId(domainId) {
+  if (!domainId) return 0;
+  const matched = S.scenarios
+    .filter(s => s.domain_id === domainId)
+    .filter(s => s.print_priority != null)
+    .sort((a,b) => (a.print_priority || 99) - (b.print_priority || 99))
+    .slice(0, 6);
+  matched.forEach(s => S.activeScens.add(s.scenario_id));
+  if (matched.length) {
+    S.lastDomains = [domainId];
+    const tag = document.getElementById('rh-domain');
+    const dom = S.engines.find(e => e.domain_id === domainId || e.engine_id === domainId);
+    tag.textContent = (dom && (dom.vendor_category || dom.engine_id)) || domainId;
+    tag.style.display = '';
+  }
+  return matched.length;
+}
+
+// First-turn fast-path — runs before the edge function responds. Stores a
+// domain_id (not engine_id) in S.engine so the save path writes the same
+// identifier the scenarios table uses.
+function detectEng(text) {
+  const id = clientSideDomainMatch(text);
+  S.engine = id || (S.engines[0]?.engine_id || null);
 }
 
 // Extract numbers from user text → inputs (unless slider already set manually)
@@ -1058,12 +1115,30 @@ async function submitGate() {
       })
     });
   } catch (e) { console.error('notify failed:', e); }
+  // Upsert by session_id — the edge function already inserted a row on turn 1,
+  // so PATCH email/role onto the existing record instead of creating a duplicate.
   try {
-    await sbIns('vef_chat_leads', {
-      email, solution_description:S.ctx, domain_ids:S.engine||'',
-      conversation:S.history, session_id:S.sid, emailed:true,
-    });
-  } catch (e) { console.error('lead save failed:', e); }
+    const sidQ = encodeURIComponent(S.sid);
+    const existing = await sbGet('vef_chat_leads', `session_id=eq.${sidQ}&select=session_id&limit=1`);
+    if (existing.length > 0) {
+      const patchBody = { email, emailed: true };
+      if (role) patchBody.role = role;
+      const r = await fetch(`${SB}/rest/v1/vef_chat_leads?session_id=eq.${sidQ}`, {
+        method:'PATCH',
+        headers:{ 'apikey':KEY, 'Authorization':`Bearer ${KEY}`,
+          'Content-Type':'application/json', 'Prefer':'return=minimal' },
+        body: JSON.stringify(patchBody),
+      });
+      if (!r.ok) throw new Error(`SB patch ${r.status}`);
+    } else {
+      const insertBody = {
+        email, solution_description:S.ctx, domain_ids:S.engine||'',
+        conversation:S.history, session_id:S.sid, emailed:true,
+      };
+      if (role) insertBody.role = role;
+      await sbIns('vef_chat_leads', insertBody);
+    }
+  } catch (e) { console.error('lead upsert failed:', e); }
 
   S.gateUnlocked = true;
   document.getElementById('gate').style.display = 'none';
