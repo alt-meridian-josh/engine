@@ -178,6 +178,32 @@ input,select,textarea{font:inherit;color:inherit}
 .timeline-labels{display:flex;gap:4px;font-family:var(--font-mono);font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em}
 .timeline-labels span{flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .timeline-labels span.curr{color:var(--accent);font-weight:500}
+/* Scenarios tab */
+.filter-chips{display:flex;gap:6px;flex-wrap:wrap}
+.filter-chip{padding:5px 12px;border-radius:999px;font-size:11px;font-family:var(--font-mono);font-weight:500;color:var(--ink-3);border:1px solid var(--border);background:#fff;transition:all .15s;letter-spacing:.02em}
+.filter-chip:hover{color:var(--ink);border-color:var(--border-strong)}
+.filter-chip.is-active{background:var(--accent);color:#fff;border-color:var(--accent)}
+.scenario-card{background:#fff;border:1px solid var(--border);border-radius:8px;padding:20px 24px;box-shadow:var(--shadow-sm);margin-bottom:12px;transition:opacity .15s}
+.scenario-card.inactive{opacity:.6}
+.scenario-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;margin-bottom:4px}
+.scenario-title-block{flex:1;min-width:0}
+.scenario-theme{margin-bottom:10px;display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.scenario-name{font-family:var(--font-display);font-size:17px;font-weight:600;color:var(--ink);margin-bottom:4px;line-height:1.3}
+.scenario-one-liner{font-family:var(--font-mono);font-size:12px;color:var(--ink-3)}
+.scenario-impact{font-family:var(--font-display);font-size:24px;font-weight:600;color:var(--accent);letter-spacing:-.02em;white-space:nowrap;text-align:right}
+.scenario-impact.inactive{color:var(--ink-3)}
+.scenario-impact-label{font-family:var(--font-mono);font-size:10px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.1em;margin-top:2px;text-align:right}
+.scenario-foot{display:flex;align-items:center;gap:12px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border);flex-wrap:wrap}
+.switch{display:inline-flex;align-items:center;gap:10px;font-family:var(--font-mono);font-size:12px;color:var(--ink-2);cursor:pointer}
+.switch-track{width:32px;height:18px;background:#d1ccc5;border-radius:999px;position:relative;transition:background .15s;display:inline-block}
+.switch-track::after{content:'';position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;transition:transform .15s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.switch.is-on .switch-track{background:var(--accent)} .switch.is-on .switch-track::after{transform:translateX(14px)}
+.cfo-toggle{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em;padding:4px 8px;border-radius:4px;transition:color .12s,background .12s}
+.cfo-toggle:hover{color:var(--ink);background:var(--row-hover)}
+.cfo-caret{display:inline-block;transition:transform .15s}
+.cfo-toggle.is-open .cfo-caret{transform:rotate(90deg)}
+.cfo-body{margin-top:10px;padding:12px 14px;background:#faf9f7;border-radius:6px;font-size:13px;color:var(--ink-2);border-left:3px solid var(--warn)}
+.cfo-body-label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--warn-2);margin-bottom:4px;font-family:var(--font-mono)}
 /* Next actions */
 .mini-section-title{font-family:var(--font-display);font-size:15px;font-weight:600;margin-bottom:10px}
 .action-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);font-size:13px}
@@ -566,7 +592,58 @@ function renderOverview(a){
     </section>
   `;
 }
-function renderScenarios(a){ return `<div class="tab-placeholder">Scenarios tab lands in Chunk 9</div>`; }
+/* ---------- SCENARIOS tab ---------- */
+const SCENARIO_THEMES = ['all','Labor','Compliance','Risk','Strategic'];
+
+function renderScenarios(a){
+  const all = scenariosByAnalysis[a.id] || [];
+  const filtered = state.scenarioFilter === 'all' ? all : all.filter(s => s.theme === state.scenarioFilter);
+  const active = all.filter(s => s.active).length;
+  return `
+    <div class="section-head">
+      <h2 class="section-title">Active Scenarios<span class="section-count">${active} active of ${all.length}</span></h2>
+      <div class="filter-chips">
+        ${SCENARIO_THEMES.map(t => `<button class="filter-chip ${state.scenarioFilter===t?'is-active':''}" data-action="scenario-filter" data-theme="${t}">${t==='all'?'All':t}</button>`).join('')}
+      </div>
+    </div>
+    ${filtered.length
+      ? filtered.map(renderScenarioCard).join('')
+      : `<div class="tab-placeholder">No scenarios match this filter.</div>`}
+  `;
+}
+
+function renderScenarioCard(s){
+  const on = !!s.active;
+  const open = !!(state.cfoOpen && state.cfoOpen[s.id]);
+  return `
+    <div class="scenario-card ${on?'':'inactive'}">
+      <div class="scenario-head">
+        <div class="scenario-title-block">
+          <div class="scenario-theme">
+            <span class="chip ${THEME_CHIP[s.theme]||'chip-grey'}">${escapeHtml(s.theme)}</span>
+            <span class="chip ${EVIDENCE[s.evidence].chip}">${escapeHtml(EVIDENCE[s.evidence].label.split(' — ')[0])}</span>
+            <span class="chip chip-ink">${escapeHtml(s.horizon)}</span>
+          </div>
+          <div class="scenario-name">${escapeHtml(s.name)}</div>
+          <div class="scenario-one-liner">${escapeHtml(s.oneLiner)}</div>
+        </div>
+        <div>
+          <div class="scenario-impact ${on?'':'inactive'}">${fmtMoney(s.annualImpact)}</div>
+          <div class="scenario-impact-label">annual impact</div>
+        </div>
+      </div>
+      <div class="scenario-foot">
+        <button class="switch ${on?'is-on':''}" data-action="toggle-scenario" data-id="${s.id}">
+          <span class="switch-track"></span>${on?'Active':'Inactive'}
+        </button>
+        <button class="cfo-toggle ${open?'is-open':''}" data-action="toggle-cfo" data-id="${s.id}">
+          <span class="cfo-caret">▸</span> CFO Challenge
+        </button>
+      </div>
+      ${open ? `<div class="cfo-body"><div class="cfo-body-label">How to defend</div>${escapeHtml(s.cfoChallenge)}</div>` : ''}
+    </div>
+  `;
+}
 function renderInputs(a){    return `<div class="tab-placeholder">Inputs tab lands in Chunk 10</div>`; }
 function renderOutputs(a){   return `<div class="tab-placeholder">Outputs tab lands in Chunk 11</div>`; }
 function renderSnapshots(a){ return `<div class="tab-placeholder">Snapshots tab lands in Chunk 12</div>`; }
@@ -798,6 +875,26 @@ document.addEventListener('click', e => {
   }
   if (action === 'generate-report'){
     return toast('Report export — coming soon');
+  }
+  if (action === 'scenario-filter'){
+    return setState({ scenarioFilter: node.getAttribute('data-theme') });
+  }
+  if (action === 'toggle-scenario'){
+    const id = node.getAttribute('data-id');
+    const a = findAnalysis(state.activeAnalysisId);
+    if (!a) return;
+    const s = (scenariosByAnalysis[a.id] || []).find(x => x.id === id);
+    if (!s) return;
+    s.active = !s.active;
+    a.arv = computeArv(a);
+    a.updated = new Date().toISOString().slice(0,10);
+    return render();
+  }
+  if (action === 'toggle-cfo'){
+    const id = node.getAttribute('data-id');
+    state.cfoOpen = state.cfoOpen || {};
+    state.cfoOpen[id] = !state.cfoOpen[id];
+    return render();
   }
 });
 
