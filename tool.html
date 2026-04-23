@@ -1387,6 +1387,17 @@ async function discTurn(text) {
     // exploratory→governed threshold before we decide how to render.
     const captured = extractNums(text);
 
+    // Attribute this turn's capture to the scenario Meridian just asked about.
+    // pickNextScenarioQuestion set S.currentScenario when it posed the last Q;
+    // any numeric capture (scenario-agnostic per design) confirms the seller
+    // answered that scenario's question. The cursor advances on the next
+    // pickNextScenarioQuestion call, which happens in the renderer below.
+    if (captured.length > 0 && S.currentScenario
+        && !S.groundedScenarios.has(S.currentScenario)) {
+      S.groundedScenarios.add(S.currentScenario);
+      S.currentScenario = null;
+    }
+
     // Activate domain BEFORE rendering the chat bubble so S.activeScens
     // reflects the new analysis when we pick a discovery question.
     const wasActiveBefore = S.activeScens.size > 0;
@@ -1405,13 +1416,27 @@ async function discTurn(text) {
       }
     }
 
-    // Decide the chat bubble: in Exploratory mode with scenarios active and
-    // not skipped, override Claude's narrative with a discovery-mode prompt.
-    // Claude still generated the analysis (the right pane needs it) — we just
-    // don't show its words here until the seller has grounded the model.
+    // Interview completion: this turn was the last ungrounded scenario if the
+    // grounded set now equals the active set. Fires exactly once (guarded by
+    // S.interviewComplete). Drives the Generate Appraisal button visibility,
+    // wired into the right-pane header in Chunk D.
+    const justCompleted = !S.interviewComplete
+      && S.activeScens.size > 0
+      && S.groundedScenarios.size === S.activeScens.size;
+    if (justCompleted) S.interviewComplete = true;
+
+    // Decide the chat bubble. Three-way:
+    //   justCompleted → closing acknowledgment + "Analysis complete" system
+    //                   line; skip the discovery bubble so Meridian doesn't
+    //                   ask "next question?" after there are no more.
+    //   inDiscovery   → discovery-mode prompt (next scenario's question or
+    //                   a grounding nudge if the turn didn't capture).
+    //   else          → Claude's structured narrative as-is.
     const inDiscovery = isExploratory() && !S.skipDiscovery
       && S.activeScens.size > 0 && structured.type === 'analysis';
-    if (inDiscovery) {
+    if (justCompleted) {
+      renderInterviewComplete(captured);
+    } else if (inDiscovery) {
       renderDiscoveryTurn(captured, !wasActiveBefore);
     } else {
       renderStructured(structured);
@@ -1607,6 +1632,21 @@ function extractNums(text) {
     }
   });
   return captured;
+}
+
+// Emitted once when the final scenario is grounded. Acknowledges the closing
+// capture (so the seller's last number isn't silently dropped) and drops a
+// system line that cues Generate Appraisal. The button itself is rendered by
+// the right-pane header in Chunk D — it observes S.interviewComplete and
+// appears on the next updateAnalysis() pass.
+function renderInterviewComplete(captured) {
+  const ackParts = captured.map(({key, val}) => {
+    const def = S.defs[key];
+    const disp = def?.unit === 'decimal' ? pctFmt(val) : rawFmt(val, def?.unit || '');
+    return `${def?.label || key} = ${disp}`;
+  });
+  if (ackParts.length) addMsg('ai', `Noted — ${ackParts.join(', ')}.`);
+  addMsg('system', 'Analysis complete. Ready to generate your appraisal.');
 }
 
 // Render the AI's chat turn as a discovery-mode bubble instead of Claude's
