@@ -123,6 +123,18 @@ html,body{height:100%;background:var(--black);color:var(--t1);font-family:var(--
 .mc.r .mc-val{color:var(--red);} .mc.g .mc-val{color:var(--green);} .mc.a .mc-val{color:var(--amber);} .mc.d .mc-val{color:var(--t2);}
 .mc-sub{font-size:9px;color:var(--t3);}
 .bcr-cap{font-size:8px;color:var(--amber);margin-left:4px;padding:1px 4px;border:1px solid rgba(232,160,32,0.3);border-radius:1px;font-family:var(--mono);letter-spacing:0.06em;vertical-align:middle;}
+
+/* ── EXPLORATORY / GOVERNED ── */
+.gov-banner{padding:9px 14px;margin-bottom:14px;border:1px solid;border-radius:1px;font-size:10px;letter-spacing:0.08em;display:flex;align-items:center;gap:8px;transition:background 0.5s ease,border-color 0.5s ease,color 0.5s ease;animation:fadeUp 0.2s ease;}
+.gov-banner.exploratory{color:var(--amber);border-color:rgba(232,160,32,0.3);background:rgba(232,160,32,0.07);}
+.gov-banner.governed{color:var(--green);border-color:rgba(61,186,126,0.3);background:rgba(61,186,126,0.07);}
+.gov-banner .gb-dot{width:5px;height:5px;border-radius:50%;background:currentColor;flex-shrink:0;}
+.gov-banner .gb-count{margin-left:auto;font-size:9px;opacity:0.75;letter-spacing:0.04em;}
+.default-badge{position:absolute;top:6px;right:8px;font-size:7px;letter-spacing:0.1em;color:var(--amber);border:1px solid rgba(232,160,32,0.35);padding:1px 5px;border-radius:1px;background:rgba(232,160,32,0.06);font-family:var(--mono);transition:opacity 0.6s ease;}
+.default-badge.fading{opacity:0;}
+.skip-link{display:block;text-align:center;margin-top:7px;font-size:9px;color:var(--t3);background:none;border:none;cursor:pointer;font-family:var(--mono);letter-spacing:0.06em;text-transform:uppercase;transition:color 0.15s;width:100%;text-decoration:underline;text-underline-offset:2px;}
+.skip-link:hover{color:var(--amber);}
+.skip-link.hidden{display:none;}
 .pool-note{font-size:10px;color:var(--amber);background:rgba(232,160,32,0.06);border:1px solid rgba(232,160,32,0.18);padding:8px 12px;border-radius:1px;margin-bottom:16px;line-height:1.55;}
 
 /* SCENARIO CARDS */
@@ -258,6 +270,7 @@ body::before{
         <button id="send" onclick="send()" disabled>↑</button>
       </div>
       <div class="inp-hint">⌘↵ to send</div>
+      <button class="skip-link" id="skip-link" onclick="skipToDefaults()">Skip to defaults →</button>
     </div>
   </div>
 
@@ -334,6 +347,7 @@ const S = {
   sid: 's' + Date.now() + '-' + Math.random().toString(36).slice(2,6),
   ctx: '', loading: false,
   gateUnlocked: false, gateShown: false,
+  govInputs: 0, skipDiscovery: false,
   lastDomains: [], lastStructured: null,
   scenarioActivatedTurn: {},
   saveState: 'idle',
