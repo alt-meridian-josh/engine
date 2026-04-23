@@ -136,6 +136,102 @@ function toast(msg){
   root.appendChild(t);
   setTimeout(() => t.remove(), 2600);
 }
+function fmtMoney(n){
+  if (!n) return '$0';
+  if (n >= 1e6) return '$' + (n/1e6).toFixed(n >= 1e7 ? 1 : 2).replace(/\.?0+$/,'') + 'M';
+  if (n >= 1e3) return '$' + Math.round(n/1e3) + 'K';
+  return '$' + n;
+}
+function fmtDate(iso){ return iso ? iso : '—'; }
+function daysUntil(iso){
+  if (!iso) return null;
+  const ms = new Date(iso) - new Date('2026-04-23');
+  return Math.round(ms / 86400000);
+}
+function uid(p='id'){ return p + '-' + Math.random().toString(36).slice(2,7); }
+function findAnalysis(id){ return analyses.find(a => a.id === id); }
+
+/* ---------- ENUMS / LOOKUP MAPS ---------- */
+const DOMAINS=['RFID — Warehouse','RFID — Retail Apparel','RFID — Healthcare','RFID — Manufacturing','RFID — Commercial Fleet','Enterprise AI Platform','Location Intelligence','BLE / Ambient IoT','Catastrophic Risk','Computer Vision'];
+const STAGES=['Discovery','Validation','Proposal','Finance Review','Closed Won','Closed Lost'];
+const PHASES=['Pre-Sale','PoC','Pilot — Active','Pilot — Complete','Phase 1 Rollout','Phase 2 Expansion','Renewal'];
+const STATUSES=['Draft','In Progress','Customer Review','Finance Review','Delivered','Completed'];
+const STATUS_CHIP={'Draft':'chip-grey','In Progress':'chip-blue','Customer Review':'chip-amber','Finance Review':'chip-orange','Delivered':'chip-green','Completed':'chip-dark-green'};
+const STAGE_CHIP={'Discovery':'chip-grey','Validation':'chip-blue','Proposal':'chip-amber','Finance Review':'chip-orange','Closed Won':'chip-green','Closed Lost':'chip-ink'};
+const PHASE_CHIP={'Pre-Sale':'chip-grey','PoC':'chip-blue','Pilot — Active':'chip-amber','Pilot — Complete':'chip-green','Phase 1 Rollout':'chip-green','Phase 2 Expansion':'chip-dark-green','Renewal':'chip-dark-green'};
+const THEME_CHIP={'Labor':'chip-blue','Compliance':'chip-orange','Risk':'chip-red','Strategic':'chip-dark-green'};
+const EVIDENCE={tier1:{label:'Tier 1 — Customer data',chip:'chip-green'},tier2:{label:'Tier 2 — Industry benchmark',chip:'chip-amber'},tier3:{label:'Tier 3 — Analyst estimate',chip:'chip-grey'}};
+const SOURCE={prospect:{label:'Prospect Provided',chip:'chip-green'},default:{label:'Engine Default',chip:'chip-grey'},validate:{label:'Needs Validation',chip:'chip-amber'}};
+
+/* ---------- DEMO DATA: ANALYSES ---------- */
+let analyses=[
+  {id:'krg',name:'Kroger DC RFID Pilot',customer:'Kroger',vendor:'Zebra RFID',domain:'RFID — Warehouse',stage:'Closed Won',phase:'Pilot — Active',championName:'Operations Lead',championEmail:'ops.lead@kroger.com',economicBuyerEmail:'cfo@kroger.com',pilotStart:'2026-03-15',nextFollowUp:'2026-05-15',arv:2400000,status:'Delivered',updated:'2026-04-22',owner:'seller@altmeridian.com',notes:'Phase 1 pilot across 2 DCs. CFO signoff complete.'},
+  {id:'bell',name:'Bell Canada Fleet RFID',customer:'Bell Canada',vendor:'Impinj',domain:'RFID — Commercial Fleet',stage:'Proposal',phase:'Pre-Sale',championName:'Fleet Ops Director',championEmail:'fleet.ops@bell.ca',economicBuyerEmail:'vp.ops@bell.ca',pilotStart:null,nextFollowUp:'2026-05-01',arv:1800000,status:'Customer Review',updated:'2026-04-20',owner:'seller@altmeridian.com',notes:''},
+  {id:'pal',name:'Palantir AIP — Meridian Industrial',customer:'Meridian Industrial Group',vendor:'Palantir',domain:'Enterprise AI Platform',stage:'Finance Review',phase:'PoC',championName:'Chief Data Officer',championEmail:'cdo@meridian-ind.com',economicBuyerEmail:'cfo@meridian-ind.com',pilotStart:'2026-04-01',nextFollowUp:'2026-04-30',arv:9500000,status:'Finance Review',updated:'2026-04-21',owner:'seller@altmeridian.com',notes:'PoC live in 2 business units. CFO asked for NPV sensitivity.'},
+  {id:'van',name:'Vantage Specialty — dataplor POI',customer:'Vantage Specialty Insurance',vendor:'dataplor',domain:'Location Intelligence',stage:'Validation',phase:'Pre-Sale',championName:'Head of Analytics',championEmail:'analytics@vantagespecialty.com',economicBuyerEmail:'cuo@vantagespecialty.com',pilotStart:null,nextFollowUp:'2026-05-10',arv:3200000,status:'In Progress',updated:'2026-04-19',owner:'seller@altmeridian.com',notes:''},
+  {id:'rco',name:'RetailCo Apparel RFID',customer:'RetailCo',vendor:'Zebra RFID',domain:'RFID — Retail Apparel',stage:'Discovery',phase:'Pre-Sale',championName:'VP Supply Chain',championEmail:'vp.supply@retailco.com',economicBuyerEmail:'cfo@retailco.com',pilotStart:null,nextFollowUp:'2026-05-20',arv:0,status:'Draft',updated:'2026-04-18',owner:'seller@altmeridian.com',notes:''},
+  {id:'mwh',name:'Regional Health System RFID',customer:'Midwest Health Partners',vendor:'Zebra RFID',domain:'RFID — Healthcare',stage:'Closed Won',phase:'Pilot — Complete',championName:'COO',championEmail:'coo@mwhealthpartners.org',economicBuyerEmail:'cfo@mwhealthpartners.org',pilotStart:'2026-01-10',nextFollowUp:'2026-06-01',arv:4100000,status:'Completed',updated:'2026-04-17',owner:'seller@altmeridian.com',notes:'Pilot complete. Phase 1 expansion under review.'},
+  {id:'sum',name:'3PL Co — BLE Cold Chain',customer:'Summit Cold Chain Logistics',vendor:'Wiliot',domain:'BLE / Ambient IoT',stage:'Proposal',phase:'Pre-Sale',championName:'VP Operations',championEmail:'ops@summitcoldchain.com',economicBuyerEmail:'ceo@summitcoldchain.com',pilotStart:null,nextFollowUp:'2026-05-05',arv:1100000,status:'In Progress',updated:'2026-04-16',owner:'seller@altmeridian.com',notes:''}
+];
+
+/* ---------- DEMO DATA: SCENARIOS (per analysis) ---------- */
+const scenariosByAnalysis={
+  krg:[
+    {id:'krg-s1',theme:'Labor',name:'Cycle count labor reallocation',oneLiner:'Eliminate weekly 100% DC cycle counts',annualImpact:980000,evidence:'tier1',cfoChallenge:'Show 3 months of reassigned hours on payroll records.',active:true,horizon:'Year 1'},
+    {id:'krg-s2',theme:'Compliance',name:'FDA chain of custody',oneLiner:'Tag-level lot traceability at receiving',annualImpact:620000,evidence:'tier2',cfoChallenge:'Quantify avoided recall exposure from last 24 months.',active:true,horizon:'Year 1'},
+    {id:'krg-s3',theme:'Risk',name:'Shrink reduction — high-value SKUs',oneLiner:'Item-level visibility on controlled categories',annualImpact:540000,evidence:'tier2',cfoChallenge:'Pull shrink rate delta from pilot vs control DC.',active:true,horizon:'Year 2'},
+    {id:'krg-s4',theme:'Strategic',name:'DC-to-store replenishment accuracy',oneLiner:'Reduce emergency store transfers',annualImpact:260000,evidence:'tier3',cfoChallenge:'Model transfer cost baseline with finance.',active:false,horizon:'Year 2'}
+  ],
+  bell:[
+    {id:'bell-s1',theme:'Labor',name:'Fleet inventory audit automation',oneLiner:'Automated vehicle tool/parts audits',annualImpact:1100000,evidence:'tier2',cfoChallenge:'Validate vs current manual audit hours.',active:true,horizon:'Year 1'},
+    {id:'bell-s2',theme:'Risk',name:'Stolen tool recovery',oneLiner:'Geo-tagged recovery workflows',annualImpact:700000,evidence:'tier3',cfoChallenge:'Compare recovery rate improvements.',active:true,horizon:'Year 1'}
+  ],
+  pal:[
+    {id:'pal-s1',theme:'Strategic',name:'Decision cycle compression',oneLiner:'AIP ontology across 6 business units',annualImpact:6200000,evidence:'tier1',cfoChallenge:'Compare current vs AIP-enabled decision latency.',active:true,horizon:'Year 1'},
+    {id:'pal-s2',theme:'Labor',name:'Analyst augmentation',oneLiner:'Replace 40% of ad-hoc analysis with agents',annualImpact:3300000,evidence:'tier2',cfoChallenge:'Reduce analyst headcount or reassign to high-value work.',active:true,horizon:'Year 2'}
+  ],
+  van:[
+    {id:'van-s1',theme:'Risk',name:'POI-based underwriting precision',oneLiner:'Block underwriting on flood-exposure mismatch',annualImpact:2000000,evidence:'tier2',cfoChallenge:'Pull last 12mo loss ratio on affected book.',active:true,horizon:'Year 1'},
+    {id:'van-s2',theme:'Compliance',name:'Regulatory reporting automation',oneLiner:'Auto-populated NAIC location fields',annualImpact:1200000,evidence:'tier3',cfoChallenge:'Validate reporting cycle time reduction.',active:true,horizon:'Year 1'}
+  ],
+  rco:[
+    {id:'rco-s1',theme:'Labor',name:'Inventory accuracy lift',oneLiner:'Move from 65% to 98% SKU accuracy',annualImpact:0,evidence:'tier3',cfoChallenge:'Needs baseline from current cycle count team.',active:false,horizon:'Year 1'}
+  ],
+  mwh:[
+    {id:'mwh-s1',theme:'Compliance',name:'Surgical instrument compliance',oneLiner:'100% traceability per Joint Commission',annualImpact:2400000,evidence:'tier1',cfoChallenge:'Show reduction in remediation findings.',active:true,horizon:'Year 1'},
+    {id:'mwh-s2',theme:'Risk',name:'Sterilization cycle accuracy',oneLiner:'Prevent reuse outside sterile window',annualImpact:1700000,evidence:'tier2',cfoChallenge:'Model avoided HAI risk exposure.',active:true,horizon:'Year 2'}
+  ],
+  sum:[
+    {id:'sum-s1',theme:'Compliance',name:'Cold chain break attribution',oneLiner:'Pinpoint breach location for carrier recovery',annualImpact:800000,evidence:'tier2',cfoChallenge:'Quantify reclaimed spoilage costs from carriers.',active:true,horizon:'Year 1'},
+    {id:'sum-s2',theme:'Strategic',name:'Customer retention via SLAs',oneLiner:'Premium cold-chain tier with SLAs',annualImpact:300000,evidence:'tier3',cfoChallenge:'Model incremental renewal win rate.',active:false,horizon:'Year 2'}
+  ]
+};
+
+/* ---------- DEMO DATA: INPUTS / SNAPSHOTS / OUTPUTS ---------- */
+const inputsByAnalysis={
+  krg:[
+    {group:'Labor & Throughput',items:[
+      {label:'DC cycle count hours / week',value:420,unit:'hours',source:'prospect',sensitivity:'High',prompt:'How many hours/week across all shifts?'},
+      {label:'Loaded labor rate',value:52,unit:'$/hr',source:'default',sensitivity:'Medium',prompt:'Fully burdened rate including benefits?'},
+      {label:'Cycle count accuracy baseline',value:91,unit:'%',source:'prospect',sensitivity:'High',prompt:'What does your last 12mo WMS report show?'}
+    ]},
+    {group:'Compliance & Risk',items:[
+      {label:'Recall events / year',value:1.2,unit:'events',source:'validate',sensitivity:'High',prompt:'FDA recall history past 36 months?'},
+      {label:'Shrink rate — controlled SKUs',value:2.4,unit:'%',source:'prospect',sensitivity:'High',prompt:'Shrink on top 10% value SKUs?'},
+      {label:'High-value SKU inventory',value:18000000,unit:'$',source:'default',sensitivity:'Medium',prompt:'Average on-hand value of controlled categories?'}
+    ]}
+  ]
+};
+const snapshotsByAnalysis={
+  krg:[
+    {id:'snap-1',label:'Kickoff',date:'2026-03-15',stage:'Proposal',phase:'Pre-Sale',arv:2100000,payback:11,bcr:3.1,notes:'Scoped 2 DC pilot. Baselines agreed with COO.'},
+    {id:'snap-2',label:'Champion Session',date:'2026-04-01',stage:'Proposal',phase:'PoC',arv:2400000,payback:10,bcr:3.4,notes:'Added compliance scenario after FDA conversation.'},
+    {id:'snap-3',label:'CFO Review',date:'2026-04-15',stage:'Finance Review',phase:'Pilot — Active',arv:2400000,payback:10,bcr:3.4,notes:'CFO approved pilot funding. Quarterly review cadence agreed.'}
+  ]
+};
+const outputsByAnalysis={
+  krg:{financial:{y1:1800000,y2:2400000,y3:2600000,npv:5900000,payback:10,irr:0.42}}
+};
 
 /* ---------- RENDER DISPATCH ---------- */
 function render(){
