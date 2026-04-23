@@ -359,6 +359,9 @@ const TH = {
 const S = {
   conf: 'typical',
   engines: [], scenarios: [], defs: {}, defsByKeyDomain: {},
+  // Appraisal data (Act 3): both tables are small and loaded once on init.
+  // evidenceById keyed by evidence_id, domainById keyed by domain_id.
+  evidenceById: {}, domainById: {},
   inputs: {},
   pendingSliderChanges: {},
   activeScens: new Set(),
@@ -426,6 +429,17 @@ async function load() {
         bucket[dk] = d;
       }
     });
+    // Appraisal reference data — both small, parallel fetch. Registry rows are
+    // referenced by vef_value_scenarios.evidence_ids (CSV). vef_domains gives
+    // us the domain notes used for the appraisal Background page.
+    const [evidence, domains] = await Promise.all([
+      sbGet('vef_evidence_registry', 'select=*'),
+      sbGet('vef_domains', 'select=*'),
+    ]);
+    S.evidenceById = {};
+    evidence.forEach(e => { if (e.evidence_id) S.evidenceById[e.evidence_id] = e; });
+    S.domainById = {};
+    domains.forEach(d => { if (d.domain_id) S.domainById[d.domain_id] = d; });
     resolveDefs();
     seedDefaults();
     S.loaded = true;
@@ -1961,10 +1975,76 @@ function newSession() {
 }
 
 // ─── APPRAISAL (Act 3) ──────────────────────────────────────────────────────
-// Stub — Priority 2 replaces this with the multi-page Investment Appraisal
-// PDF (cover / basis / one page per grounded scenario / summary). Kept as a
-// toast-only placeholder so the Chunk D button wiring is testable end-to-end
-// today without the PDF generator.
+// Turn a value_scenario_formula into a readable sentence by substituting each
+// input_key with its human label from S.defs and switching to Unicode math
+// operators. Handles flat product/sum formulas (which is all the scenarios
+// in vef_value_scenarios use today). Falls back to the raw formula if parsing
+// produces something empty — worst case the appraisal prints the token string
+// rather than pretty prose.
+function formulaToPlainEnglish(formula) {
+  if (!formula || typeof formula !== 'string') return '';
+  const OPS = { '*':' × ', '+':' + ', '-':' − ', '/':' ÷ ' };
+  // Split while keeping the operators so we can remap them without losing order.
+  const parts = formula.split(/(\s*[*+\-/]\s*)/).filter(p => p.trim() !== '');
+  const pretty = parts.map(tok => {
+    const t = tok.trim();
+    if (OPS[t]) return OPS[t];
+    const def = S.defs[t];
+    if (def?.label) return def.label;
+    // Strip underscores so raw keys still read OK when there's no def.
+    return t.replace(/_/g, ' ');
+  }).join('');
+  return pretty || formula;
+}
+
+// Look up evidence rows by a CSV of evidence_ids from a scenario. Missing
+// ids are silently skipped — a scenario with a typo in evidence_ids still
+// renders (just without that row).
+function lookupEvidence(csv) {
+  if (!csv) return [];
+  return csv.split(',')
+    .map(id => id.trim())
+    .filter(Boolean)
+    .map(id => S.evidenceById[id])
+    .filter(Boolean);
+}
+
+// Monthly cost of inaction for a single scenario. Prefers the scenario's own
+// delay_cost_formula when it resolves to a number, falls back to annual/12,
+// zero as a final safe default.
+function scenarioMonthlyDelay(s) {
+  const delay = evalF(s.delay_cost_formula);
+  if (delay && isFinite(delay) && delay > 0) return delay;
+  const annual = evalF(s.value_scenario_formula);
+  if (annual && isFinite(annual) && annual > 0) return annual / 12;
+  return 0;
+}
+
+// Resolve the implementation cost used for BCR/payback on the summary page.
+// Order: buyer-provided input → one-shot prompt pre-filled with ARV × 0.25 →
+// ARV × 0.25 default. Returns { value, source } so the summary page can tag
+// default-derived figures. prompt() is MVP UX; swap to a modal in a polish
+// pass. Null/NaN/cancel all resolve to the 25% default.
+function resolveImplCost(agg) {
+  const existing = S.inputs['implementation_cost'];
+  if (existing && isFinite(existing.value) && existing.value > 0) {
+    return { value: existing.value, source: existing.source || 'buyer' };
+  }
+  const fallback = Math.round((agg.y1 || 0) * 0.25);
+  const raw = prompt(
+    'Implementation cost (USD) for payback calculation.\n\n' +
+    'Leave blank to use the default: 25% of Y1 realized value.',
+    String(fallback)
+  );
+  if (raw === null) return { value: fallback, source: 'default' };
+  const n = parseFloat(String(raw).replace(/[^\d.]/g, ''));
+  if (!isFinite(n) || n <= 0) return { value: fallback, source: 'default' };
+  S.inputs['implementation_cost'] = { value: n, source: 'buyer' };
+  return { value: n, source: 'buyer' };
+}
+
+// Stub — Chunks F/G/H replace this with the multi-page Investment Appraisal
+// PDF (cover / basis / one page per grounded scenario / summary).
 function generateAppraisal() {
   if (!S.interviewComplete) { toast('Complete the interview first.'); return; }
   toast('Appraisal generator coming next — interview captured, ready to render.');
