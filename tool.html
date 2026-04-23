@@ -502,6 +502,53 @@ function rmId(id) { const el = document.getElementById(id); if (el) el.remove();
 // ─── ONBOARDING DATA ────────────────────────────────────────────────────────
 // Step 1 solution types. Keys are arbitrary client-side IDs used to pick the
 // corresponding verticals list in step 2; they never hit the DB.
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * STEP 3 (planned — not yet implemented): signal selection
+ *
+ * vef_value_signals coverage as of 2026-04-23:
+ *   domain_id = 'AIP'      →  8 signals
+ *   domain_id = 'BLE-3PL'  →  5 signals
+ *   domain_id = 'CAT-RISK' →  3 signals
+ *   domain_id = 'CV-MFG'   →  3 signals
+ *   domain_id = 'MOTO-IND' → 11 signals
+ *   domain_id = 'VEN-VEF'  →  8 signals
+ *   domain_id IS NULL      → 19 signals (the entire RFID family)
+ *   domain_id = 'GEO-POI'  →  0 signals (gap — handle with empty-state)
+ *
+ * None of the RFID vertical domain_ids (WH-RFD, RET-RFD, HC-RFD, TL-RFD,
+ * MTL-RFD, AVN-RFD, CAR-RFD, DC-RFD, FED-RFD, FS-RFD, HOS-RFD, IE-RFD) have
+ * signals keyed to them. Instead, the 19 null-domain signals (IDs like
+ * VS-RFID-01, VS-XDOM-01 …) reference specific vertical scenarios in their
+ * scenario_ids CSV column — e.g. "RET-RFD-01, RET-RFD-08, WH-RFD-01".
+ *
+ * Loading logic:
+ *   1. If the active domain has signals with matching domain_id → use those.
+ *   2. Else, if the active domain ends with '-RFD' → fetch WHERE domain_id
+ *      IS NULL, then filter to signals whose scenario_ids CSV contains at
+ *      least one scenario with the vertical prefix (e.g. for WH-RFD, keep
+ *      any signal whose parsed scenario_ids include a token starting with
+ *      'WH-RFD-').
+ *   3. Else (GEO-POI today) → zero signals; render an empty state and
+ *      allow the seller to proceed to defaults without grounding.
+ *
+ * Parse scenario_ids with: split(',').map(s => s.trim()).filter(Boolean).
+ *
+ * Tile display:
+ *   - signal_name        → tile headline (e.g. "The Confidence Gap")
+ *   - before_state       → tile subtitle (the pain description, 1-2 sentences)
+ *   - observable_indicators → SKIPPED for null-domain RFID signals (null in
+ *     DB). Render only when non-null (AIP/BLE/CAT/CV signals populate it).
+ *
+ * Selection constraint: 3 ≤ selected ≤ 6 (soft — can be relaxed later).
+ *
+ * Activation on confirm: take the union of scenario_ids across all selected
+ * signals, parse each CSV, intersect with the active domain's scenarios in
+ * vef_value_scenarios (i.e. s.scenario_id appears in the parsed set), and
+ * activate ONLY those scenarios. This replaces the current "top 6 by
+ * print_priority" activation path for the signal-driven onboarding route.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
 const SOLUTIONS = [
   { key:'tracking',   title:'Tracking & Visibility', sub:'RFID, BLE, IoT hardware' },
   { key:'enterprise', title:'Enterprise Software',   sub:'SaaS, platforms, workflow tools' },
