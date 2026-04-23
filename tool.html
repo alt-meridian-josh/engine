@@ -400,7 +400,10 @@ async function load() {
     resolveDefs();
     seedDefaults();
     S.loaded = true;
+    // Chat input stays disabled until the seller finishes onboarding —
+    // clicking a vertical tile is the required unlock.
     document.getElementById('inp').placeholder = 'Pick a solution type to start…';
+    document.getElementById('skip-link')?.classList.add('hidden');
     renderOnboarding();
     showWelcome();
   } catch (e) {
@@ -582,9 +585,47 @@ function onboardingBack() {
   renderOnboarding();
 }
 
-// Stub — chunk 3 wires this to activateFromDomainId + chat messages + discovery.
+// Step-2 tile click. Activates the chosen vertical, flips the right pane out
+// of onboarding into the Exploratory analysis, enables chat input with the
+// post-onboarding placeholder, posts a system confirmation and immediately
+// asks the first discovery question from the top active scenario.
 function selectVertical(domainId, title) {
-  console.warn('selectVertical placeholder — chunk 3 not yet applied:', domainId, title);
+  if (!S.loaded) { toast('Still loading the engine…'); return; }
+  const activated = activateFromDomainId(domainId);
+  if (!activated) {
+    toast('No scenarios for this vertical yet.');
+    return;
+  }
+
+  S.onboarding.complete = true;
+  S.engine = domainId;
+
+  // Synthetic lastStructured unblocks updateAnalysis so the Exploratory pane
+  // renders from scenario defaults immediately — no edge function call needed
+  // for the first paint. A real analysis overwrites it on the next turn.
+  const solTitle = SOLUTIONS.find(s => s.key === S.onboarding.solution)?.title || '';
+  S.lastStructured = { type:'analysis', title: `${solTitle} for ${title}` };
+
+  // Hide onboarding, show analysis
+  document.getElementById('gathering').style.display = 'none';
+  updateAnalysis();
+  renderScenPanel();
+
+  // Enable chat with the post-onboarding placeholder
+  const inp = document.getElementById('inp');
+  inp.disabled = false;
+  inp.placeholder = "Answer Meridian's question…";
+  document.getElementById('send').disabled = false;
+  document.getElementById('skip-link')?.classList.remove('hidden');
+
+  // Chat: confirmation + first discovery question
+  addMsg('system', `Got it — ${solTitle} for ${title}. Scenarios loaded. Numbers are defaults for now.`);
+  const q = pickDiscoveryQuestion();
+  if (q) {
+    addMsg('ai', q);
+  } else {
+    addMsg('ai', "Tell me about your buyer's most-affected operating pattern so I can ground the defaults.");
+  }
 }
 
 // ─── AGGREGATE MATH ─────────────────────────────────────────────────────────
@@ -1466,10 +1507,6 @@ function toast(msg) {
   el.textContent = msg; el.classList.add('show');
   setTimeout(() => el.classList.remove('show'), 3000);
 }
-function useChip(el) {
-  const inp = document.getElementById('inp');
-  inp.value = el.textContent; grow(inp); send();
-}
 function grow(el) {
   el.style.height = 'auto';
   el.style.height = Math.min(el.scrollHeight, 100) + 'px';
@@ -1488,13 +1525,23 @@ function newSession() {
   S.engine = null; S.scenarioActivatedTurn = {};
   S.gateShown = false; S.gateUnlocked = false;
   S.govInputs = 0; S.skipDiscovery = false;
-  document.getElementById('skip-link')?.classList.remove('hidden');
+  S.onboarding = { step: 1, solution: null, complete: false };
   S.saveState = 'idle'; S.pendingSliderChanges = {};
   S.sid = 's' + Date.now() + '-' + Math.random().toString(36).slice(2,6);
-  seedDefaults();
+  // Wipe any buyer/chat overrides so onboarding starts from true defaults.
+  Object.keys(S.inputs).forEach(k => { if (S.inputs[k]?.source !== 'engine') delete S.inputs[k]; });
+  resolveDefs(); seedDefaults();
+
   document.getElementById('chat').innerHTML = '';
   document.getElementById('rh-domain').style.display = 'none';
   document.getElementById('gate').style.display = 'none';
+
+  // Disable chat input again until the seller completes onboarding.
+  const inp = document.getElementById('inp');
+  if (inp) { inp.disabled = true; inp.placeholder = 'Pick a solution type to start…'; }
+  const send = document.getElementById('send'); if (send) send.disabled = true;
+  document.getElementById('skip-link')?.classList.add('hidden');
+
   renderScenPanel();
   renderGatheringState();
   showWelcome();
