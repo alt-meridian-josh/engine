@@ -120,6 +120,26 @@ html,body{height:100%;background:var(--black);color:var(--t1);font-family:var(--
 .onboard-back{display:inline-flex;align-items:center;gap:6px;font-size:9px;color:var(--t3);background:none;border:none;cursor:pointer;padding:6px 0;margin-bottom:14px;font-family:var(--mono);letter-spacing:0.1em;text-transform:uppercase;transition:color 0.15s;}
 .onboard-back:hover{color:var(--red);}
 
+/* SIGNAL TILES (step 3) */
+.signal-list{display:flex;flex-direction:column;gap:8px;margin-bottom:4px;}
+.signal-tile{background:var(--bg);border:1px solid var(--border);padding:14px 16px 14px 40px;cursor:pointer;transition:all 0.15s;border-radius:2px;text-align:left;font-family:var(--mono);position:relative;}
+.signal-tile:hover{border-color:var(--red);background:var(--bg3);}
+.signal-tile.selected{border-color:var(--red);background:var(--rdim);}
+.signal-check{position:absolute;left:14px;top:16px;width:14px;height:14px;border:1px solid var(--border2);border-radius:2px;background:var(--bg);transition:all 0.15s;}
+.signal-tile.selected .signal-check{background:var(--red);border-color:var(--red);}
+.signal-tile.selected .signal-check::after{content:'';position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);}
+.signal-state{font-size:13px;color:var(--t1);line-height:1.6;}
+.signal-name{font-size:9px;color:var(--t3);letter-spacing:0.12em;text-transform:uppercase;margin-top:6px;font-family:var(--mono);}
+.signal-ind{font-size:10px;color:var(--t3);margin-top:4px;font-style:italic;}
+.signal-empty{padding:28px 20px;text-align:center;font-size:12px;color:var(--t3);border:1px dashed var(--border2);border-radius:2px;line-height:1.6;}
+.signal-footer{display:flex;align-items:center;justify-content:space-between;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);}
+.signal-count{font-size:10px;color:var(--t2);letter-spacing:0.04em;}
+.signal-count b{color:var(--t1);font-weight:500;}
+.signal-count .sc-warn{color:var(--amber);}
+.signal-continue{padding:8px 18px;font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#fff;background:var(--red);border:none;border-radius:1px;cursor:pointer;font-family:var(--mono);transition:background 0.15s;}
+.signal-continue:hover:not(:disabled){background:var(--red2);}
+.signal-continue:disabled{background:var(--border2);cursor:not-allowed;color:var(--t3);}
+
 /* METRICS */
 .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:20px;animation:fadeUp 0.3s ease;}
 .mc{background:var(--bg);padding:16px;position:relative;}
@@ -347,6 +367,7 @@ const S = {
   gateUnlocked: false, gateShown: false,
   govInputs: 0, skipDiscovery: false,
   onboarding: { step: 1, solution: null, complete: false },
+  signals: [], selectedSignals: new Set(), signalScenarioIds: new Set(),
   lastDomains: [], lastStructured: null,
   scenarioActivatedTurn: {},
   saveState: 'idle',
@@ -502,6 +523,53 @@ function rmId(id) { const el = document.getElementById(id); if (el) el.remove();
 // ─── ONBOARDING DATA ────────────────────────────────────────────────────────
 // Step 1 solution types. Keys are arbitrary client-side IDs used to pick the
 // corresponding verticals list in step 2; they never hit the DB.
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * STEP 3 (planned — not yet implemented): signal selection
+ *
+ * vef_value_signals coverage as of 2026-04-23:
+ *   domain_id = 'AIP'      →  8 signals
+ *   domain_id = 'BLE-3PL'  →  5 signals
+ *   domain_id = 'CAT-RISK' →  3 signals
+ *   domain_id = 'CV-MFG'   →  3 signals
+ *   domain_id = 'MOTO-IND' → 11 signals
+ *   domain_id = 'VEN-VEF'  →  8 signals
+ *   domain_id IS NULL      → 19 signals (the entire RFID family)
+ *   domain_id = 'GEO-POI'  →  0 signals (gap — handle with empty-state)
+ *
+ * None of the RFID vertical domain_ids (WH-RFD, RET-RFD, HC-RFD, TL-RFD,
+ * MTL-RFD, AVN-RFD, CAR-RFD, DC-RFD, FED-RFD, FS-RFD, HOS-RFD, IE-RFD) have
+ * signals keyed to them. Instead, the 19 null-domain signals (IDs like
+ * VS-RFID-01, VS-XDOM-01 …) reference specific vertical scenarios in their
+ * scenario_ids CSV column — e.g. "RET-RFD-01, RET-RFD-08, WH-RFD-01".
+ *
+ * Loading logic:
+ *   1. If the active domain has signals with matching domain_id → use those.
+ *   2. Else, if the active domain ends with '-RFD' → fetch WHERE domain_id
+ *      IS NULL, then filter to signals whose scenario_ids CSV contains at
+ *      least one scenario with the vertical prefix (e.g. for WH-RFD, keep
+ *      any signal whose parsed scenario_ids include a token starting with
+ *      'WH-RFD-').
+ *   3. Else (GEO-POI today) → zero signals; render an empty state and
+ *      allow the seller to proceed to defaults without grounding.
+ *
+ * Parse scenario_ids with: split(',').map(s => s.trim()).filter(Boolean).
+ *
+ * Tile display:
+ *   - signal_name        → tile headline (e.g. "The Confidence Gap")
+ *   - before_state       → tile subtitle (the pain description, 1-2 sentences)
+ *   - observable_indicators → SKIPPED for null-domain RFID signals (null in
+ *     DB). Render only when non-null (AIP/BLE/CAT/CV signals populate it).
+ *
+ * Selection constraint: 3 ≤ selected ≤ 6 (soft — can be relaxed later).
+ *
+ * Activation on confirm: take the union of scenario_ids across all selected
+ * signals, parse each CSV, intersect with the active domain's scenarios in
+ * vef_value_scenarios (i.e. s.scenario_id appears in the parsed set), and
+ * activate ONLY those scenarios. This replaces the current "top 6 by
+ * print_priority" activation path for the signal-driven onboarding route.
+ * ─────────────────────────────────────────────────────────────────────────── */
+
 const SOLUTIONS = [
   { key:'tracking',   title:'Tracking & Visibility', sub:'RFID, BLE, IoT hardware' },
   { key:'enterprise', title:'Enterprise Software',   sub:'SaaS, platforms, workflow tools' },
@@ -555,12 +623,12 @@ function renderOnboarding() {
         </button>`).join('')}
       </div>
     </div>`;
-  } else {
+  } else if (S.onboarding.step === 2) {
     const verticals = VERTICALS[S.onboarding.solution] || [];
     const solTitle = SOLUTIONS.find(s => s.key === S.onboarding.solution)?.title || '';
     host.innerHTML = `<div class="onboard">
       <button class="onboard-back" onclick="onboardingBack()">← Back</button>
-      <div class="onboard-step">01 / <b>02</b></div>
+      <div class="onboard-step">01 / <b>02</b> / 03</div>
       <div class="onboard-head">Who is your buyer?</div>
       <div class="onboard-sub">Pick their primary vertical for ${esc(solTitle)}.</div>
       <div class="onboard-grid">
@@ -570,6 +638,8 @@ function renderOnboarding() {
         </button>`).join('')}
       </div>
     </div>`;
+  } else if (S.onboarding.step === 3) {
+    renderSignalStep();
   }
 }
 
@@ -580,57 +650,211 @@ function selectSolution(key) {
 }
 
 function onboardingBack() {
-  S.onboarding.step = 1;
-  S.onboarding.solution = null;
+  if (S.onboarding.step === 3) {
+    // Step 3 → 2: keep the solution, drop any signal picks. selectVertical
+    // re-loads signals from scratch on re-entry, so no need to wipe S.signals
+    // here — but the selection set must clear so the Continue button resets.
+    S.onboarding.step = 2;
+    S.selectedSignals = new Set();
+    S.signalScenarioIds = new Set();
+  } else {
+    S.onboarding.step = 1;
+    S.onboarding.solution = null;
+  }
   renderOnboarding();
 }
 
-// Step-2 tile click. Activates the chosen vertical, flips the right pane out
-// of onboarding into the Exploratory analysis, enables chat input with the
-// post-onboarding placeholder, posts a system confirmation and immediately
-// asks the first discovery question from the top active scenario.
-function selectVertical(domainId) {
-  if (!S.loaded) { toast('Still loading the engine…'); return; }
-  // Resolve title from the active solution's verticals list. Passing the
-  // title through an HTML attribute broke on &/" characters in titles like
-  // "P&C Insurance" and "Warehouse & 3PL".
-  const verticals = VERTICALS[S.onboarding.solution] || [];
-  const title = verticals.find(v => v.domain_id === domainId)?.title || domainId;
-  const activated = activateFromDomainId(domainId);
-  if (!activated) {
-    toast('No scenarios for this vertical yet.');
+// ─── STEP 3: SIGNALS ────────────────────────────────────────────────────────
+// Load signals for the active domain. Three-branch logic per the design note:
+//   1. domain-keyed rows (AIP / BLE-3PL / CAT-RISK / CV-MFG / MOTO-IND /
+//      VEN-VEF) returned directly.
+//   2. *-RFD vertical → domain_id IS NULL rows, client-side filtered to
+//      those whose scenario_ids CSV contains a token with the vertical prefix.
+//   3. else (e.g. GEO-POI) → [] (renderSignalStep shows an empty state).
+// Seeds S.signals and resets S.selectedSignals / S.signalScenarioIds so the
+// counter starts at zero on every re-entry.
+async function loadSignals(domainId) {
+  S.signals = [];
+  S.selectedSignals = new Set();
+  S.signalScenarioIds = new Set();
+  if (!domainId) return;
+  try {
+    let rows = await sbGet('vef_value_signals',
+      `domain_id=eq.${encodeURIComponent(domainId)}&select=*`);
+    if (!rows.length && /-RFD$/.test(domainId)) {
+      const all = await sbGet('vef_value_signals', 'domain_id=is.null&select=*');
+      const prefix = domainId + '-';
+      rows = all.filter(sig => {
+        const ids = (sig.scenario_ids || '').split(',').map(x => x.trim()).filter(Boolean);
+        return ids.some(id => id.startsWith(prefix));
+      });
+    }
+    S.signals = rows || [];
+  } catch (e) {
+    console.error('loadSignals failed:', e);
+    S.signals = [];
+  }
+}
+
+function renderSignalStep() {
+  const host = document.getElementById('gathering');
+  if (!host) return;
+  const count = S.selectedSignals.size;
+  const warn = count > 6;
+  const continueDisabled = count < 1;
+  const continueLabel = count === 0 ? 'Continue →'
+    : `Continue with ${count} signal${count===1?'':'s'} →`;
+
+  // Empty state: no signals catalogued for this vertical (e.g. GEO-POI).
+  if (!S.signals.length) {
+    host.innerHTML = `<div class="onboard">
+      <button class="onboard-back" onclick="onboardingBack()">← Back</button>
+      <div class="onboard-step">01 / 02 / <b>03</b></div>
+      <div class="onboard-head">What signals are present?</div>
+      <div class="onboard-sub">No signals catalogued for this vertical yet.</div>
+      <div class="signal-empty">
+        You can proceed — scenarios will activate with industry defaults and
+        we'll ground them through chat instead.
+      </div>
+      <div class="signal-footer">
+        <span class="signal-count"></span>
+        <button class="signal-continue" onclick="activateFromSignalSelection()">Proceed with defaults →</button>
+      </div>
+    </div>`;
     return;
   }
 
+  // Signal tiles — flipped hierarchy: before_state is the primary read, the
+  // signal_name becomes a small uppercase label below. Show the first two
+  // sentences of before_state in full (split on '. '); longer copy surfaces
+  // via the title attribute on hover. Single-sentence values render whole.
+  const rows = S.signals.map(sig => {
+    const sel = S.selectedSignals.has(sig.signal_id);
+    const primary = sig.before_state || sig.definition || '';
+    const sentences = primary.split('. ');
+    let shown = sentences.slice(0, 2).join('. ');
+    const truncated = sentences.length > 2;
+    if (truncated && !/[.!?]$/.test(shown)) shown += '.';
+    const titleAttr = truncated ? ` title="${esc(primary)}"` : '';
+    const label = sig.signal_name || sig.signal_id || '';
+    return `<div class="signal-tile${sel?' selected':''}" onclick="toggleSignal('${esc(sig.signal_id)}')"${titleAttr}>
+      <div class="signal-check"></div>
+      <div class="signal-state">${esc(shown)}</div>
+      <div class="signal-name">${esc(label)}</div>
+    </div>`;
+  }).join('');
+
+  host.innerHTML = `<div class="onboard">
+    <button class="onboard-back" onclick="onboardingBack()">← Back</button>
+    <div class="onboard-step">01 / 02 / <b>03</b></div>
+    <div class="onboard-head">What signals are present?</div>
+    <div class="onboard-sub">Pick 3–6 that match your buyer's situation.</div>
+    <div class="signal-list">${rows}</div>
+    <div class="signal-footer">
+      <span class="signal-count"><b class="${warn?'sc-warn':''}">${count}</b> selected${warn?' · over the recommended 6':''}</span>
+      <button class="signal-continue" onclick="activateFromSignalSelection()"${continueDisabled?' disabled':''}>${continueLabel}</button>
+    </div>
+  </div>`;
+}
+
+function toggleSignal(signalId) {
+  if (S.selectedSignals.has(signalId)) S.selectedSignals.delete(signalId);
+  else                                 S.selectedSignals.add(signalId);
+  // Recompute the union of referenced scenario_ids across all selected signals.
+  S.signalScenarioIds = new Set();
+  S.signals.forEach(sig => {
+    if (!S.selectedSignals.has(sig.signal_id)) return;
+    (sig.scenario_ids || '').split(',').map(x => x.trim()).filter(Boolean)
+      .forEach(id => S.signalScenarioIds.add(id));
+  });
+  renderSignalStep();
+}
+
+// Continue-button handler on step 3. Activates only the scenarios referenced
+// by the selected signals (intersected against the active domain), falling
+// back to the domain-default activation when the empty-state 'Proceed with
+// defaults' button fires. Then flips the right pane out of onboarding,
+// enables chat, and kicks off the discovery interview.
+function activateFromSignalSelection() {
+  const domainId = S.engine;
+  if (!domainId) { toast('No vertical selected yet.'); return; }
+
+  // Intersect signal-referenced scenario_ids with the active domain's scenarios.
+  // Empty-state / Proceed-with-defaults path falls back to top-N by priority.
+  let matched;
+  if (S.signalScenarioIds.size > 0) {
+    matched = S.scenarios
+      .filter(s => s.domain_id === domainId && S.signalScenarioIds.has(s.scenario_id))
+      .sort((a,b) => (a.print_priority || 99) - (b.print_priority || 99));
+  } else {
+    matched = S.scenarios
+      .filter(s => s.domain_id === domainId)
+      .filter(s => s.print_priority != null)
+      .sort((a,b) => (a.print_priority || 99) - (b.print_priority || 99))
+      .slice(0, 6);
+  }
+
+  if (!matched.length) {
+    toast('No scenarios matched the selected signals.');
+    return;
+  }
+
+  S.activeScens.clear();
+  matched.forEach(s => S.activeScens.add(s.scenario_id));
+  S.lastDomains = [domainId];
+  const tag = document.getElementById('rh-domain');
+  const dom = S.engines.find(e => e.domain_id === domainId || e.engine_id === domainId);
+  tag.textContent = (dom && (dom.vendor_category || dom.engine_id)) || domainId;
+  tag.style.display = '';
+  resolveDefs(); seedDefaults();
+
   S.onboarding.complete = true;
-  S.engine = domainId;
 
-  // Synthetic lastStructured unblocks updateAnalysis so the Exploratory pane
-  // renders from scenario defaults immediately — no edge function call needed
-  // for the first paint. A real analysis overwrites it on the next turn.
   const solTitle = SOLUTIONS.find(s => s.key === S.onboarding.solution)?.title || '';
-  S.lastStructured = { type:'analysis', title: `${solTitle} for ${title}` };
+  const verticals = VERTICALS[S.onboarding.solution] || [];
+  const vertTitle = verticals.find(v => v.domain_id === domainId)?.title || domainId;
+  // Synthetic lastStructured unblocks updateAnalysis so the Exploratory pane
+  // renders from scenario defaults on first paint, no edge-fn call required.
+  S.lastStructured = { type:'analysis', title: `${solTitle} for ${vertTitle}` };
 
-  // Hide onboarding, show analysis
   document.getElementById('gathering').style.display = 'none';
   updateAnalysis();
   renderScenPanel();
 
-  // Enable chat with the post-onboarding placeholder
   const inp = document.getElementById('inp');
   inp.disabled = false;
   inp.placeholder = "Answer Meridian's question…";
   document.getElementById('send').disabled = false;
   document.getElementById('skip-link')?.classList.remove('hidden');
 
-  // Chat: confirmation + first discovery question
-  addMsg('system', `Got it — ${solTitle} for ${title}. Scenarios loaded. Numbers are defaults for now.`);
+  const signalCount = S.selectedSignals.size;
+  const signalSummary = signalCount > 0 ? ` against ${signalCount} signal${signalCount===1?'':'s'}` : '';
+  addMsg('system',
+    `Got it — ${solTitle} for ${vertTitle}. ${matched.length} scenario${matched.length===1?'':'s'} loaded${signalSummary}. Numbers are defaults for now.`);
   const q = pickDiscoveryQuestion();
-  if (q) {
-    addMsg('ai', q);
-  } else {
-    addMsg('ai', "Tell me about your buyer's most-affected operating pattern so I can ground the defaults.");
-  }
+  if (q) addMsg('ai', q);
+  else   addMsg('ai', "Tell me about your buyer's most-affected operating pattern so I can ground the defaults.");
+}
+
+// Step-2 tile click. Stores the picked vertical, advances to step 3, and
+// fetches signals in the background. The heavy activation work (scenario
+// filter by signal union, pane flip, chat kickoff) happens in
+// activateFromSignalSelection() when the seller hits Continue on step 3.
+async function selectVertical(domainId) {
+  if (!S.loaded) { toast('Still loading the engine…'); return; }
+  const verticals = VERTICALS[S.onboarding.solution] || [];
+  const title = verticals.find(v => v.domain_id === domainId)?.title || domainId;
+  S.engine = domainId;
+  S.onboarding.step = 3;
+  // Brief loading state so the pane doesn't feel frozen during the fetch.
+  const host = document.getElementById('gathering');
+  if (host) host.innerHTML = `<div class="onboard">
+    <div class="onboard-step">01 / 02 / <b>03</b></div>
+    <div class="onboard-head">Loading signals…</div>
+    <div class="onboard-sub">Pulling the relevant value signals for ${esc(title)}.</div>
+  </div>`;
+  await loadSignals(domainId);
+  renderOnboarding();
 }
 
 // ─── AGGREGATE MATH ─────────────────────────────────────────────────────────
@@ -1531,6 +1755,7 @@ function newSession() {
   S.gateShown = false; S.gateUnlocked = false;
   S.govInputs = 0; S.skipDiscovery = false;
   S.onboarding = { step: 1, solution: null, complete: false };
+  S.signals = []; S.selectedSignals = new Set(); S.signalScenarioIds = new Set();
   S.saveState = 'idle'; S.pendingSliderChanges = {};
   S.sid = 's' + Date.now() + '-' + Math.random().toString(36).slice(2,6);
   // Wipe any buyer/chat overrides so onboarding starts from true defaults.
