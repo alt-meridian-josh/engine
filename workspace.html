@@ -256,6 +256,22 @@ input,select,textarea{font:inherit;color:inherit}
 .fin-table th{background:#faf9f7;text-align:left;padding:11px 18px;font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink-3);font-weight:500;border-bottom:1px solid var(--border)}
 .fin-table td{padding:16px 18px;font-family:var(--font-mono);color:var(--ink);font-size:15px;font-weight:500}
 .fin-table td.accent{color:var(--accent)}
+/* Snapshots tab */
+.snap-timeline{position:relative;padding-left:22px}
+.snap-timeline::before{content:'';position:absolute;left:5px;top:10px;bottom:10px;width:2px;background:var(--border)}
+.snap-card{background:#fff;border:1px solid var(--border);border-radius:8px;padding:18px 22px;box-shadow:var(--shadow-sm);margin-bottom:16px;position:relative}
+.snap-card::before{content:'';position:absolute;left:-22px;top:24px;width:10px;height:10px;border-radius:50%;background:#fff;border:2px solid var(--accent)}
+.snap-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:12px;flex-wrap:wrap}
+.snap-label{font-family:var(--font-display);font-size:16px;font-weight:600;color:var(--ink)}
+.snap-date{font-family:var(--font-mono);font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em;margin-top:2px}
+.snap-meta{display:flex;gap:6px;flex-wrap:wrap}
+.snap-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;padding:12px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-bottom:12px}
+.snap-metric{display:flex;flex-direction:column;gap:2px}
+.snap-metric-label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink-3)}
+.snap-metric-value{font-family:var(--font-display);font-size:18px;font-weight:600;color:var(--ink)}
+.snap-metric-value.accent{color:var(--accent)}
+.snap-notes{font-family:var(--font-mono);font-size:12px;color:var(--ink-2);margin-bottom:12px;line-height:1.55}
+.snap-actions{display:flex;gap:8px}
 /* Next actions */
 .mini-section-title{font-family:var(--font-display);font-size:15px;font-weight:600;margin-bottom:10px}
 .action-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);font-size:13px}
@@ -422,7 +438,8 @@ function render(){
 function renderModal(){
   const root = document.getElementById('modal-root');
   if (!state.modal){ root.innerHTML = ''; return; }
-  if (state.modal === 'newAnalysis') root.innerHTML = renderNewAnalysisModal();
+  if (state.modal === 'newAnalysis')  root.innerHTML = renderNewAnalysisModal();
+  if (state.modal === 'saveSnapshot') root.innerHTML = renderSaveSnapshotModal();
 }
 
 /* ---------- NEW ANALYSIS MODAL ---------- */
@@ -853,7 +870,105 @@ function renderOutputs(a){
     </section>
   `;
 }
-function renderSnapshots(a){ return `<div class="tab-placeholder">Snapshots tab lands in Chunk 12</div>`; }
+/* ---------- SNAPSHOTS tab ---------- */
+function renderSnapshots(a){
+  const snaps = snapshotsByAnalysis[a.id] || [];
+  const ordered = snaps.slice().sort((x,y) => (y.date||'').localeCompare(x.date||''));
+  return `
+    <div class="section-head">
+      <h2 class="section-title">Milestone Snapshots<span class="section-count">${snaps.length} saved</span></h2>
+      <button class="btn btn-primary btn-sm" data-action="open-save-snapshot">+ Save Snapshot</button>
+    </div>
+    ${ordered.length
+      ? `<div class="snap-timeline">${ordered.map(renderSnapshotCard).join('')}</div>`
+      : `<div class="tab-placeholder">No snapshots yet. Save one at kickoff, champion session, or CFO review.</div>`}
+  `;
+}
+
+function renderSnapshotCard(s){
+  return `
+    <div class="snap-card">
+      <div class="snap-head">
+        <div>
+          <div class="snap-label">${escapeHtml(s.label)}</div>
+          <div class="snap-date">${fmtDate(s.date)}</div>
+        </div>
+        <div class="snap-meta">
+          <span class="chip ${STAGE_CHIP[s.stage]||'chip-grey'}">${escapeHtml(s.stage)}</span>
+          <span class="chip ${PHASE_CHIP[s.phase]||'chip-grey'}">${escapeHtml(s.phase)}</span>
+        </div>
+      </div>
+      <div class="snap-metrics">
+        <div class="snap-metric"><span class="snap-metric-label">ARV</span><span class="snap-metric-value accent">${fmtMoney(s.arv)}</span></div>
+        <div class="snap-metric"><span class="snap-metric-label">Payback</span><span class="snap-metric-value">${s.payback ?? '—'} mo</span></div>
+        <div class="snap-metric"><span class="snap-metric-label">BCR</span><span class="snap-metric-value">${s.bcr ? s.bcr.toFixed(1)+'x' : '—'}</span></div>
+      </div>
+      ${s.notes ? `<div class="snap-notes">${escapeHtml(s.notes)}</div>` : ''}
+      <div class="snap-actions">
+        <button class="btn btn-ghost btn-sm" data-action="open-snapshot" data-id="${s.id}">Open</button>
+        <button class="btn btn-ghost btn-sm" data-action="export-snapshot-pdf" data-id="${s.id}">Export PDF</button>
+      </div>
+    </div>
+  `;
+}
+
+/* ---------- SAVE SNAPSHOT MODAL ---------- */
+const SNAPSHOT_LABELS = ['Kickoff','Champion Session','CFO Review','Delivery','30-Day Follow-Up'];
+
+function renderSaveSnapshotModal(){
+  return `
+    <div class="modal-overlay" data-action="modal-backdrop">
+      <div class="modal-card">
+        <div class="modal-head">
+          <h2 class="modal-title">Save Snapshot</h2>
+          <p class="modal-sub">Freeze this analysis at a key milestone</p>
+        </div>
+        <form data-action="save-snapshot-submit" autocomplete="off">
+          <div class="modal-body">
+            <div class="field">
+              <label class="label">Milestone label</label>
+              <select class="select" name="label" required>
+                ${SNAPSHOT_LABELS.map(l => `<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join('')}
+              </select>
+            </div>
+            <div class="field">
+              <label class="label">Notes</label>
+              <textarea class="textarea" name="notes" placeholder="What changed · what's next · open questions"></textarea>
+            </div>
+          </div>
+          <div class="modal-foot">
+            <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Snapshot →</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+function onSaveSnapshotSubmit(e){
+  e.preventDefault();
+  const f = e.target;
+  const a = findAnalysis(state.activeAnalysisId);
+  if (!a) return;
+  const arv = computeArv(a);
+  const fin = computeFinancial(a);
+  const denom = Math.max(arv * 0.3, 150000);
+  const snap = {
+    id: uid('snap'),
+    label: f.label.value,
+    date: new Date().toISOString().slice(0,10),
+    stage: a.stage,
+    phase: a.phase,
+    arv,
+    payback: fin?.payback ?? 12,
+    bcr: arv > 0 ? +((fin?.npv || arv*3) / denom).toFixed(1) : 0,
+    notes: f.notes.value.trim()
+  };
+  (snapshotsByAnalysis[a.id] = snapshotsByAnalysis[a.id] || []).push(snap);
+  setState({ modal: null });
+  toast(`Snapshot saved · ${snap.label}`);
+}
 
 function onNewAnalysisSubmit(e){
   e.preventDefault();
@@ -1048,7 +1163,8 @@ document.addEventListener('submit', e => {
   if (!form) return;
   const action = form.getAttribute('data-action');
   if (action === 'login-submit') return onLoginSubmit(e);
-  if (action === 'new-analysis-submit') return onNewAnalysisSubmit(e);
+  if (action === 'new-analysis-submit')  return onNewAnalysisSubmit(e);
+  if (action === 'save-snapshot-submit') return onSaveSnapshotSubmit(e);
 });
 
 document.addEventListener('click', e => {
@@ -1078,7 +1194,13 @@ document.addEventListener('click', e => {
     return setState({ workspaceTab: node.getAttribute('data-tab') });
   }
   if (action === 'open-save-snapshot'){
-    return toast('Save Snapshot modal lands in Chunk 12');
+    return setState({ modal: 'saveSnapshot' });
+  }
+  if (action === 'open-snapshot'){
+    return toast('Snapshot detail view — coming soon');
+  }
+  if (action === 'export-snapshot-pdf'){
+    return toast('PDF export — coming soon');
   }
   if (action === 'generate-report'){
     return toast('Report export — coming soon');
