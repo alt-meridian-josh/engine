@@ -306,10 +306,7 @@ body::before{
         <div class="tier" onclick="setTier(this,'aggressive')">Aggressive</div>
       </div>
     </div>
-    <div id="rbody">
-      <div id="gathering"></div>
-      <div id="analysis" style="display:none;"></div>
-    </div>
+    <div id="rbody"></div>
   </div>
 </div>
 
@@ -657,7 +654,7 @@ const VERTICALS = {
 
 // ─── ONBOARDING RENDER ──────────────────────────────────────────────────────
 function renderOnboarding() {
-  const host = document.getElementById('gathering');
+  const host = document.getElementById('rbody');
   if (!host || S.onboarding.complete) return;
   if (S.onboarding.step === 1) {
     host.innerHTML = `<div class="onboard">
@@ -745,7 +742,7 @@ async function loadSignals(domainId) {
 }
 
 function renderSignalStep() {
-  const host = document.getElementById('gathering');
+  const host = document.getElementById('rbody');
   if (!host) return;
   const count = S.selectedSignals.size;
   const warn = count > 6;
@@ -865,7 +862,8 @@ function activateFromSignalSelection() {
   // renders from scenario defaults on first paint, no edge-fn call required.
   S.lastStructured = { type:'analysis', title: `${solTitle} for ${vertTitle}` };
 
-  document.getElementById('gathering').style.display = 'none';
+  // updateAnalysis rewrites #rbody in full — no explicit visibility toggle
+  // needed now that onboarding and analysis share the same container.
   updateAnalysis();
   renderScenPanel();
 
@@ -874,6 +872,21 @@ function activateFromSignalSelection() {
   inp.placeholder = "Answer Meridian's question…";
   document.getElementById('send').disabled = false;
   document.getElementById('skip-link')?.classList.remove('hidden');
+
+  // Priming block: the first entry in S.history tells Claude where the
+  // session is so subsequent edge-fn calls don't re-ask 'what do you sell?'
+  // and don't loop on the same discovery question. Kept out of the chat
+  // (addMsg not called for it) — chat stays a clean discovery transcript.
+  const signalNames = [...S.selectedSignals]
+    .map(id => S.signals.find(s => s.signal_id === id)?.signal_name)
+    .filter(Boolean);
+  const scenarioNames = matched.map(s => s.one_liner || s.mechanism_label || s.scenario_id);
+  const primer = `[Onboarding complete. Domain: ${domainId}. `
+    + `Signals confirmed: ${signalNames.length ? signalNames.join('; ') : '(none — signals skipped)'}. `
+    + `Activated scenarios: ${scenarioNames.join('; ')}. `
+    + `Do not ask the user to describe their solution — it has already been captured. `
+    + `Ask only for the next discovery input.]`;
+  S.history = [{ role:'user', content:primer, primer:true }];
 
   // One system confirmation + Meridian's first question, both constructed
   // locally from the DB. No edge-function call happens until the seller
@@ -897,7 +910,7 @@ async function selectVertical(domainId) {
   S.engine = domainId;
   S.onboarding.step = 3;
   // Brief loading state so the pane doesn't feel frozen during the fetch.
-  const host = document.getElementById('gathering');
+  const host = document.getElementById('rbody');
   if (host) host.innerHTML = `<div class="onboard">
     <div class="onboard-step">01 / 02 / <b>03</b></div>
     <div class="onboard-head">Loading signals…</div>
@@ -985,14 +998,14 @@ function computeAggregates(activeSet) {
 }
 
 // ─── PANEL DISPATCH ─────────────────────────────────────────────────────────
+// Pre-analysis pane: always the onboarding flow. #rbody holds exactly one of
+// {onboarding markup, analysis markup} at a time — a single container swap.
 function renderGatheringState() {
-  document.getElementById('gathering').style.display = '';
-  document.getElementById('analysis').style.display = 'none';
   renderOnboarding();
 }
 
 function updateAnalysis() {
-  // Panel stays in gathering state until a structured analysis has landed.
+  // Before activation (or if the analysis cleared), fall back to onboarding.
   if (!S.lastStructured || S.lastStructured.type !== 'analysis') {
     renderGatheringState();
     return;
@@ -1000,11 +1013,8 @@ function updateAnalysis() {
   const agg = computeAggregates(S.activeScens);
   if (agg.computed.length === 0) { renderGatheringState(); return; }
 
-  document.getElementById('gathering').style.display = 'none';
-  const analysis = document.getElementById('analysis');
-  analysis.style.display = '';
-
-  analysis.innerHTML =
+  const host = document.getElementById('rbody');
+  host.innerHTML =
       renderGovBanner()
     + renderMetrics(agg)
     + renderPoolNote(agg)
@@ -1355,7 +1365,13 @@ async function discTurn(text) {
     const data = await res.json();
     const structured = data.structured || { type:'text', text: data.error || 'Unable to generate.' };
     S.history.push({ role:'assistant', structured, content: JSON.stringify(structured) });
-    if (S.history.length > 14) S.history = S.history.slice(-14);
+    if (S.history.length > 14) {
+      // Preserve the onboarding primer across history trims so Claude never
+      // loses the session context (domain, signals, activated scenarios).
+      const primer = S.history.find(m => m.primer);
+      S.history = S.history.slice(-14);
+      if (primer && !S.history.some(m => m.primer)) S.history = [primer, ...S.history];
+    }
     S.lastStructured = structured;
 
     // Capture chat-extracted inputs first — may push govInputs across the
@@ -1425,14 +1441,30 @@ function buildModelState() {
   const agg = computeAggregates(S.activeScens);
   const changed = Object.entries(S.pendingSliderChanges).map(([k,v]) => {
     const def = S.defs[k];
-    const isDec = def?.unit === 'decimal';
+    const isDec = isPctUnit(def?.unit);
     return `${def?.label || k}=${isDec ? pctFmt(v) : rawFmt(v, def?.unit || '')}`;
   });
+  // Onboarding context — the edge function's formatModelState only consumes
+  // total/scenarios/conf/changed today, but these extra keys ride along so a
+  // future edge-fn update can surface them without another client change.
+  const signalNames = [...S.selectedSignals]
+    .map(id => S.signals.find(s => s.signal_id === id)?.signal_name)
+    .filter(Boolean);
+  const scenarioNames = [...S.activeScens]
+    .map(id => {
+      const s = S.scenarios.find(x => x.scenario_id === id);
+      return s?.one_liner || s?.mechanism_label || s?.scenario_id;
+    })
+    .filter(Boolean);
   return {
     total: Math.round(agg.y1),
     scenarios: agg.winners.length,
     conf: S.conf,
     changed: changed.length ? changed : undefined,
+    domain: S.engine || undefined,
+    signals: signalNames.length ? signalNames : undefined,
+    activated_scenarios: scenarioNames.length ? scenarioNames : undefined,
+    gov_inputs: S.govInputs || undefined,
   };
 }
 
