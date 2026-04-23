@@ -400,9 +400,8 @@ async function load() {
     resolveDefs();
     seedDefaults();
     S.loaded = true;
-    document.getElementById('inp').disabled = false;
-    document.getElementById('send').disabled = false;
-    document.getElementById('inp').placeholder = 'Describe your solution and buyer…';
+    document.getElementById('inp').placeholder = 'Pick a solution type to start…';
+    renderOnboarding();
     showWelcome();
   } catch (e) {
     console.error('load failed:', e);
@@ -497,6 +496,97 @@ function esc(t) {
   return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function rmId(id) { const el = document.getElementById(id); if (el) el.remove(); }
+// ─── ONBOARDING DATA ────────────────────────────────────────────────────────
+// Step 1 solution types. Keys are arbitrary client-side IDs used to pick the
+// corresponding verticals list in step 2; they never hit the DB.
+const SOLUTIONS = [
+  { key:'tracking',   title:'Tracking & Visibility', sub:'RFID, BLE, IoT hardware' },
+  { key:'enterprise', title:'Enterprise Software',   sub:'SaaS, platforms, workflow tools' },
+  { key:'ai',         title:'AI & Analytics',        sub:'AI platforms, data products, ML' },
+  { key:'sensor',     title:'Sensor & IoT',          sub:'Ambient sensing, cold chain, monitoring' },
+  { key:'risk',       title:'Risk Intelligence',     sub:'Insurance, climate, underwriting data' },
+  { key:'location',   title:'Location & Geospatial', sub:'POI data, mobility, site intelligence' },
+];
+
+// Step 2 verticals per solution type. domain_id matches vef_value_scenarios.
+const VERTICALS = {
+  tracking: [
+    { domain_id:'WH-RFD',  title:'Warehouse & 3PL',        sub:'Distribution centers, fulfillment' },
+    { domain_id:'RET-RFD', title:'Retail & Apparel',       sub:'Stores, inventory accuracy' },
+    { domain_id:'HC-RFD',  title:'Healthcare',             sub:'Hospitals, medical asset tracking' },
+    { domain_id:'MTL-RFD', title:'Manufacturing',          sub:'Production, WIP, assembly' },
+    { domain_id:'TL-RFD',  title:'Transport & Logistics',  sub:'Fleet, carriers, routing' },
+  ],
+  enterprise: [
+    { domain_id:'AIP', title:'Enterprise cross-vertical',  sub:'Any large enterprise buyer' },
+  ],
+  ai: [
+    { domain_id:'AIP',     title:'Enterprise cross-vertical', sub:'AI platform for enterprise' },
+    { domain_id:'GEO-POI', title:'Location Intelligence',     sub:'POI, mobility, trade area' },
+  ],
+  sensor: [
+    { domain_id:'BLE-3PL', title:'Cold Chain / 3PL',  sub:'Temperature, asset tracking' },
+    { domain_id:'CV-MFG',  title:'Manufacturing',     sub:'Computer vision, defect detection' },
+  ],
+  risk: [
+    { domain_id:'CAT-RISK', title:'P&C Insurance',    sub:'Catastrophe + climate risk' },
+  ],
+  location: [
+    { domain_id:'GEO-POI', title:'Location Intelligence', sub:'POI, mobility, trade area' },
+  ],
+};
+
+// ─── ONBOARDING RENDER ──────────────────────────────────────────────────────
+function renderOnboarding() {
+  const host = document.getElementById('gathering');
+  if (!host || S.onboarding.complete) return;
+  if (S.onboarding.step === 1) {
+    host.innerHTML = `<div class="onboard">
+      <div class="onboard-step"><b>01</b> / 02</div>
+      <div class="onboard-head">What do you sell?</div>
+      <div class="onboard-sub">Pick the closest match.</div>
+      <div class="onboard-grid">
+        ${SOLUTIONS.map(s => `<button class="onboard-tile" onclick="selectSolution('${s.key}')">
+          <div class="ot-title">${esc(s.title)}</div>
+          <div class="ot-sub">${esc(s.sub)}</div>
+        </button>`).join('')}
+      </div>
+    </div>`;
+  } else {
+    const verticals = VERTICALS[S.onboarding.solution] || [];
+    const solTitle = SOLUTIONS.find(s => s.key === S.onboarding.solution)?.title || '';
+    host.innerHTML = `<div class="onboard">
+      <button class="onboard-back" onclick="onboardingBack()">← Back</button>
+      <div class="onboard-step">01 / <b>02</b></div>
+      <div class="onboard-head">Who is your buyer?</div>
+      <div class="onboard-sub">Pick their primary vertical for ${esc(solTitle)}.</div>
+      <div class="onboard-grid">
+        ${verticals.map(v => `<button class="onboard-tile" onclick="selectVertical('${v.domain_id}', ${JSON.stringify(v.title)})">
+          <div class="ot-title">${esc(v.title)}</div>
+          <div class="ot-sub">${esc(v.sub)}</div>
+        </button>`).join('')}
+      </div>
+    </div>`;
+  }
+}
+
+function selectSolution(key) {
+  S.onboarding.step = 2;
+  S.onboarding.solution = key;
+  renderOnboarding();
+}
+
+function onboardingBack() {
+  S.onboarding.step = 1;
+  S.onboarding.solution = null;
+  renderOnboarding();
+}
+
+// Stub — chunk 3 wires this to activateFromDomainId + chat messages + discovery.
+function selectVertical(domainId, title) {
+  console.warn('selectVertical placeholder — chunk 3 not yet applied:', domainId, title);
+}
+
 // ─── AGGREGATE MATH ─────────────────────────────────────────────────────────
 // Activation ramps per scenario.activation_type
 const RAMP = {
@@ -559,6 +649,7 @@ function computeAggregates(activeSet) {
 function renderGatheringState() {
   document.getElementById('gathering').style.display = '';
   document.getElementById('analysis').style.display = 'none';
+  renderOnboarding();
 }
 
 function updateAnalysis() {
