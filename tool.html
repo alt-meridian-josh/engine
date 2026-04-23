@@ -439,7 +439,140 @@ function esc(t) {
   return String(t||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 function rmId(id) { const el = document.getElementById(id); if (el) el.remove(); }
-/* === JS_SLOT_2 === */
+// ─── AGGREGATE MATH ─────────────────────────────────────────────────────────
+// Activation ramps per scenario.activation_type
+const RAMP = {
+  human:      [0.30, 0.70, 1.00],  // J-curve — workflow change ramps over 3y
+  instrument: [1.00, 1.00, 1.00],  // full from Y1 — sensor/telemetry is binary
+  deadline:   [1.00, 1.00, 1.00],  // binary once the deadline triggers
+};
+
+// Pool-share guard: for each value_pool, credit only the scenario with the
+// highest annual value. Shadowed scenarios are flagged, not summed. Prevents
+// double-counting — defensible to a CFO.
+function computeAggregates(activeSet) {
+  const source = activeSet && activeSet.size > 0
+    ? S.scenarios.filter(s => activeSet.has(s.scenario_id))
+    : S.scenarios;
+
+  const raw = source
+    .map(s => ({ s, annual: evalF(s.value_scenario_formula) }))
+    .filter(x => x.annual && x.annual > 0 && isFinite(x.annual));
+
+  const ramped = raw.map(({s, annual}) => {
+    const type = s.activation_type || 'human';
+    const r = RAMP[type] || RAMP.human;
+    return { s, annual,
+      y1: annual*r[0], y2: annual*r[1], y3: annual*r[2],
+      pool: s.value_pool || 'other',
+      activation: type };
+  });
+
+  // Pool-max: one winner per value_pool
+  const byPool = {};
+  ramped.forEach(r => { if (!byPool[r.pool] || r.annual > byPool[r.pool].annual) byPool[r.pool] = r; });
+  const winnerIds = new Set(Object.values(byPool).map(r => r.s.scenario_id));
+  const computed = ramped.map(r => ({...r, shadowed: !winnerIds.has(r.s.scenario_id)}));
+  computed.sort((a,b) => b.y1 - a.y1);
+
+  const winners = computed.filter(r => !r.shadowed);
+  const y1 = winners.reduce((s,r) => s+r.y1, 0);
+  const y2 = winners.reduce((s,r) => s+r.y2, 0);
+  const y3 = winners.reduce((s,r) => s+r.y3, 0);
+
+  // Implementation cost must be explicitly provided — no silent fallback.
+  const implInput = S.inputs['implementation_cost'];
+  const impl = (implInput && implInput.value > 0 && implInput.source !== 'engine') ? implInput.value : null;
+
+  const npv = impl != null ? (y1/1.10 + y2/1.21 + y3/1.331 - impl) : null;
+  const bcrRaw = (impl != null && impl > 0) ? (y1+y2+y3)/impl : null;
+  const bcrCapped = bcrRaw != null && bcrRaw > 10;
+  const bcr = bcrRaw != null ? Math.min(bcrRaw, 10) : null;
+  const pay = (impl != null && impl > 0 && y1 > 0) ? (impl/y1*12) : null;
+
+  const poolGuard = computed.filter(r => r.shadowed).map(r => ({
+    shadowed: r.s.scenario_id, winner: byPool[r.pool].s.scenario_id, pool: r.pool,
+  }));
+
+  return { y1, y2, y3, npv, pay, bcr, bcrRaw, bcrCapped, impl, computed, winners, poolGuard };
+}
+
+// ─── PANEL DISPATCH ─────────────────────────────────────────────────────────
+function renderGatheringState() {
+  document.getElementById('gathering').style.display = '';
+  document.getElementById('analysis').style.display = 'none';
+}
+
+function updateAnalysis() {
+  // Panel stays in gathering state until a structured analysis has landed.
+  if (!S.lastStructured || S.lastStructured.type !== 'analysis') {
+    renderGatheringState();
+    return;
+  }
+  const agg = computeAggregates(S.activeScens);
+  if (agg.computed.length === 0) { renderGatheringState(); return; }
+
+  document.getElementById('gathering').style.display = 'none';
+  const analysis = document.getElementById('analysis');
+  analysis.style.display = '';
+
+  analysis.innerHTML =
+      renderMetrics(agg)
+    + renderPoolNote(agg)
+    + renderScenCards(agg)
+    + renderInputsSection()
+    + renderOutput(agg);
+
+  wireSliders();
+}
+
+function renderMetrics(agg) {
+  const {y1, y2, y3, npv, pay, bcr, bcrCapped} = agg;
+  const cdn = y1 + y2 + y3;
+  const npvStr = npv != null ? fmt(npv) : '—';
+  const payStr = pay != null ? pay.toFixed(1) + 'mo' : '—';
+  const bcrStr = bcr != null ? bcr.toFixed(1) + 'x' : '—';
+  const bcrCapTag = bcrCapped
+    ? '<span class="bcr-cap" title="Raw BCR capped at 10x — CFOs stop reading after the first double-digit multiple">cap</span>'
+    : '';
+  const payHint = agg.impl == null ? 'enter implementation cost' : 'months to breakeven';
+  return `<div class="metrics">
+    <div class="mc r">
+      <div class="mc-lbl">Value of Acting · Y1</div>
+      <div class="mc-val">${fmt(y1)}</div>
+      <div class="mc-sub">after activation ramp</div>
+    </div>
+    <div class="mc a">
+      <div class="mc-lbl">Cost of Delay</div>
+      <div class="mc-val">${fmt(y1/12)}</div>
+      <div class="mc-sub">per month of inaction</div>
+    </div>
+    <div class="mc d">
+      <div class="mc-lbl">3-Yr Cumulative</div>
+      <div class="mc-val">${fmt(cdn)}</div>
+      <div class="mc-sub">Cost of Doing Nothing</div>
+    </div>
+    <div class="mc g">
+      <div class="mc-lbl">Payback · BCR · NPV</div>
+      <div class="mc-val" style="font-size:16px;line-height:1.25">${payStr}</div>
+      <div class="mc-sub">${bcrStr}${bcrCapTag} · ${npvStr} NPV · ${payHint}</div>
+    </div>
+  </div>`;
+}
+
+function renderPoolNote(agg) {
+  if (!agg.poolGuard.length) return '';
+  const pools = [...new Set(agg.poolGuard.map(g => g.pool))].join(', ');
+  const n = agg.poolGuard.length;
+  return `<div class="pool-note">↯ Pool-share guard: ${n} scenario${n===1?'':'s'} shadowed in pool${n===1?'':'s'} (${pools}) — only the highest-value scenario per pool is credited, to avoid double-counting.</div>`;
+}
+
+function buildStatement(agg) {
+  const top = agg.winners[0]?.s;
+  const theme = (top?.value_theme || 'operational efficiency').toLowerCase();
+  const n = agg.winners.length;
+  return `Based on ${n} active scenario${n===1?'':'s'} and ${S.conf} assumptions, this solution delivers ${fmt(agg.y1)} in Year-1 realized value, led by ${theme}. Every month without a decision costs ${fmt(agg.y1/12)}.`;
+}
 /* === JS_SLOT_3 === */
 /* === JS_SLOT_4 === */
 /* === JS_SLOT_5 === */
