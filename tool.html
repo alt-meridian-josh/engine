@@ -827,11 +827,13 @@ function activateFromSignalSelection() {
   document.getElementById('send').disabled = false;
   document.getElementById('skip-link')?.classList.remove('hidden');
 
+  // One system confirmation + Meridian's first question, both constructed
+  // locally from the DB. No edge-function call happens until the seller
+  // types their first response (send → discTurn).
   const signalCount = S.selectedSignals.size;
-  const signalSummary = signalCount > 0 ? ` against ${signalCount} signal${signalCount===1?'':'s'}` : '';
   addMsg('system',
-    `Got it — ${solTitle} for ${vertTitle}. ${matched.length} scenario${matched.length===1?'':'s'} loaded${signalSummary}. Numbers are defaults for now.`);
-  const q = pickDiscoveryQuestion();
+    `${matched.length} scenario${matched.length===1?'':'s'} activated across ${signalCount} signal${signalCount===1?'':'s'}. Numbers are defaults — we'll ground them together.`);
+  const q = pickHighestARVQuestion();
   if (q) addMsg('ai', q);
   else   addMsg('ai', "Tell me about your buyer's most-affected operating pattern so I can ground the defaults.");
 }
@@ -855,6 +857,28 @@ async function selectVertical(domainId) {
   </div>`;
   await loadSignals(domainId);
   renderOnboarding();
+}
+
+// First-turn question: find the activated scenario with the highest Y1 ARV
+// at current defaults, then return its first discovery_questions entry.
+// Differs from pickDiscoveryQuestion (which walks by govInputs index) — this
+// picks by dollar impact so the opening interview question is the one that
+// moves the biggest number in the model.
+function pickHighestARVQuestion() {
+  const ranked = [...S.activeScens]
+    .map(id => {
+      const s = S.scenarios.find(x => x.scenario_id === id);
+      if (!s) return null;
+      return { s, arv: evalF(s.value_scenario_formula) || 0 };
+    })
+    .filter(Boolean)
+    .sort((a,b) => b.arv - a.arv);
+  const top = ranked[0]?.s;
+  if (!top) return null;
+  const raw = top.discovery_questions || top.cfo_challenge || '';
+  if (!raw) return null;
+  const parts = String(raw).split(/[\n|;]/).map(x => x.trim()).filter(Boolean);
+  return parts[0] || null;
 }
 
 // ─── AGGREGATE MATH ─────────────────────────────────────────────────────────
@@ -1228,6 +1252,10 @@ async function send() {
   const inp = document.getElementById('inp');
   const text = (inp.value || '').trim();
   if (!text || S.loading) return;
+  // Defense in depth: the textarea is disabled until activateFromSignalSelection
+  // flips S.onboarding.complete, but if any path ever re-enables it early this
+  // check stops a stray edge-fn call during onboarding.
+  if (!S.onboarding.complete) return;
   if (S.gateShown && !S.gateUnlocked) { document.getElementById('gate-email')?.focus(); return; }
   inp.value = ''; inp.style.height = 'auto';
   if (S.turns === 0) S.ctx = text;
