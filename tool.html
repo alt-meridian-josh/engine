@@ -2043,18 +2043,98 @@ function resolveImplCost(agg) {
   return { value: n, source: 'buyer' };
 }
 
-// Stub — Chunks F/G/H replace this with the multi-page Investment Appraisal
-// PDF (cover / basis / one page per grounded scenario / summary).
+// Multi-page Investment Appraisal PDF. Layout follows a Zebra-style clean
+// white professional format — black 42pt header band with the ALT MERIDIAN
+// wordmark on every page, red accent rules, Helvetica body. Scenarios get
+// one page each (chunk G), summary closes (chunk H).
 function generateAppraisal() {
   if (!S.interviewComplete) { toast('Complete the interview first.'); return; }
-  toast('Appraisal generator coming next — interview captured, ready to render.');
-  console.log('[appraisal stub]', {
-    activeScens: [...S.activeScens],
-    grounded: [...S.groundedScenarios],
-    inputs: S.inputs,
-    domain: S.engine,
-    solution: S.ctx,
-  });
+  if (!window.jspdf) { toast('PDF library not loaded.'); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit:'pt', format:'letter' });
+  const W = 612, H = 792, L = 40, R = W - 40, TW = W - 80;
+  const ACC=[200,75,47], INK=[15,15,15], MUT=[136,128,120];
+  const RULE=[224,221,214], WHITE=[255,255,255], LTBG=[249,247,243];
+  const setC=c=>doc.setTextColor(...c), setF=c=>doc.setFillColor(...c),
+        setD=c=>doc.setDrawColor(...c), px=n=>doc.setFontSize(n);
+
+  const solTitle = SOLUTIONS.find(s=>s.key===S.onboarding.solution)?.title || 'Value Appraisal';
+  const verts = VERTICALS[S.onboarding.solution] || [];
+  const vertTitle = verts.find(v=>v.domain_id===S.engine)?.title || S.engine || '';
+  const today = new Date().toISOString().slice(0,10);
+
+  // Header band repeated on every page so the document reads cohesively when
+  // printed or scrolled. Called at the top of each new page.
+  const pageHeader = () => {
+    setF(INK); doc.rect(0, 0, W, 42, 'F');
+    px(11); setC(ACC); doc.setFont('helvetica','bold');
+    doc.text('ALT', L, 26);
+    setC(WHITE); doc.text(' MERIDIAN', L + doc.getTextWidth('ALT'), 26);
+    px(7); setC(MUT); doc.setFont('helvetica','normal');
+    doc.text('INVESTMENT APPRAISAL', R, 26, { align:'right' });
+  };
+
+  let y;
+  const section = (lbl) => {
+    setD(RULE); doc.setLineWidth(0.5); doc.line(L, y, R, y); y += 10;
+    px(8); setC(MUT); doc.setFont('helvetica','bold');
+    doc.text(lbl.toUpperCase(), L, y); y += 14;
+  };
+  const body = (t, opts = {}) => {
+    px(opts.size || 10); setC(opts.color || INK);
+    doc.setFont('helvetica', opts.weight || 'normal');
+    const lines = doc.splitTextToSize(t, opts.w || TW);
+    doc.text(lines, L, y);
+    y += lines.length * (opts.lh || 13) + (opts.after != null ? opts.after : 6);
+  };
+  const newPage = () => { doc.addPage(); pageHeader(); y = 70; };
+
+  // ── COVER ────────────────────────────────────────────────────────────────
+  pageHeader();
+  setF(LTBG); doc.rect(0, 42, W, H - 42, 'F');
+  y = 260;
+  px(10); setC(ACC); doc.setFont('helvetica','bold');
+  doc.text('INVESTMENT APPRAISAL', W/2, y, { align:'center' }); y += 30;
+  px(26); setC(INK); doc.setFont('helvetica','bold');
+  const coverLines = doc.splitTextToSize(solTitle, TW);
+  doc.text(coverLines, W/2, y, { align:'center' });
+  y += coverLines.length * 30;
+  px(14); setC(MUT); doc.setFont('helvetica','normal');
+  doc.text(`for ${vertTitle}`, W/2, y, { align:'center' }); y += 20;
+  setD(ACC); doc.setLineWidth(1);
+  doc.line(W/2 - 36, y + 6, W/2 + 36, y + 6); y += 26;
+  px(9); setC(MUT); doc.setFont('courier','normal');
+  doc.text(`Prepared ${today}`, W/2, y, { align:'center' });
+  px(7.5); setC(MUT); doc.setFont('helvetica','normal');
+  doc.text('Alt Meridian · Value belongs to mechanisms, not solutions. · altmeridian.com',
+    W/2, H - 30, { align:'center' });
+
+  // ── BASIS + BACKGROUND ──────────────────────────────────────────────────
+  newPage();
+  section('Basis of Preparation');
+  body(
+    "This appraisal uses Alt Meridian's Value Engineering Framework. Every scenario " +
+    'below was activated by a seller-confirmed market signal and grounded by a ' +
+    'buyer-side input during discovery. Industry defaults are used only where a ' +
+    'buyer input is absent. Net Present Value applies a 10% discount rate over a ' +
+    'three-year horizon. Where scenarios compete for the same buyer budget (value ' +
+    "pool), only the highest-value scenario per pool is credited to the total — " +
+    "avoiding double-counting. Payback uses the buyer's stated implementation cost; " +
+    'absent that, 25% of Year-1 realized value is used as a reasonable default.',
+    { after: 14 }
+  );
+  section('Background');
+  const dom = S.domainById[S.engine] || null;
+  const bgText = (dom && dom.notes)
+    || (dom ? `${dom.domain_name || vertTitle} — ${dom.technology || ''}`.trim().replace(/ —\s*$/,'') : '')
+    || `This analysis covers ${solTitle} for ${vertTitle}. The scenarios that follow ` +
+       'reflect the value pools typically addressed by this solution in this segment.';
+  body(bgText, { after: 14 });
+
+  // Chunks G/H: per-scenario pages + summary.
+  doc.save(`appraisal-${(S.engine||'unknown').toLowerCase()}-${today}.pdf`);
+  toast('Cover + basis generated — scenario pages coming in the next update.');
 }
 
 // ─── PDF EXPORT ─────────────────────────────────────────────────────────────
