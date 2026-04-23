@@ -128,8 +128,8 @@ html,body{height:100%;background:var(--black);color:var(--t1);font-family:var(--
 .signal-check{position:absolute;left:14px;top:16px;width:14px;height:14px;border:1px solid var(--border2);border-radius:2px;background:var(--bg);transition:all 0.15s;}
 .signal-tile.selected .signal-check{background:var(--red);border-color:var(--red);}
 .signal-tile.selected .signal-check::after{content:'';position:absolute;left:4px;top:1px;width:4px;height:8px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg);}
-.signal-name{font-family:var(--display);font-size:14px;font-weight:600;color:var(--t1);margin-bottom:3px;letter-spacing:-0.01em;}
-.signal-state{font-size:11px;color:var(--t2);line-height:1.45;}
+.signal-state{font-size:13px;color:var(--t1);line-height:1.6;}
+.signal-name{font-size:9px;color:var(--t3);letter-spacing:0.12em;text-transform:uppercase;margin-top:6px;font-family:var(--mono);}
 .signal-ind{font-size:10px;color:var(--t3);margin-top:4px;font-style:italic;}
 .signal-empty{padding:28px 20px;text-align:center;font-size:12px;color:var(--t3);border:1px dashed var(--border2);border-radius:2px;line-height:1.6;}
 .signal-footer{display:flex;align-items:center;justify-content:space-between;margin-top:16px;padding-top:14px;border-top:1px solid var(--border);}
@@ -623,12 +623,12 @@ function renderOnboarding() {
         </button>`).join('')}
       </div>
     </div>`;
-  } else {
+  } else if (S.onboarding.step === 2) {
     const verticals = VERTICALS[S.onboarding.solution] || [];
     const solTitle = SOLUTIONS.find(s => s.key === S.onboarding.solution)?.title || '';
     host.innerHTML = `<div class="onboard">
       <button class="onboard-back" onclick="onboardingBack()">← Back</button>
-      <div class="onboard-step">01 / <b>02</b></div>
+      <div class="onboard-step">01 / <b>02</b> / 03</div>
       <div class="onboard-head">Who is your buyer?</div>
       <div class="onboard-sub">Pick their primary vertical for ${esc(solTitle)}.</div>
       <div class="onboard-grid">
@@ -638,6 +638,8 @@ function renderOnboarding() {
         </button>`).join('')}
       </div>
     </div>`;
+  } else if (S.onboarding.step === 3) {
+    renderSignalStep();
   }
 }
 
@@ -651,6 +653,113 @@ function onboardingBack() {
   S.onboarding.step = 1;
   S.onboarding.solution = null;
   renderOnboarding();
+}
+
+// ─── STEP 3: SIGNALS ────────────────────────────────────────────────────────
+// Load signals for the active domain. Three-branch logic per the design note:
+//   1. domain-keyed rows (AIP / BLE-3PL / CAT-RISK / CV-MFG / MOTO-IND /
+//      VEN-VEF) returned directly.
+//   2. *-RFD vertical → domain_id IS NULL rows, client-side filtered to
+//      those whose scenario_ids CSV contains a token with the vertical prefix.
+//   3. else (e.g. GEO-POI) → [] (renderSignalStep shows an empty state).
+// Seeds S.signals and resets S.selectedSignals / S.signalScenarioIds so the
+// counter starts at zero on every re-entry.
+async function loadSignals(domainId) {
+  S.signals = [];
+  S.selectedSignals = new Set();
+  S.signalScenarioIds = new Set();
+  if (!domainId) return;
+  try {
+    let rows = await sbGet('vef_value_signals',
+      `domain_id=eq.${encodeURIComponent(domainId)}&select=*`);
+    if (!rows.length && /-RFD$/.test(domainId)) {
+      const all = await sbGet('vef_value_signals', 'domain_id=is.null&select=*');
+      const prefix = domainId + '-';
+      rows = all.filter(sig => {
+        const ids = (sig.scenario_ids || '').split(',').map(x => x.trim()).filter(Boolean);
+        return ids.some(id => id.startsWith(prefix));
+      });
+    }
+    S.signals = rows || [];
+  } catch (e) {
+    console.error('loadSignals failed:', e);
+    S.signals = [];
+  }
+}
+
+function renderSignalStep() {
+  const host = document.getElementById('gathering');
+  if (!host) return;
+  const count = S.selectedSignals.size;
+  const warn = count > 6;
+  const continueDisabled = count < 1;
+  const continueLabel = count === 0 ? 'Continue →'
+    : `Continue with ${count} signal${count===1?'':'s'} →`;
+
+  // Empty state: no signals catalogued for this vertical (e.g. GEO-POI).
+  if (!S.signals.length) {
+    host.innerHTML = `<div class="onboard">
+      <button class="onboard-back" onclick="onboardingBack()">← Back</button>
+      <div class="onboard-step">01 / 02 / <b>03</b></div>
+      <div class="onboard-head">What signals are present?</div>
+      <div class="onboard-sub">No signals catalogued for this vertical yet.</div>
+      <div class="signal-empty">
+        You can proceed — scenarios will activate with industry defaults and
+        we'll ground them through chat instead.
+      </div>
+      <div class="signal-footer">
+        <span class="signal-count"></span>
+        <button class="signal-continue" onclick="activateFromSignalSelection()">Proceed with defaults →</button>
+      </div>
+    </div>`;
+    return;
+  }
+
+  // Signal tiles — flipped hierarchy: before_state is the primary read, the
+  // signal_name becomes a small uppercase label below. Truncate the primary
+  // at 100 chars and surface the full text via title for hover.
+  const rows = S.signals.map(sig => {
+    const sel = S.selectedSignals.has(sig.signal_id);
+    const primary = sig.before_state || sig.definition || '';
+    const shown = primary.length > 100 ? primary.slice(0, 100).trimEnd() + '…' : primary;
+    const titleAttr = primary.length > 100 ? ` title="${esc(primary)}"` : '';
+    const label = sig.signal_name || sig.signal_id || '';
+    return `<div class="signal-tile${sel?' selected':''}" onclick="toggleSignal('${esc(sig.signal_id)}')"${titleAttr}>
+      <div class="signal-check"></div>
+      <div class="signal-state">${esc(shown)}</div>
+      <div class="signal-name">${esc(label)}</div>
+    </div>`;
+  }).join('');
+
+  host.innerHTML = `<div class="onboard">
+    <button class="onboard-back" onclick="onboardingBack()">← Back</button>
+    <div class="onboard-step">01 / 02 / <b>03</b></div>
+    <div class="onboard-head">What signals are present?</div>
+    <div class="onboard-sub">Pick 3–6 that match your buyer's situation.</div>
+    <div class="signal-list">${rows}</div>
+    <div class="signal-footer">
+      <span class="signal-count"><b class="${warn?'sc-warn':''}">${count}</b> selected${warn?' · over the recommended 6':''}</span>
+      <button class="signal-continue" onclick="activateFromSignalSelection()"${continueDisabled?' disabled':''}>${continueLabel}</button>
+    </div>
+  </div>`;
+}
+
+function toggleSignal(signalId) {
+  if (S.selectedSignals.has(signalId)) S.selectedSignals.delete(signalId);
+  else                                 S.selectedSignals.add(signalId);
+  // Recompute the union of referenced scenario_ids across all selected signals.
+  S.signalScenarioIds = new Set();
+  S.signals.forEach(sig => {
+    if (!S.selectedSignals.has(sig.signal_id)) return;
+    (sig.scenario_ids || '').split(',').map(x => x.trim()).filter(Boolean)
+      .forEach(id => S.signalScenarioIds.add(id));
+  });
+  renderSignalStep();
+}
+
+// Chunk 3 implements activation from the picked signals.
+function activateFromSignalSelection() {
+  console.warn('activateFromSignalSelection — chunk 3 not yet applied');
 }
 
 // Step-2 tile click. Activates the chosen vertical, flips the right pane out
