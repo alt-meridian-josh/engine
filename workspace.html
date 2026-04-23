@@ -204,6 +204,29 @@ input,select,textarea{font:inherit;color:inherit}
 .cfo-toggle.is-open .cfo-caret{transform:rotate(90deg)}
 .cfo-body{margin-top:10px;padding:12px 14px;background:#faf9f7;border-radius:6px;font-size:13px;color:var(--ink-2);border-left:3px solid var(--warn)}
 .cfo-body-label{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--warn-2);margin-bottom:4px;font-family:var(--font-mono)}
+/* Inputs tab */
+.preset-bar{display:flex;gap:6px}
+.preset-btn{padding:6px 12px;border-radius:6px;font-size:11px;font-family:var(--font-mono);color:var(--ink-2);border:1px solid var(--border);background:#fff;cursor:pointer;transition:all .15s;letter-spacing:.02em}
+.preset-btn:hover{color:var(--ink);border-color:var(--border-strong)}
+.preset-btn.is-active{background:var(--ink);color:#fff;border-color:var(--ink)}
+.input-group{background:#fff;border:1px solid var(--border);border-radius:8px;margin-bottom:16px;overflow:hidden;box-shadow:var(--shadow-sm)}
+.input-group-head{background:#faf9f7;padding:12px 20px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)}
+.input-group-name{font-family:var(--font-display);font-size:14px;font-weight:600;color:var(--ink)}
+.input-group-count{font-family:var(--font-mono);font-size:11px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.08em}
+.input-row{display:grid;grid-template-columns:1.5fr 1fr .45fr 1.1fr .7fr .25fr;gap:12px;padding:12px 20px;border-bottom:1px solid var(--border);align-items:center;font-size:13px}
+.input-row:last-child{border-bottom:0}
+.input-row-label{color:var(--ink-2)}
+.editable{font-family:var(--font-mono);color:var(--ink);font-weight:500;padding:4px 8px;border-radius:4px;border:1px solid transparent;cursor:text;transition:background .12s,border-color .12s;display:inline-block;min-width:80px}
+.editable:hover{background:var(--row-hover);border-color:var(--border)}
+.editable[contenteditable="true"]{background:#fff;border-color:var(--accent);outline:0;box-shadow:0 0 0 3px var(--accent-soft)}
+.input-row-unit{font-family:var(--font-mono);font-size:12px;color:var(--ink-3)}
+.sensitivity-tag{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em;padding:2px 8px;border-radius:4px;display:inline-block;font-weight:500}
+.sensitivity-High{background:var(--accent-soft);color:var(--accent)}
+.sensitivity-Medium{background:#faeed0;color:#8a5e0e}
+.sensitivity-Low{background:#eceae6;color:var(--ink-3)}
+.prompt-icon{width:18px;height:18px;display:inline-flex;align-items:center;justify-content:center;border-radius:50%;background:#eceae6;color:var(--ink-3);font-size:11px;cursor:help;font-family:var(--font-mono);font-weight:700;position:relative}
+.prompt-icon:hover{background:var(--accent-soft);color:var(--accent)}
+.prompt-icon:hover::after{content:attr(data-prompt);position:absolute;bottom:26px;right:0;background:var(--ink);color:#fff;padding:8px 12px;border-radius:6px;font-size:12px;font-family:var(--font-mono);font-weight:400;white-space:normal;width:260px;z-index:10;box-shadow:var(--shadow-md);letter-spacing:0;text-transform:none;line-height:1.4}
 /* Next actions */
 .mini-section-title{font-family:var(--font-display);font-size:15px;font-weight:600;margin-bottom:10px}
 .action-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border);font-size:13px}
@@ -644,7 +667,71 @@ function renderScenarioCard(s){
     </div>
   `;
 }
-function renderInputs(a){    return `<div class="tab-placeholder">Inputs tab lands in Chunk 10</div>`; }
+/* ---------- INPUTS tab ---------- */
+function fmtInputValue(v){
+  return typeof v === 'number' ? v.toLocaleString('en-US') : String(v ?? '');
+}
+
+function renderInputs(a){
+  const groups = inputsByAnalysis[a.id] || [];
+  const header = `
+    <div class="section-head">
+      <h2 class="section-title">Inputs</h2>
+      <div class="preset-bar">
+        ${['Conservative','Typical','Aggressive'].map(p =>
+          `<button class="preset-btn ${state.assumptionTier===p?'is-active':''}" data-action="preset" data-preset="${p}">${p}</button>`
+        ).join('')}
+      </div>
+    </div>
+  `;
+  if (!groups.length){
+    return header + `<div class="tab-placeholder">No inputs defined yet for this analysis.</div>`;
+  }
+  return header + groups.map((g,gi) => renderInputGroup(g,gi)).join('');
+}
+
+function renderInputGroup(g, gi){
+  const filled = g.items.filter(i => i.value !== null && i.value !== '' && i.value !== undefined).length;
+  return `
+    <div class="input-group">
+      <div class="input-group-head">
+        <div class="input-group-name">${escapeHtml(g.group)}</div>
+        <div class="input-group-count">${filled}/${g.items.length} filled</div>
+      </div>
+      ${g.items.map((item,ii) => renderInputRow(item,gi,ii)).join('')}
+    </div>
+  `;
+}
+
+function renderInputRow(item, gi, ii){
+  const src = SOURCE[item.source] || SOURCE.default;
+  return `
+    <div class="input-row">
+      <div class="input-row-label">${escapeHtml(item.label)}</div>
+      <div><span class="editable" data-action="edit-input" data-gi="${gi}" data-ii="${ii}">${escapeHtml(fmtInputValue(item.value))}</span></div>
+      <div class="input-row-unit">${escapeHtml(item.unit)}</div>
+      <div><span class="chip ${src.chip}">${escapeHtml(src.label)}</span></div>
+      <div><span class="sensitivity-tag sensitivity-${item.sensitivity}">${escapeHtml(item.sensitivity)}</span></div>
+      <div style="text-align:right"><span class="prompt-icon" data-prompt="${escapeHtml(item.prompt)}">?</span></div>
+    </div>
+  `;
+}
+
+function applyPreset(preset){
+  state.assumptionTier = preset;
+  const a = findAnalysis(state.activeAnalysisId);
+  if (a){
+    const scenarios = scenariosByAnalysis[a.id] || [];
+    const mult = preset === 'Conservative' ? 0.75 : preset === 'Aggressive' ? 1.25 : 1;
+    scenarios.forEach(s => {
+      if (s.baselineImpact == null) s.baselineImpact = s.annualImpact;
+      s.annualImpact = Math.round(s.baselineImpact * mult);
+    });
+    a.arv = computeArv(a);
+  }
+  render();
+  toast(`Preset · ${preset}`);
+}
 function renderOutputs(a){   return `<div class="tab-placeholder">Outputs tab lands in Chunk 11</div>`; }
 function renderSnapshots(a){ return `<div class="tab-placeholder">Snapshots tab lands in Chunk 12</div>`; }
 
@@ -896,6 +983,35 @@ document.addEventListener('click', e => {
     state.cfoOpen[id] = !state.cfoOpen[id];
     return render();
   }
+  if (action === 'preset'){
+    return applyPreset(node.getAttribute('data-preset'));
+  }
+  if (action === 'edit-input'){
+    if (node.getAttribute('contenteditable') === 'true') return;
+    node.setAttribute('contenteditable','true');
+    node.focus();
+    const r = document.createRange(); r.selectNodeContents(node);
+    const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    return;
+  }
+});
+
+document.addEventListener('focusout', e => {
+  const node = e.target.closest('[data-action="edit-input"]');
+  if (!node || node.getAttribute('contenteditable') !== 'true') return;
+  node.setAttribute('contenteditable','false');
+  const a = findAnalysis(state.activeAnalysisId);
+  if (!a) return;
+  const gi = +node.getAttribute('data-gi');
+  const ii = +node.getAttribute('data-ii');
+  const group = (inputsByAnalysis[a.id] || [])[gi];
+  if (!group || !group.items[ii]) return;
+  const raw = node.textContent.trim().replace(/,/g,'');
+  const num = parseFloat(raw);
+  group.items[ii].value = (raw !== '' && !isNaN(num)) ? num : raw;
+  a.updated = new Date().toISOString().slice(0,10);
+  toast('Saved');
+  render();
 });
 
 document.addEventListener('input', e => {
