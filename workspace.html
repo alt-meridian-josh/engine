@@ -391,7 +391,18 @@ async function loadScenariosForEngagement(engId, domainId){
   const sm = {}; sels.forEach(s => sm[s.scenario_id] = s);
   return scens.map(s => ({ ...s, selection_id: sm[s.scenario_id]?.id ?? null, active: sm[s.scenario_id]?.active ?? !!s.active_by_default }));
 }
-async function loadInputDefs(domainId){ return sbSelect('vef_input_definitions', { eq:{domain_id:domainId} }); }
+async function loadInputDefs(domainId){
+  // vef_input_definitions has duplicate input_key rows per domain (e.g. RFD
+  // has loaded_rate × 5, productivity_uplift_pct × 5). resolvedInputs
+  // overwrites on collision, so fetch order affected which variant's
+  // default/typical landed on the slider. Fetch ordered by id and dedupe
+  // client-side keeping the lowest-id row per input_key so every load
+  // resolves to the same inputs.
+  const rows = await sbSelect('vef_input_definitions',
+    { eq:{domain_id:domainId}, order:['id', true] });
+  const seen = new Set();
+  return rows.filter(r => seen.has(r.input_key) ? false : (seen.add(r.input_key), true));
+}
 async function loadInputValues(engId){ const arr = await sbSelect('vef_input_values', { eq:{engagement_id:engId} }); const m = {}; arr.forEach(iv => m[iv.input_key]=iv); return m; }
 async function loadSnapshots(engId){ return sbSelect('vef_output_snapshots', { eq:{engagement_id:engId}, order:['created_at',false] }); }
 async function loadAllSnapshots(){ return sbSelect('vef_output_snapshots', { order:['created_at',false] }); }

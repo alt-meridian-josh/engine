@@ -245,7 +245,10 @@ async function wsLoadEngagementData() {
   }
 
   const [defs, values, sels, scens, ev, snaps] = await Promise.all([
-    byDomainWithFallback('vef_input_definitions', 'select=*'),
+    // Order by id ascending so the first-wins dedupe at line ~258 is
+    // deterministic — RFD has 14 duplicate input_keys (loaded_rate × 5 etc.)
+    // and Postgres returns an unordered result set otherwise.
+    byDomainWithFallback('vef_input_definitions', 'select=*&order=id.asc'),
     sbGet('vef_input_values', `engagement_id=eq.${encodeURIComponent(engId)}&select=*`),
     sbGet('vef_scenario_selections', `engagement_id=eq.${encodeURIComponent(engId)}&select=*`),
     byDomainWithFallback('vef_value_scenarios', 'select=*'),
