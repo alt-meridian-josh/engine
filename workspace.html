@@ -395,6 +395,29 @@ input,select,textarea{font:inherit;color:inherit}
 .vefa-interp-val{font-family:var(--mono);font-size:11px;color:var(--ink)}
 .vefa-interp-chips{display:flex;flex-wrap:wrap;gap:4px}
 .vefa-interp-empty{font-family:var(--mono);font-size:10px;color:var(--ink3);font-style:italic}
+.vefa-step2-meta{display:flex;align-items:center;gap:10px;padding-bottom:10px;margin-bottom:12px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.vefa-step2-dom{font-family:var(--display);font-size:14px;font-weight:600;color:var(--ink)}
+.vefa-step2-foci{display:flex;gap:4px;flex-wrap:wrap}
+.vefa-step2-foci .chip{padding:3px 8px;border-radius:var(--r-chip);background:var(--red-dim);color:var(--red);font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.06em}
+.vefa-scen-list{display:flex;flex-direction:column;gap:6px;max-height:440px;overflow-y:auto;padding-right:4px}
+.vefa-scen-row{display:grid;grid-template-columns:auto 1fr auto;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r);background:#fff;cursor:pointer;transition:background .12s,border-color .12s;align-items:flex-start}
+.vefa-scen-row:hover{border-color:var(--ink3)}
+.vefa-scen-row.is-checked{background:var(--red-dim);border-color:var(--red)}
+.vefa-scen-cb{margin:3px 0 0 0;width:16px;height:16px;accent-color:var(--red);cursor:pointer}
+.vefa-scen-main{min-width:0}
+.vefa-scen-name{font-family:var(--display);font-size:13px;font-weight:600;color:var(--ink);margin-top:4px;line-height:1.3}
+.vefa-scen-one{font-family:var(--mono);font-size:11px;color:var(--ink2);line-height:1.45;margin-top:2px}
+.vefa-scen-mech{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-top:4px;letter-spacing:.02em}
+.vefa-scen-badges{display:flex;flex-direction:column;gap:4px;align-items:flex-end;white-space:nowrap}
+.vefa-ev-strong{background:var(--green-dim);color:var(--green)}
+.vefa-ev-mod{background:var(--amber-dim);color:var(--amber)}
+.vefa-ev-weak{background:#eceae6;color:var(--ink3)}
+.vefa-imp-high{background:var(--red-dim);color:var(--red)}
+.vefa-imp-med{background:var(--amber-dim);color:var(--amber)}
+.vefa-imp-sup{background:#eceae6;color:var(--ink3)}
+.vefa-chip-rec{background:transparent;color:var(--red);border:1px solid var(--red);padding:1px 8px}
+.vefa-chip-matched{background:var(--blue-dim);color:var(--blue)}
+.vefa-empty{padding:30px 14px;text-align:center;color:var(--ink3);font-family:var(--mono);font-size:11px}
 </style>
 </head>
 <body>
@@ -692,7 +715,7 @@ function renderVEFAssistStep(v){
   switch (v.step){
     case 0: return renderVEFAssistStep0(v);
     case 1: return renderVEFAssistStep1(v);
-    case 2: return '<div class="vefa-placeholder">Step 2 — Scenarios (Chunk D1/D2)</div>';
+    case 2: return renderVEFAssistStep2(v);
     case 3: return '<div class="vefa-placeholder">Step 3 — Evidence & Audit (Chunk E)</div>';
     default: return '';
   }
@@ -701,13 +724,20 @@ function renderVEFAssistFooter(v){
   const back = v.step > 0
     ? `<button class="btn btn-ghost btn-sm" data-action="vefa-back">← Back</button>`
     : `<span></span>`;
-  const nextLabel = v.step < 3 ? 'Next →' : (v.mode === 'update' ? 'Update Analysis →' : 'Create Analysis →');
+  let nextLabel = 'Next →', nextDisabled = '';
+  if (v.step === 2){
+    const n = v.selectedScenarioIds ? v.selectedScenarioIds.size : 0;
+    nextLabel = `Next → ${n} selected`;
+    if (n === 0) nextDisabled = 'disabled';
+  } else if (v.step === 3){
+    nextLabel = v.mode === 'update' ? 'Update Analysis →' : 'Create Analysis →';
+  }
   const nextAction = v.step < 3 ? 'vefa-next' : 'vefa-finish';
   return `<div class="vefa-footer">
     ${back}
     <div class="vefa-footer-right">
       <button class="btn btn-ghost btn-sm" data-action="vefa-close">Close</button>
-      <button class="btn btn-primary btn-sm" data-action="${nextAction}">${nextLabel}</button>
+      <button class="btn btn-primary btn-sm" data-action="${nextAction}" ${nextDisabled}>${escapeHtml(nextLabel)}</button>
     </div>
   </div>`;
 }
@@ -716,6 +746,7 @@ function vefaStep(delta){
   const next = Math.max(0, Math.min(3, v.step + delta));
   if (next === v.step) return;
   setState({ vefAssist: { ...v, step: next } });
+  if (next === 2) vefaLoadStep2Scenarios();
 }
 
 /* ---------- VEF ASSIST · STEP 0 (IMPORT) ---------- */
@@ -997,6 +1028,81 @@ async function vefaOnDomainChange(){
   v.domainThemes = themes;
   v._domainScenarioCount = (scens || []).length;
   v.interpLoading = false; paintVEFAInterp();
+}
+
+/* ---------- VEF ASSIST · STEP 2 (SCENARIOS) ---------- */
+async function vefaLoadStep2Scenarios(){
+  const v = state.vefAssist;
+  if (!v.domainId){ v.availableScenarios = []; v.step2Loading = false; paintVEFAStep2(); return; }
+  v.step2Loading = true; paintVEFAStep2();
+  const primary = await sbSelect('vef_value_scenarios', { eq:{domain_id:v.domainId} }).catch(() => []);
+  let scens = primary || [];
+  if (!scens.length){
+    const dom = state.domains[v.domainId];
+    if (dom && dom.technology === 'RFID' && v.domainId !== 'RFD'){
+      scens = await sbSelect('vef_value_scenarios', { eq:{domain_id:'RFD'} }).catch(() => []);
+    }
+  }
+  v.availableScenarios = scens;
+  // Default checks: active_by_default unions into the existing Set (which may
+  // already carry matches from Step 0 or update-mode pre-fills from Chunk F).
+  scens.forEach(s => { if (s.active_by_default) v.selectedScenarioIds.add(s.scenario_id); });
+  v.step2Loading = false; paintVEFAStep2();
+}
+function paintVEFAStep2(){
+  const body = document.querySelector('.vefa-body');
+  if (body && state.vefAssist.step === 2) body.innerHTML = renderVEFAssistStep2(state.vefAssist);
+  vefaPaintNextButton();
+}
+function vefaPaintNextButton(){
+  const v = state.vefAssist;
+  const btn = document.querySelector('[data-action="vefa-next"]');
+  if (!btn || v.step !== 2) return;
+  const n = v.selectedScenarioIds ? v.selectedScenarioIds.size : 0;
+  btn.textContent = `Next → ${n} selected`;
+  if (n === 0) btn.setAttribute('disabled', ''); else btn.removeAttribute('disabled');
+}
+function renderVEFAssistStep2(v){
+  const scens = (v.availableScenarios || []).slice().sort((a,b) => (a.print_priority || 99) - (b.print_priority || 99));
+  const dom = state.domains[v.domainId];
+  const domName = dom?.domain_name || v.domainId || 'No domain';
+  const foci = (v.valueFocus || []).map(f => `<span class="chip">${escapeHtml(f)}</span>`).join('');
+  const header = `<div class="vefa-step2-meta">
+    <div class="vefa-step2-dom">${escapeHtml(domName)}</div>
+    ${foci ? `<div class="vefa-step2-foci">${foci}</div>` : ''}
+  </div>`;
+  if (v.step2Loading) return `<div class="vefa-step2">${header}<div class="vefa-placeholder">Loading scenarios…</div></div>`;
+  if (!scens.length)  return `<div class="vefa-step2">${header}<div class="vefa-empty">No scenarios found for this domain.</div></div>`;
+  return `<div class="vefa-step2">${header}
+    <div class="vefa-scen-list" id="vefa-scen-list">${scens.map(s => renderVEFAScenRow(s, v)).join('')}</div>
+  </div>`;
+}
+function renderVEFAScenRow(s, v){
+  const checked = v.selectedScenarioIds.has(s.scenario_id);
+  const theme = (s.value_theme || '').trim();
+  const themeCls = theme ? 'theme-' + theme.replace(/\s+/g,'') : '';
+  const ev = (s.evidence_strength || '').toLowerCase();
+  const evCls = ev === 'strong' ? 'vefa-ev-strong' : ev === 'moderate' ? 'vefa-ev-mod' : 'vefa-ev-weak';
+  const p = s.print_priority || 99;
+  const impLbl = p <= 3 ? 'High' : p <= 6 ? 'Medium' : 'Supporting';
+  const impCls = p <= 3 ? 'vefa-imp-high' : p <= 6 ? 'vefa-imp-med' : 'vefa-imp-sup';
+  const rec = s.active_by_default ? `<span class="vefa-chip vefa-chip-rec">Recommended</span>` : '';
+  const matched = (v.extractedClaims || []).some(c => c.matchedScenarioId === s.scenario_id);
+  const mch = matched ? `<span class="vefa-chip vefa-chip-matched">Matched</span>` : '';
+  return `<label class="vefa-scen-row ${checked?'is-checked':''}" data-sid="${escapeHtml(s.scenario_id)}">
+    <input type="checkbox" class="vefa-scen-cb" data-action="vefa-scen-toggle" data-sid="${escapeHtml(s.scenario_id)}" ${checked?'checked':''}/>
+    <div class="vefa-scen-main">
+      ${theme ? `<span class="theme-chip ${themeCls}">${escapeHtml(theme)}</span>` : ''}
+      <div class="vefa-scen-name">${escapeHtml(s.mechanism_label || s.scenario_id || 'Mechanism')}</div>
+      <div class="vefa-scen-one">${escapeHtml(s.one_liner || s.description || '—')}</div>
+      <div class="vefa-scen-mech">${escapeHtml(s.scenario_id || '')}</div>
+    </div>
+    <div class="vefa-scen-badges">
+      <span class="vefa-chip ${evCls}">${escapeHtml(s.evidence_strength || 'None')}</span>
+      <span class="vefa-chip ${impCls}">${escapeHtml(impLbl)}</span>
+      ${rec}${mch}
+    </div>
+  </label>`;
 }
 
 function vefaMatchAndVerdict(claim, pool){
@@ -1937,6 +2043,15 @@ document.addEventListener('change', e => {
     const key = node.getAttribute('data-key');
     state.vefAssist[key] = node.value;
     if (key === 'domainId') vefaOnDomainChange();
+    return;
+  }
+  if (a === 'vefa-scen-toggle'){
+    const sid = node.getAttribute('data-sid');
+    const set = state.vefAssist.selectedScenarioIds;
+    const row = node.closest('.vefa-scen-row');
+    if (node.checked){ set.add(sid); if (row) row.classList.add('is-checked'); }
+    else { set.delete(sid); if (row) row.classList.remove('is-checked'); }
+    vefaPaintNextButton();
     return;
   }
   if (a === 'home-sort')     return setState({ homeSort: node.value });
