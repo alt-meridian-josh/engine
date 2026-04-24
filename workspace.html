@@ -263,6 +263,27 @@ input,select,textarea{font:inherit;color:inherit}
 .snap-metric-value{font-family:var(--display);font-size:14px;font-weight:600;color:var(--ink)} .snap-metric-value.accent{color:var(--red)}
 .snap-notes{font-family:var(--mono);font-size:11px;color:var(--ink2);margin-bottom:10px;line-height:1.5}
 .snap-actions{display:flex;gap:6px}
+/* Deal tab */
+.deal-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.deal-col{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:14px 18px;box-shadow:var(--shadow)}
+.deal-col-title{font-family:var(--display);font-size:13px;font-weight:600;margin:0 0 10px;padding-bottom:8px;border-bottom:1px solid var(--border)}
+.deal-col-title.mid{margin-top:18px}
+.deal-field{display:grid;grid-template-columns:110px 1fr;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px}
+.deal-field:last-child{border-bottom:0}
+.deal-field.stack{grid-template-columns:1fr;gap:5px;align-items:flex-start}
+.deal-field-label{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3)}
+.deal-field-value{font-family:var(--mono);color:var(--ink);font-weight:500}
+.deal-edit{font-family:var(--mono);color:var(--ink);font-weight:500;padding:3px 6px;border-radius:2px;border:1px solid transparent;cursor:text;transition:all .12s;display:inline-block;min-width:160px}
+.deal-edit:hover{background:var(--bg);border-color:var(--border)}
+.deal-edit[contenteditable="true"]{background:#fff;border-color:var(--red);outline:0;box-shadow:0 0 0 2px var(--red-dim)}
+.deal-select,.deal-date,.deal-textarea,.impl-input{font-family:var(--mono);font-size:12px;padding:5px 8px;border:1px solid var(--border);border-radius:2px;background:#fff;color:var(--ink);width:100%;transition:border-color .12s,box-shadow .12s}
+.deal-select:focus,.deal-date:focus,.deal-textarea:focus,.impl-input:focus{outline:0;border-color:var(--red);box-shadow:0 0 0 2px var(--red-dim)}
+.deal-textarea{min-height:72px;resize:vertical;padding:7px 9px}
+.deal-date.deal-overdue{color:var(--red);font-weight:500}
+.impl-block{background:var(--red-dim);border:1px solid var(--red);border-radius:var(--r);padding:12px 14px;margin-top:14px}
+.impl-title{font-family:var(--display);font-size:12px;font-weight:600;color:var(--red);margin-bottom:2px}
+.impl-sub{font-family:var(--mono);font-size:10px;color:var(--amber);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em}
+.impl-input{padding:8px 10px;font-size:13px}
 </style>
 </head>
 <body>
@@ -1024,7 +1045,55 @@ async function onSaveSnapshotSubmit(e){
     toast('Snapshot saved · ' + snap.snapshot_label);
   } catch (err) { console.error(err); toast('Save failed: ' + (err.message || err), true); }
 }
-function renderDealTab(e)     { return `<div class="tab-placeholder">Deal tab lands in Chunk 11</div>`; }
+function renderDealTab(e){
+  const ivs = state.inputValues[e.engagement_id] || {};
+  const impl = Number(ivs.implementation_cost?.provided_value) || 0;
+  const fu = daysUntil(e.next_followup_date);
+  const dom = state.domains[e.domain_id]?.domain_name || e.domain_id || '—';
+  const ed  = (field, value) => `<span class="deal-edit" data-action="deal-edit" data-field="${field}">${escapeHtml(value ?? '—')}</span>`;
+  const sel = (field, value, opts) => `<select class="deal-select" data-action="deal-select" data-field="${field}">${opts.map(o => `<option value="${escapeHtml(o)}"${o===value?' selected':''}>${escapeHtml(o)}</option>`).join('')}</select>`;
+  const dt  = (field, value, cls='') => `<input type="date" class="deal-date ${cls}" data-action="deal-date" data-field="${field}" value="${escapeHtml(value || '')}"/>`;
+  return `
+    <div class="deal-grid">
+      <div class="deal-col">
+        <div class="deal-col-title">Deal Context</div>
+        <div class="deal-field"><div class="deal-field-label">Analysis Name</div><div>${ed('analysis_name', e.analysis_name)}</div></div>
+        <div class="deal-field"><div class="deal-field-label">Customer</div><div>${ed('prospect_name', e.prospect_name)}</div></div>
+        <div class="deal-field"><div class="deal-field-label">Vendor</div><div>${ed('vendor_name', e.vendor_name)}</div></div>
+        <div class="deal-field"><div class="deal-field-label">Domain</div><div class="deal-field-value">${escapeHtml(dom)}</div></div>
+        <div class="deal-field"><div class="deal-field-label">Sales Stage</div><div>${sel('deal_stage', e.deal_stage, STAGES)}</div></div>
+        <div class="deal-field"><div class="deal-field-label">Delivery Phase</div><div>${sel('phase', e.phase, PHASES)}</div></div>
+        <div class="deal-field"><div class="deal-field-label">Owner</div><div>${ed('owner', e.owner)}</div></div>
+        <div class="deal-field stack"><div class="deal-field-label">Notes</div><textarea class="deal-textarea" data-action="deal-textarea" data-field="notes">${escapeHtml(e.notes || '')}</textarea></div>
+      </div>
+      <div class="deal-col">
+        <div class="deal-col-title">Contacts</div>
+        <div class="deal-field"><div class="deal-field-label">Champion</div><div>${ed('champion_role', e.champion_role)}</div></div>
+        <div class="deal-field"><div class="deal-field-label">Champion Email</div><div>${ed('champion_email', e.champion_email)}</div></div>
+        <div class="deal-field"><div class="deal-field-label">Economic Buyer</div><div>${ed('economic_buyer_email', e.economic_buyer_email)}</div></div>
+        <div class="deal-col-title mid">Key Dates</div>
+        <div class="deal-field"><div class="deal-field-label">Intake Date</div><div class="deal-field-value">${fmtDate(e.intake_date)}</div></div>
+        <div class="deal-field"><div class="deal-field-label">Pilot Start</div><div>${dt('pilot_start_date', e.pilot_start_date)}</div></div>
+        <div class="deal-field"><div class="deal-field-label">Pilot End</div><div>${dt('pilot_end_date', e.pilot_end_date)}</div></div>
+        <div class="deal-field"><div class="deal-field-label">Go-Live</div><div>${dt('go_live_date', e.go_live_date)}</div></div>
+        <div class="deal-field"><div class="deal-field-label">Next Follow-Up</div><div>${dt('next_followup_date', e.next_followup_date, fu!==null && fu<0 ? 'deal-overdue' : '')}</div></div>
+        <div class="deal-field"><div class="deal-field-label">Trigger</div><div>${sel('followup_trigger', e.followup_trigger, FU_TRIGGERS)}</div></div>
+        <div class="impl-block">
+          <div class="impl-title">Implementation Cost · unlocks Payback + BCR</div>
+          <div class="impl-sub">${impl > 0 ? 'Current: ' + fmtMoney(impl) : 'Not yet provided'}</div>
+          <input class="impl-input" type="number" placeholder="e.g. 250000" value="${impl > 0 ? impl : ''}" data-action="impl-cost"/>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function patchEngField(field, value){
+  const eng = currentEng(); if (!eng) return;
+  if (eng[field] === value) return;
+  eng[field] = value;
+  try { await sbPatch('vef_engagements', { engagement_id: eng.engagement_id }, { [field]: value }); toast('Saved'); }
+  catch (err) { toast('Save failed: ' + (err.message || err), true); }
+}
 
 /* ---------- SCREEN 1 — LOGIN ---------- */
 function renderLogin(){
@@ -1102,7 +1171,7 @@ document.addEventListener('click', e => {
   if (a === 'toggle-evidence' || a === 'toggle-cfo'){ const bag = a === 'toggle-cfo' ? (state.cfoOpen = state.cfoOpen || {}) : (state.evOpen = state.evOpen || {}); const sid = node.getAttribute('data-sid'); bag[sid] = !bag[sid]; return render(); }
   if (a === 'toggle-shadow')     return setState({ poolShadowOpen: !state.poolShadowOpen });
   if (a === 'input-preset')      return applyInputPreset(node.getAttribute('data-preset'));
-  if (a === 'edit-input-val'){
+  if (a === 'edit-input-val' || a === 'deal-edit'){
     if (node.getAttribute('contenteditable') === 'true') return;
     node.setAttribute('contenteditable','true'); node.focus();
     const r = document.createRange(); r.selectNodeContents(node); const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
@@ -1115,13 +1184,19 @@ document.addEventListener('input', e => {
   if (a === 'slider-input') onSliderInput(node.getAttribute('data-key'), node.value);
 });
 document.addEventListener('focusout', e => {
-  const node = e.target.closest('[data-action="edit-input-val"]'); if (!node || node.getAttribute('contenteditable') !== 'true') return;
+  const node = e.target.closest('[data-action="edit-input-val"],[data-action="deal-edit"]');
+  if (!node || node.getAttribute('contenteditable') !== 'true') return;
   node.setAttribute('contenteditable','false');
-  const eng = currentEng(); if (!eng) return;
-  const key = node.getAttribute('data-key');
-  const num = parseFloat(node.textContent.replace(/,/g,''));
-  if (!isFinite(num)) return render();
-  upsertInputValue(eng.engagement_id, key, num, 'analyst'); toast('Saved'); render();
+  const action = node.getAttribute('data-action');
+  if (action === 'edit-input-val'){
+    const eng = currentEng(); if (!eng) return;
+    const key = node.getAttribute('data-key');
+    const num = parseFloat(node.textContent.replace(/,/g,''));
+    if (!isFinite(num)) return render();
+    upsertInputValue(eng.engagement_id, key, num, 'analyst'); toast('Saved'); render();
+  } else {
+    patchEngField(node.getAttribute('data-field'), node.textContent.trim() || null);
+  }
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && state.modal){ e.preventDefault(); setState({ modal: null }); }
@@ -1136,7 +1211,14 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const node = e.target.closest('[data-action]');
   if (!node) return;
-  if (node.getAttribute('data-action') === 'home-sort') setState({ homeSort: node.value });
+  const a = node.getAttribute('data-action');
+  if (a === 'home-sort')     return setState({ homeSort: node.value });
+  if (a === 'deal-select' || a === 'deal-date') return patchEngField(node.getAttribute('data-field'), node.value || null);
+  if (a === 'deal-textarea') return patchEngField(node.getAttribute('data-field'), node.value || null);
+  if (a === 'impl-cost'){
+    const eng = currentEng(); const v = parseFloat(node.value);
+    if (eng && isFinite(v)) upsertInputValue(eng.engagement_id, 'implementation_cost', v, 'analyst');
+  }
 });
 
 /* ---------- BOOT ---------- */
