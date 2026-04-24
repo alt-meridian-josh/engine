@@ -286,7 +286,7 @@ function wsRenderEmpty(msg) {
 // ── Active scenarios + metrics ───────────────────────────────────────────────
 function wsActiveScenarios() {
   const activeIds = new Set(
-    WS.selections.filter(s => s.is_active !== false).map(s => s.scenario_id)
+    WS.selections.filter(s => s.active !== false).map(s => s.scenario_id)
   );
   return WS.scenarios.filter(s => activeIds.has(s.scenario_id));
 }
@@ -586,7 +586,7 @@ async function wsIntakeCommit() {
       const selRows = domainScens.map(s => ({
         engagement_id: engId,
         scenario_id: s.scenario_id,
-        is_active: true,
+        active: true,
         source: 'intake-default',
       }));
       try { await sbIns('vef_scenario_selections', selRows); }
