@@ -103,7 +103,138 @@ input,select,textarea{font:inherit;color:inherit}
 <div id="toast-root"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-/* v2 — state, Supabase, data loaders, and formula engine land in Chunk 2. */
+/* =========================================================================
+   Alt Meridian — Value Enablement Workspace (v2)
+   Single-file SPA · Supabase REST · Anthropic direct fetch
+   ========================================================================= */
+
+/* ---------- STATE ---------- */
+const state = {
+  screen:'login', engagements:[], domains:{}, activeEngagementId:null,
+  scenarios:{}, inputDefs:{}, inputValues:{}, snapshots:{}, evidence:{},
+  activeTab:'value-case', meridianOpen:false, meridianHistory:{},
+  homeFilter:'all', homeSearch:'', homeSort:'updated',
+  modal:null, loading:false, poolShadowOpen:false
+};
+function setState(patch){ Object.assign(state, patch); if (typeof render === 'function') render(); }
+
+/* ---------- UTILITIES ---------- */
+const ESC = {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'};
+function escapeHtml(s){ return String(s ?? '').replace(/[&<>"']/g, c => ESC[c]); }
+function toast(msg, err=false){
+  const t = document.createElement('div');
+  t.className = 'toast' + (err?' err':''); t.textContent = msg;
+  document.getElementById('toast-root').appendChild(t);
+  setTimeout(() => t.remove(), 2800);
+}
+function fmtMoney(n){
+  if (n == null || !isFinite(n)) return '—';
+  if (Math.abs(n) >= 1e6) return '$' + (n/1e6).toFixed(1).replace(/\.0$/,'') + 'M';
+  if (Math.abs(n) >= 1e3) return '$' + Math.round(n/1e3) + 'K';
+  return '$' + Math.round(n).toLocaleString();
+}
+function fmtDate(d){ return d ? String(d).slice(0,10) : '—'; }
+function daysUntil(d){ return d ? Math.round((new Date(d) - new Date()) / 86400000) : null; }
+function relTime(iso){
+  if (!iso) return '—';
+  const diff = (Date.now() - new Date(iso)) / 86400000;
+  if (diff < 1) return 'today';
+  if (diff < 30) return Math.floor(diff) + 'd ago';
+  if (diff < 365) return Math.floor(diff/30) + 'mo ago';
+  return Math.floor(diff/365) + 'y ago';
+}
+function uid(p='id'){ return p + '-' + Math.random().toString(36).slice(2,8); }
+
+/* ---------- SUPABASE ---------- */
+const SUPABASE_URL = 'https://kpecdezcolcycgpuqbgs.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwZWNkZXpjb2xjeWNncHVxYmdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2ODIyMDYsImV4cCI6MjA5MTI1ODIwNn0.rKHzdjjkYToEZWdS0ngg3Kgigh_gDWt5cRbLBCE44rg';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+async function sbSelect(table, q){
+  let b = sb.from(table).select('*');
+  if (q?.eq)    for (const [k,v] of Object.entries(q.eq)) b = b.eq(k, v);
+  if (q?.order) b = b.order(q.order[0], { ascending: q.order[1] !== false });
+  const { data, error } = await b;
+  if (error) throw error;
+  return data || [];
+}
+async function sbInsert(table, row){ const { data, error } = await sb.from(table).insert(row).select(); if (error) throw error; return data?.[0] || null; }
+async function sbUpsert(table, row, onConflict){ const { data, error } = await sb.from(table).upsert(row, onConflict?{onConflict}:{}).select(); if (error) throw error; return data?.[0] || null; }
+async function sbPatch(table, eq, patch){
+  let b = sb.from(table).update(patch);
+  for (const [k,v] of Object.entries(eq)) b = b.eq(k, v);
+  const { data, error } = await b.select();
+  if (error) throw error; return data?.[0] || null;
+}
+
+/* ---------- DATA LOADERS ---------- */
+async function loadDomains(){ const arr = await sbSelect('vef_domains'); const m = {}; arr.forEach(d => m[d.domain_id]=d); return m; }
+async function loadEngagements(){ return sbSelect('vef_engagements', { order:['intake_date',false] }); }
+async function loadScenariosForEngagement(engId, domainId){
+  const [sels, scens] = await Promise.all([
+    sbSelect('vef_scenario_selections', { eq:{engagement_id:engId} }),
+    sbSelect('vef_value_scenarios',     { eq:{domain_id:domainId} })
+  ]);
+  const sm = {}; sels.forEach(s => sm[s.scenario_id] = s);
+  return scens.map(s => ({ ...s, selection_id: sm[s.scenario_id]?.id ?? null, active: sm[s.scenario_id]?.active ?? !!s.active_by_default }));
+}
+async function loadInputDefs(domainId){ return sbSelect('vef_input_definitions', { eq:{domain_id:domainId} }); }
+async function loadInputValues(engId){ const arr = await sbSelect('vef_input_values', { eq:{engagement_id:engId} }); const m = {}; arr.forEach(iv => m[iv.input_key]=iv); return m; }
+async function loadSnapshots(engId){ return sbSelect('vef_output_snapshots', { eq:{engagement_id:engId}, order:['created_at',false] }); }
+async function loadEvidence(domainId){ return sbSelect('vef_evidence_registry', { eq:{domain_id:domainId} }); }
+
+/* ---------- FORMULA ENGINE ---------- */
+const RAMPS = [0.5, 1.0, 1.0];   // Y1 50% ramp, Y2/Y3 full adoption
+const DISCOUNT = 0.10;
+
+function evalFormula(formula, inputs){
+  if (!formula || typeof formula !== 'string') return null;
+  const keys = Object.keys(inputs || {});
+  const vals = keys.map(k => {
+    const v = inputs[k];
+    return (v == null || isNaN(Number(v))) ? 0 : Number(v);
+  });
+  try {
+    const fn = new Function(...keys, '"use strict";return (' + formula + ');');
+    const r = fn(...vals);
+    return (typeof r === 'number' && isFinite(r)) ? r : null;
+  } catch(_){ return null; }
+}
+
+function resolvedInputs(inputsMap, inputDefs){
+  const out = {};
+  (inputDefs || []).forEach(d => {
+    const p = inputsMap?.[d.input_key]?.provided_value;
+    out[d.input_key] = p != null ? Number(p) : Number(d.typical_value ?? d.default_value ?? 0);
+  });
+  return out;
+}
+
+function computeAnalysis(engagement, scenarios, inputsMap, inputDefs){
+  const inputs = resolvedInputs(inputsMap, inputDefs);
+  const per = (scenarios || []).map(s => {
+    const arv = evalFormula(s.value_scenario_formula, inputs) || 0;
+    const delay = evalFormula(s.delay_cost_formula, inputs) || (arv/12);
+    const coi = evalFormula(s.cost_of_inaction_formula, inputs) || (arv*3);
+    return { scenario_id: s.scenario_id, theme: s.value_theme || 'other', active: !!s.active, arv, delay, coi, pool_shadow: false };
+  });
+  // Pool-share guard: in each theme, only highest-ARV active scenario counts
+  const best = {};
+  per.filter(p => p.active).forEach(p => { if (!best[p.theme] || p.arv > best[p.theme].arv) best[p.theme] = p; });
+  per.forEach(p => { if (p.active && best[p.theme] && best[p.theme].scenario_id !== p.scenario_id) p.pool_shadow = true; });
+  const counted = per.filter(p => p.active && !p.pool_shadow);
+  const arvFull     = counted.reduce((s,p) => s + p.arv, 0);
+  const arvY1       = arvFull * RAMPS[0];
+  const arvY2       = arvFull * RAMPS[1];
+  const arvY3       = arvFull * RAMPS[2];
+  const monthlyDelay= counted.reduce((s,p) => s + p.delay, 0);
+  const coi3yr      = counted.reduce((s,p) => s + p.coi, 0);
+  const impl        = Number(inputsMap?.implementation_cost?.provided_value) || 0;
+  const npv     = impl > 0 ? arvY1 + arvY2/(1+DISCOUNT) + arvY3/(1+DISCOUNT)**2 - impl : null;
+  const payback = impl > 0 && arvY1 > 0 ? impl / (arvY1/12) : null;
+  const bcr     = impl > 0 ? (arvY1 + arvY2 + arvY3) / impl : null;
+  return { arvY1, arvY2, arvY3, arvFull, monthlyDelay, coi3yr, npv, payback, bcr, perScenario: per, impl };
+}
 </script>
 </body>
 </html>
