@@ -530,6 +530,7 @@ function renderModal(){
   if (!state.modal){ root.innerHTML = ''; return; }
   if (state.modal === 'newAnalysis')  root.innerHTML = renderNewAnalysisModal();
   if (state.modal === 'saveSnapshot') root.innerHTML = renderSaveSnapshotModal();
+  if (state.modal === 'vefAssist')    root.innerHTML = renderVEFAssist();
 }
 function afterRender(){
   const body = document.querySelector('.mx-body');
@@ -537,6 +538,13 @@ function afterRender(){
   if (state.meridianOpen){
     const inp = document.querySelector('.mx-input');
     if (inp && !inp.disabled && document.activeElement !== inp) inp.focus();
+  }
+  if (state.modal === 'vefAssist'){
+    const card = document.querySelector('.vefa-card');
+    if (card && !card.contains(document.activeElement)){
+      const first = card.querySelector('.vefa-body textarea, .vefa-body input:not([type=hidden]):not([type=checkbox]):not([type=radio]), .vefa-body select');
+      if (first) first.focus();
+    }
   }
 }
 
@@ -579,6 +587,83 @@ function vefAssistIsDirty(){
     v.whatToProve || (v.valueFocus && v.valueFocus.length) ||
     (v.selectedScenarioIds && v.selectedScenarioIds.size) ||
     v.evidenceNotes);
+}
+
+const VEFA_STEP_LABELS = ['Import','Context','Scenarios','Evidence & Audit'];
+const VEFA_STEP_TITLES = {
+  0: { title:'Import existing analysis or start fresh',
+       sub:'Paste a vendor ROI claim, sales deck summary, or Excel model numbers. VEF Assist will extract claims and map them to governed mechanisms. Or skip to start from scratch.' },
+  1: { title:'Analysis context',
+       sub:'Tell us who this is for, what you want to prove, and where you are in the deal.' },
+  2: { title:'Select scenarios for this analysis',
+       sub:'' },
+  3: { title:'Evidence & audit',
+       sub:'Confirm what carries evidence and what is explicit assumption.' }
+};
+function renderVEFAssist(){
+  const v = state.vefAssist; if (!v || !v.open) return '';
+  return `<div class="vefa-overlay" data-action="vefa-backdrop">
+    <div class="vefa-card">
+      ${renderVEFAssistHead(v)}
+      ${renderVEFAssistProgress(v)}
+      <div class="vefa-body">${renderVEFAssistStep(v)}</div>
+      ${renderVEFAssistFooter(v)}
+    </div>
+  </div>`;
+}
+function renderVEFAssistHead(v){
+  const h = VEFA_STEP_TITLES[v.step] || { title:'VEF Assist', sub:'' };
+  return `<div class="vefa-head">
+    <div class="vefa-head-text">
+      <h2 class="vefa-title">${escapeHtml(h.title)}</h2>
+      ${h.sub ? `<p class="vefa-sub">${escapeHtml(h.sub)}</p>` : ''}
+    </div>
+    <button class="vefa-close" data-action="vefa-close" title="Close">×</button>
+  </div>`;
+}
+function renderVEFAssistProgress(v){
+  const parts = [];
+  VEFA_STEP_LABELS.forEach((label,i) => {
+    const cls = i < v.step ? 'is-done' : (i === v.step ? 'is-current' : '');
+    const dotTxt = i < v.step ? '✓' : String(i + 1);
+    parts.push(`<div class="vefa-node ${cls}">
+      <div class="vefa-dot ${cls}">${dotTxt}</div>
+      <div class="vefa-step-label">${escapeHtml(label)}</div>
+    </div>`);
+    if (i < VEFA_STEP_LABELS.length - 1){
+      parts.push(`<div class="vefa-connector ${i < v.step ? 'is-done' : ''}"></div>`);
+    }
+  });
+  return `<div class="vefa-progress">${parts.join('')}</div>`;
+}
+function renderVEFAssistStep(v){
+  switch (v.step){
+    case 0: return '<div class="vefa-placeholder">Step 0 — Import (Chunk B1/B2)</div>';
+    case 1: return '<div class="vefa-placeholder">Step 1 — Context (Chunk C)</div>';
+    case 2: return '<div class="vefa-placeholder">Step 2 — Scenarios (Chunk D1/D2)</div>';
+    case 3: return '<div class="vefa-placeholder">Step 3 — Evidence & Audit (Chunk E)</div>';
+    default: return '';
+  }
+}
+function renderVEFAssistFooter(v){
+  const back = v.step > 0
+    ? `<button class="btn btn-ghost btn-sm" data-action="vefa-back">← Back</button>`
+    : `<span></span>`;
+  const nextLabel = v.step < 3 ? 'Next →' : (v.mode === 'update' ? 'Update Analysis →' : 'Create Analysis →');
+  const nextAction = v.step < 3 ? 'vefa-next' : 'vefa-finish';
+  return `<div class="vefa-footer">
+    ${back}
+    <div class="vefa-footer-right">
+      <button class="btn btn-ghost btn-sm" data-action="vefa-close">Close</button>
+      <button class="btn btn-primary btn-sm" data-action="${nextAction}">${nextLabel}</button>
+    </div>
+  </div>`;
+}
+function vefaStep(delta){
+  const v = state.vefAssist;
+  const next = Math.max(0, Math.min(3, v.step + delta));
+  if (next === v.step) return;
+  setState({ vefAssist: { ...v, step: next } });
 }
 
 /* ---------- NEW ANALYSIS MODAL ---------- */
@@ -1417,6 +1502,11 @@ document.addEventListener('click', e => {
   if (a === 'open-new-analysis') return setState({ modal: 'newAnalysis' });
   if (a === 'close-modal')       return setState({ modal: null });
   if (a === 'modal-backdrop' && e.target === node) return setState({ modal: null });
+  if (a === 'vefa-backdrop' && e.target === node) return closeVEFAssist(true);
+  if (a === 'vefa-close')        return closeVEFAssist(true);
+  if (a === 'vefa-next')         return vefaStep(+1);
+  if (a === 'vefa-back')         return vefaStep(-1);
+  if (a === 'vefa-finish')       return toast('Finish handler lands in Chunk F');
   if (a === 'back-to-home')      return setState({ screen:'home', activeEngagementId:null, activeTab:'value-case' });
   if (a === 'ws-tab')            return setState({ activeTab: node.getAttribute('data-tab') });
   if (a === 'toggle-meridian')   return setState({ meridianOpen: !state.meridianOpen });
@@ -1459,7 +1549,11 @@ document.addEventListener('focusout', e => {
   }
 });
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && state.modal){ e.preventDefault(); setState({ modal: null }); }
+  if (e.key === 'Escape' && state.modal){
+    e.preventDefault();
+    if (state.modal === 'vefAssist') return closeVEFAssist(true);
+    setState({ modal: null });
+  }
 });
 document.addEventListener('input', e => {
   const node = e.target.closest('[data-action]');
