@@ -65,3 +65,42 @@
 **Root cause:** Vanilla full-render pattern loses imperative DOM state (scroll, focus) every frame.
 **Rule going forward:** Any SPA that does full-page innerHTML re-renders needs a lightweight `afterRender` hook for imperative state (scroll, focus, intersection observers, etc). Call it via rAF so the new DOM is painted first.
 **Applies to:** alt-meridian, single-file SPAs
+
+## 2026-04-24 — Verify 'already done' before re-doing pre-flight fixes
+**Context:** VEF Assist build kicked off with three requested pre-flight fixes (is_active rename, input_def dedupe, ARV diagnostic). Git log showed all three already landed on origin/main at 76f0058, d678f5f, 41e25bf before the session started.
+**What happened:** Flagged the state + showed the evidence from `grep` + `git show --stat` instead of silently re-doing the work. If I'd run the edits blindly I would have created three duplicate no-op commits (or three near-duplicates with subtly different copy).
+**Root cause:** Prompt re-use across sessions. Users describe the same work twice when the prior session's output isn't in their context.
+**Rule going forward:** Before starting ANY task that claims to 'fix X at line N', run the sanity triple: (1) `git log --oneline -20`, (2) `grep -n <target> <file>`, (3) `git show --stat <suspect-hash>` on any commits whose subject matches the ask. Report findings before writing code.
+**Applies to:** all
+
+## 2026-04-24 — Split chunks on distinct DB shape, not feature boundary
+**Context:** VEF Assist Chunk F as originally scoped (create + update + snapshot + prefill + topbar + CSS) projected to 155-170 lines. Over the 150 cap.
+**What happened:** Bisected at create/update rather than trimming polish. F1 = create path + helpers + Home trigger; F2 = update path + prefill + snapshot prompt + topbar. Each committed cleanly at ~95 lines. The cut held because create and update have genuinely different DB operations (INSERT + generated id vs PATCH + existing id), different prefill needs (none vs sidecar-unpack), and share only the row-builder and validator — which end up living in F1 and reused from F2.
+**Root cause:** The natural fracture line in mixed-op chunks isn't usually "what's polish" — it's "where does the DB shape change." When two halves of a chunk touch different tables or different verbs, that's the split.
+**Rule going forward:** When a chunk mixes INSERT + PATCH paths, split by verb. Shared helpers land with the first half; the second half is pure orchestration.
+**Applies to:** all
+
+## 2026-04-24 — DOM-injected inline strips beat re-render for confirm affordances
+**Context:** VEF Assist Step 3 'Save snapshot before updating?' prompt (Q8 — non-blocking, no nested modal).
+**What happened:** First instinct was to add `pendingUpdateConfirm: true` to state and re-render Step 3 to show the strip. That would have wiped focus from the Notes textarea if the user was mid-type. Switched to `vefaUpdateInitiate()` that creates a `<div>` and appends it to `.vefa-body` imperatively. No setState. Idempotent (returns early if `#vefa-update-strip` already exists). Auto-scrolls via `body.scrollTop = body.scrollHeight`.
+**Root cause:** Re-rendering a subtree that contains a focused input kills focus regardless of state spread (the DOM node is replaced, not diffed). State-bound React-style thinking is the wrong mental model for vanilla-JS SPAs.
+**Rule going forward:** For ephemeral UI that gets added ONCE per user action (confirm strips, flash banners, inline previews) — imperative DOM append is simpler and safer than a state flag + re-render. Idempotency via `document.getElementById` check. Pair with the input-preservation lesson: any time a focused control is in the same subtree you'd otherwise re-render, do it imperatively.
+**Applies to:** alt-meridian, single-file SPAs
+
+## 2026-04-24 — Global pool cache for pre-domain fuzzy matcher
+**Context:** VEF Assist Step 0 extracts vendor claims and matches them against `vef_value_scenarios` BEFORE the user picks a domain in Step 1. The domain-scoped loader (`loadScenariosForEngagement`) isn't applicable — there's no engagement yet.
+**What happened:** First draft put the pool fetch inline in `vefaProcessExtraction` and would re-fetch on every retry. Moved to `state.vefAssist._matchPool`: fetch once per modal session via `sbSelect('vef_value_scenarios')` with no filter; subsequent extracts reuse the cache. Cleared automatically when `makeVEFAssistState()` rebuilds on close.
+**Root cause:** Step-0 matching has no domain filter to pin against, so it needs the full table. Repeated extracts (user rephrases their paste) would be wasteful if each re-loaded the pool.
+**Rule going forward:** When an operation needs a global table and the user can retry that operation within the same UI session, cache on the session-scoped state object (not on module globals — those leak between sessions). Factory function that rebuilds on close handles lifecycle for free.
+**Applies to:** alt-meridian, any session-scoped search UI
+
+## 2026-04-24 — Fuzzy-match token filters: length + stopwords + 'strong' gating
+**Context:** Step 0 claim→scenario matcher. Naive token intersection scored every scenario that mentioned common words like "cost" or "time".
+**What happened:** Added three filters:
+  1. Token length >= 3 (drops "to", "of", "in").
+  2. Stopwords set (drops "the", "and", "for", "with"...).
+  3. 'Strong' bucket = mechanism_label + value_theme, but only counts tokens of length >= 6 as strong matches (keeps short common words like "cost"/"time" from scoring strong on every row).
+  Qualifying rule: hits >= 2 OR strongHits >= 1. Score = `hits*10 + strong*5 - print_priority`.
+**Root cause:** English has too many short, generic words for naive intersection to be useful. The second-layer 'strong' gate compensates by weighting specificity.
+**Rule going forward:** Any fuzzy text matcher in this codebase needs (a) minimum token length, (b) a stopwords list, (c) a secondary 'strong' signal gated on higher length for categorical fields. Document token-gen as a reusable helper before the second user needs it.
+**Applies to:** alt-meridian, any retrieval-without-embeddings UI
