@@ -1256,6 +1256,91 @@ function renderVEFAEvidenceTable(selected){
     <tbody>${rows}</tbody>
   </table>`;
 }
+/* ---------- VEF ASSIST · F1 (CREATE PATH + WIRING) ---------- */
+const VEFA_META_RE = /\[VEF-ASSIST-META\]\s*([\s\S]*?)\s*\[\/VEF-ASSIST-META\]/;
+function vefaPackNotes(body, meta){
+  const b = (body || '').trim();
+  const m = meta && Object.keys(meta).length
+    ? `\n\n[VEF-ASSIST-META]\n${JSON.stringify(meta)}\n[/VEF-ASSIST-META]` : '';
+  return (b + m) || null;
+}
+function vefaUnpackNotes(notes){
+  if (!notes) return { body:'', meta:null };
+  const m = notes.match(VEFA_META_RE);
+  let meta = null;
+  if (m){ try { meta = JSON.parse(m[1]); } catch {} }
+  return { body: notes.replace(VEFA_META_RE, '').trim(), meta };
+}
+function vefaGenerateEngagementId(domainId){
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return `ENG-VEFA-${(domainId || 'X').toUpperCase()}-${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
+function vefaBuildEngagementRow(v){
+  // Documented columns (mirror onNewAnalysisSubmit row keys + Deal-tab reads).
+  // Speculative fields go into a sidecar JSON block in `notes` per
+  // 2026-04-24 lesson; never as top-level columns.
+  const meta = {};
+  if (v.whatToProve)               meta.whatToProve = v.whatToProve;
+  if ((v.valueFocus||[]).length)   meta.valueFocus  = v.valueFocus;
+  if ((v.extractedClaims||[]).length){
+    meta.claims = v.extractedClaims.map(c => ({
+      metric:c.metric, value:c.value, verdict:c.verdict, matchedScenarioId:c.matchedScenarioId
+    }));
+  }
+  return {
+    analysis_name:        v.analysisName.trim() || null,
+    prospect_name:        v.customer.trim()     || null,
+    vendor_name:          v.vendor.trim()       || null,
+    domain_id:            v.domainId            || null,
+    deal_stage:           v.stage               || null,
+    phase:                v.phase               || null,
+    champion_email:       v.championEmail.trim()       || null,
+    economic_buyer_email: v.economicBuyerEmail.trim()  || null,
+    next_followup_date:   v.nextFollowUp        || null,
+    notes:                vefaPackNotes(v.evidenceNotes, meta)
+  };
+}
+function vefaValidateRequired(v){
+  const missing = [];
+  if (!v.analysisName.trim()) missing.push('Analysis Name');
+  if (!v.customer.trim())     missing.push('Customer / Account');
+  if (!v.vendor.trim())       missing.push('Vendor / Solution');
+  if (!v.domainId)            missing.push('Domain');
+  if (missing.length){ toast('Missing required: ' + missing.join(', '), true); return false; }
+  if (!v.selectedScenarioIds.size){ toast('Pick at least one scenario in Step 2', true); return false; }
+  return true;
+}
+async function createAnalysisFromVEF(){
+  const v = state.vefAssist;
+  if (!vefaValidateRequired(v)) return;
+  const today = new Date().toISOString().slice(0, 10);
+  const row = {
+    engagement_id: vefaGenerateEngagementId(v.domainId),
+    ...vefaBuildEngagementRow(v),
+    artifact_purpose:  'deal_acceleration',
+    intake_source:     'vef-assist',
+    intake_date:       today,
+    engagement_status: 'Draft',
+    owner:             'seller@altmeridian.com'
+  };
+  try {
+    const created = await sbInsert('vef_engagements', row);
+    const eng = created || row;
+    state.engagements.unshift(eng);
+    state.snapshots[eng.engagement_id] = [];
+    await Promise.all(Array.from(v.selectedScenarioIds).map(sid =>
+      sbUpsert('vef_scenario_selections',
+        { engagement_id: eng.engagement_id, scenario_id: sid, active: true },
+        'engagement_id,scenario_id')));
+    closeVEFAssist(false);
+    toast('Analysis created — opening workspace…');
+    onOpenEngagement(eng.engagement_id);
+  } catch (err) {
+    console.error(err);
+    toast('Create failed: ' + (err.message || err), true);
+  }
+}
+
 function renderVEFAAuditSection(v){
   const claims = v.extractedClaims || [];
   const matchedIds = new Set(claims.filter(c => c.matchedScenarioId).map(c => c.matchedScenarioId));
@@ -2126,7 +2211,7 @@ document.addEventListener('click', e => {
   const a = node.getAttribute('data-action');
   if (a === 'home-tab')          return setState({ homeFilter: node.getAttribute('data-tab') });
   if (a === 'open-engagement')   return onOpenEngagement(node.getAttribute('data-id'));
-  if (a === 'open-new-analysis') return setState({ modal: 'newAnalysis' });
+  if (a === 'open-new-analysis') return openVEFAssist({ mode:'new' });
   if (a === 'close-modal')       return setState({ modal: null });
   if (a === 'modal-backdrop' && e.target === node) return setState({ modal: null });
   if (a === 'vefa-backdrop' && e.target === node) return closeVEFAssist(true);
@@ -2152,7 +2237,10 @@ document.addEventListener('click', e => {
     });
     paintVEFAScenList(); return;
   }
-  if (a === 'vefa-finish')       return toast('Finish handler lands in Chunk F');
+  if (a === 'vefa-finish'){
+    if (state.vefAssist.mode === 'update') return toast('Update path lands in Chunk F2');
+    return createAnalysisFromVEF();
+  }
   if (a === 'back-to-home')      return setState({ screen:'home', activeEngagementId:null, activeTab:'value-case' });
   if (a === 'ws-tab')            return setState({ activeTab: node.getAttribute('data-tab') });
   if (a === 'toggle-meridian')   return setState({ meridianOpen: !state.meridianOpen });
