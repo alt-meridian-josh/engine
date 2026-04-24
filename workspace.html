@@ -437,6 +437,25 @@ function resolvedInputs(inputsMap, inputDefs){
 
 function computeAnalysis(engagement, scenarios, inputsMap, inputDefs){
   const inputs = resolvedInputs(inputsMap, inputDefs);
+  // Engagement-load diagnostic — fires once per distinct engagement (keyed
+  // on engagement_id via a function property so it survives renders without
+  // polluting the shared `state` object). Dumps enough to pinpoint the
+  // source of ARV=$0: missing scenarios, empty inputs, or the evaluator
+  // returning null for a valid-looking formula. Remove once the RET-RFD
+  // cause is understood.
+  const engId = engagement?.engagement_id ?? null;
+  if (engId && computeAnalysis._lastLoggedEng !== engId) {
+    computeAnalysis._lastLoggedEng = engId;
+    const sample = (scenarios || [])[0];
+    console.log('[compute]', {
+      engagementId:  engId,
+      scenarioCount: (scenarios || []).length,
+      activeCount:   (scenarios || []).filter(s => s.active).length,
+      inputKeyCount: Object.keys(inputs).length,
+      sampleFormula: sample?.value_scenario_formula ?? null,
+      sampleResult:  sample ? evalFormula(sample.value_scenario_formula, inputs) : null,
+    });
+  }
   const per = (scenarios || []).map(s => {
     const arv = evalFormula(s.value_scenario_formula, inputs) || 0;
     const delay = evalFormula(s.delay_cost_formula, inputs) || (arv/12);
