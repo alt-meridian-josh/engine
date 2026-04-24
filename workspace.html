@@ -284,6 +284,27 @@ input,select,textarea{font:inherit;color:inherit}
 .impl-title{font-family:var(--display);font-size:12px;font-weight:600;color:var(--red);margin-bottom:2px}
 .impl-sub{font-family:var(--mono);font-size:10px;color:var(--amber);margin-bottom:8px;text-transform:uppercase;letter-spacing:.06em}
 .impl-input{padding:8px 10px;font-size:13px}
+/* Meridian drawer */
+.mx-drawer{position:fixed;top:44px;right:0;width:340px;height:calc(100vh - 44px);background:#fff;border-left:1px solid var(--border);box-shadow:-4px 0 16px rgba(0,0,0,.06);z-index:45;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .2s ease-out}
+.mx-drawer.is-open{transform:translateX(0)}
+.mx-head{padding:10px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:#faf8f4}
+.mx-title{font-family:var(--display);font-size:13px;font-weight:600} .mx-title .dot{color:var(--red);margin-right:6px}
+.mx-close{color:var(--ink3);padding:2px 8px;border-radius:var(--r);font-size:18px;line-height:1} .mx-close:hover{background:var(--bg);color:var(--ink)}
+.mx-body{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.mx-msg{font-size:12px;line-height:1.5;padding:8px 11px;border-radius:var(--r);word-wrap:break-word;white-space:pre-wrap}
+.mx-msg.user{background:var(--red-dim);color:var(--ink);margin-left:16px;font-family:var(--mono)}
+.mx-msg.assistant{background:var(--bg);color:var(--ink);margin-right:16px;font-family:var(--display);font-size:13px}
+.mx-msg.error{background:var(--amber-dim);color:var(--amber);font-family:var(--mono)}
+.mx-msg.thinking{color:var(--ink3);font-style:italic;font-family:var(--mono);background:transparent;padding:4px 0}
+.mx-empty{padding:24px 12px;text-align:center;color:var(--ink3);font-size:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;line-height:1.5}
+.mx-chips{display:flex;flex-wrap:wrap;gap:4px;padding:9px 14px;border-top:1px solid var(--border);background:#faf8f4}
+.mx-chip{padding:4px 9px;border-radius:var(--r);font-size:10px;font-family:var(--mono);color:var(--ink2);border:1px solid var(--border2);background:#fff;transition:all .12s;text-align:left;line-height:1.2}
+.mx-chip:hover{color:var(--ink);border-color:var(--ink3)}
+.mx-input-row{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:6px;background:#fff}
+.mx-input{flex:1;border:1px solid var(--border2);border-radius:var(--r);padding:7px 10px;font-family:var(--mono);font-size:12px;color:var(--ink)}
+.mx-input:focus{outline:0;border-color:var(--red);box-shadow:0 0 0 2px var(--red-dim)}
+.mx-send{padding:6px 12px;background:var(--red);color:#fff;border-radius:var(--r);font-size:11px;font-family:var(--mono);font-weight:500;transition:background .12s}
+.mx-send:hover{background:var(--red-hover)} .mx-send:disabled{opacity:.5;cursor:not-allowed}
 </style>
 </head>
 <body>
@@ -643,7 +664,7 @@ const currentEng = () => state.engagements.find(e => e.engagement_id === state.a
 function renderWorkspace(){
   const e = currentEng();
   if (!e) return `<div class="boot">Engagement not loaded</div>`;
-  return `${renderWorkspaceTopbar(e)}<div class="ws-layout">${renderSidebar(e)}<main class="ws-main">${renderWorkspaceMain(e)}</main></div>`;
+  return `${renderWorkspaceTopbar(e)}<div class="ws-layout">${renderSidebar(e)}<main class="ws-main">${renderWorkspaceMain(e)}</main></div>${renderMeridianDrawer()}`;
 }
 
 function renderWorkspaceTopbar(e){
@@ -1087,6 +1108,109 @@ function renderDealTab(e){
     </div>`;
 }
 
+/* ---------- MERIDIAN AI DRAWER ---------- */
+const QUICK_PROMPTS = {
+  'value-case': ["What's the weakest assumption?", "Draft CFO narrative", "Which scenario will get challenged?"],
+  inputs:       ["What inputs am I missing?", "What discovery question unlocks the most value?"],
+  outputs:      ["Is this number defensible?", "What's my cost of inaction story?"],
+  snapshots:    ["What changed since last snapshot?", "Generate follow-up email"],
+  deal:         ["What's the next best action?"]
+};
+
+function getAnthropicKey(){
+  let key = localStorage.getItem('anthropic_api_key');
+  if (!key){
+    key = prompt('Paste your Anthropic API key (stored in this browser only, never sent to any server besides api.anthropic.com):');
+    if (key) localStorage.setItem('anthropic_api_key', key.trim());
+  }
+  return key ? key.trim() : null;
+}
+
+function buildMeridianSystem(e){
+  const scenarios = state.scenarios[e.engagement_id] || [];
+  const defs = state.inputDefs[e.domain_id] || [];
+  const ivs = state.inputValues[e.engagement_id] || {};
+  const snaps = state.snapshots[e.engagement_id] || [];
+  const a = computeAnalysis(e, scenarios, ivs, defs);
+  const active = scenarios.filter(s => s.active);
+  const inputs = defs.map(d => {
+    const p = ivs[d.input_key]?.provided_value;
+    const v = p != null ? p : (d.typical_value ?? d.default_value);
+    return `- ${d.label || d.input_key} = ${v} ${d.unit || ''} (${p != null ? 'provided' : 'default'})`;
+  });
+  const last = snaps[0];
+  return `You are Meridian, Alt Meridian's value-engineering coach helping a seller working with ${e.prospect_name || 'this prospect'}. You help them defend, tighten, and communicate the economic case. Be concise (≤ 160 words), specific, and CFO-credible. No hedging, no vendor-speak.
+
+ENGAGEMENT
+Name: ${e.analysis_name || '—'}
+Customer: ${e.prospect_name || '—'}
+Domain: ${state.domains[e.domain_id]?.domain_name || e.domain_id || '—'}
+Stage: ${e.deal_stage || '—'}  ·  Phase: ${e.phase || '—'}
+Seller's current tab: ${state.activeTab}
+
+ACTIVE MECHANISMS (${active.length})
+${active.map(s => `- ${s.mechanism_label || s.scenario_id} · ${s.value_theme || 'other'} · ${s.evidence_strength || 'tier-3'}`).join('\n') || '- (none)'}
+
+MODEL STATE
+ARV Y1 ${fmtMoney(a.arvY1)} · Full ARV ${fmtMoney(a.arvFull)} · Monthly delay ${fmtMoney(a.monthlyDelay)} · 3-yr CoI ${fmtMoney(a.coi3yr)}
+NPV ${a.npv != null ? fmtMoney(a.npv) : 'N/A'} · Payback ${a.payback != null ? a.payback.toFixed(1)+'mo' : 'N/A'} · BCR ${a.bcr != null ? a.bcr.toFixed(2)+'x' : 'N/A'} · Impl ${a.impl ? fmtMoney(a.impl) : 'not set'}
+
+INPUTS (${defs.length})
+${inputs.join('\n')}
+
+LATEST SNAPSHOT
+${last ? `${last.snapshot_label} v${last.snapshot_version} · ARV ${fmtMoney(last.annual_value)}` : '(none)'}`;
+}
+
+async function callMeridian(userMsg){
+  const eng = currentEng(); if (!eng || !userMsg.trim()) return;
+  const key = getAnthropicKey();
+  if (!key) return toast('Meridian needs an API key', true);
+  const history = state.meridianHistory[eng.engagement_id] = state.meridianHistory[eng.engagement_id] || [];
+  history.push({ role: 'user', content: userMsg.trim() });
+  history.push({ role: 'assistant', content: '__thinking__' });
+  render();
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'content-type':'application/json', 'x-api-key':key, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: buildMeridianSystem(eng),
+        messages: history.slice(0,-1).filter(m => m.content !== '__thinking__').map(m => ({ role: m.role === 'error' ? 'assistant' : m.role, content: m.content }))
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error?.message || ('HTTP ' + res.status));
+    history[history.length - 1] = { role: 'assistant', content: data.content?.[0]?.text || '—' };
+  } catch (err) {
+    history[history.length - 1] = { role: 'error', content: 'Meridian failed: ' + (err.message || err) };
+  }
+  render();
+}
+
+function renderMeridianDrawer(){
+  const e = currentEng(); if (!e) return '';
+  const prompts = QUICK_PROMPTS[state.activeTab] || QUICK_PROMPTS['value-case'];
+  const history = state.meridianHistory[e.engagement_id] || [];
+  return `
+    <aside class="mx-drawer ${state.meridianOpen?'is-open':''}">
+      <div class="mx-head"><div class="mx-title"><span class="dot">◆</span>Meridian</div><button class="mx-close" data-action="toggle-meridian">×</button></div>
+      <div class="mx-body">${history.length === 0
+        ? `<div class="mx-empty">No chat yet — pick a prompt below or type a question.</div>`
+        : history.map(m => {
+            if (m.content === '__thinking__') return `<div class="mx-msg thinking">Meridian is thinking…</div>`;
+            return `<div class="mx-msg ${m.role}">${escapeHtml(m.content)}</div>`;
+          }).join('')}</div>
+      <div class="mx-chips">${prompts.map(p => `<button class="mx-chip" data-action="mx-quick" data-prompt="${escapeHtml(p)}">${escapeHtml(p)}</button>`).join('')}</div>
+      <form class="mx-input-row" data-action="mx-submit" autocomplete="off">
+        <input class="mx-input" name="msg" placeholder="Ask Meridian…"/>
+        <button class="mx-send" type="submit">Send</button>
+      </form>
+    </aside>`;
+}
+
 async function patchEngField(field, value){
   const eng = currentEng(); if (!eng) return;
   if (eng[field] === value) return;
@@ -1150,6 +1274,13 @@ document.addEventListener('submit', e => {
   if (action === 'login-submit')         return onLoginSubmit(e);
   if (action === 'new-analysis-submit')  return onNewAnalysisSubmit(e);
   if (action === 'save-snap-submit')     return onSaveSnapshotSubmit(e);
+  if (action === 'mx-submit'){
+    e.preventDefault();
+    const input = form.querySelector('input[name="msg"]');
+    const msg = input?.value || '';
+    if (input) input.value = '';
+    return callMeridian(msg);
+  }
 });
 document.addEventListener('click', e => {
   const node = e.target.closest('[data-action]');
@@ -1162,7 +1293,8 @@ document.addEventListener('click', e => {
   if (a === 'modal-backdrop' && e.target === node) return setState({ modal: null });
   if (a === 'back-to-home')      return setState({ screen:'home', activeEngagementId:null, activeTab:'value-case' });
   if (a === 'ws-tab')            return setState({ activeTab: node.getAttribute('data-tab') });
-  if (a === 'toggle-meridian')   return toast('Meridian drawer lands in Chunk 12');
+  if (a === 'toggle-meridian')   return setState({ meridianOpen: !state.meridianOpen });
+  if (a === 'mx-quick')          return callMeridian(node.getAttribute('data-prompt'));
   if (a === 'open-save-snapshot')return setState({ modal: 'saveSnapshot' });
   if (a === 'open-snap')         return toast('Snapshot restore — coming soon');
   if (a === 'export-snap')       return toast('PDF export — coming soon');
