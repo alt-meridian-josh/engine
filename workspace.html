@@ -103,6 +103,35 @@ input,select,textarea{font:inherit;color:inherit}
 .login-brand .alt{color:var(--red)}
 .login-title{font-size:22px;font-weight:700;margin-bottom:4px;line-height:1.2}
 .login-sub{font-size:12px;color:var(--ink3);font-style:italic;margin-bottom:22px;line-height:1.4;font-family:var(--display)}
+/* Home */
+.home-sub{background:#fff;border-bottom:1px solid var(--border);padding:9px 16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;position:sticky;top:44px;z-index:40}
+.home-tabs{display:flex;gap:2px}
+.home-tab{padding:4px 10px;border-radius:var(--r);font-size:11px;font-family:var(--mono);color:var(--ink3);background:transparent;border:1px solid transparent;transition:all .12s}
+.home-tab:hover{color:var(--ink);background:var(--bg)}
+.home-tab.is-active{background:var(--red);color:#fff;border-color:var(--red)}
+.home-search{flex:1;max-width:280px;margin-left:auto;padding:5px 10px;font-size:11px}
+.home-sort{display:flex;align-items:center;gap:6px;font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em}
+.home-sort .select{width:auto;padding:5px 8px;font-size:11px}
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.stat-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow)}
+.stat-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);margin-bottom:6px}
+.stat-value{font-family:var(--display);font-size:22px;font-weight:700;letter-spacing:-.01em;line-height:1.1}
+.stat-value.accent{color:var(--red)}
+.table-wrap{background:#fff;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow)}
+.tbl{width:100%;border-collapse:collapse;font-size:11px}
+.tbl thead th{background:#faf8f4;text-align:left;padding:8px 12px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);font-weight:500;border-bottom:1px solid var(--border);white-space:nowrap}
+.tbl tbody td{padding:10px 12px;border-bottom:1px solid var(--border);color:var(--ink2);vertical-align:middle}
+.tbl tbody tr{cursor:pointer;transition:background .12s}
+.tbl tbody tr:hover{background:var(--bg)}
+.tbl tbody tr:last-child td{border-bottom:0}
+.an-cell{min-width:200px}
+.an-name{font-family:var(--display);font-weight:600;color:var(--ink);font-size:13px;margin-bottom:1px;line-height:1.25}
+.an-cust{font-size:11px;color:var(--ink2)}
+.cell-mono{font-family:var(--mono);color:var(--ink2);white-space:nowrap}
+.cell-arv{font-family:var(--mono);color:var(--red);font-weight:500;white-space:nowrap;text-align:right}
+.cell-arv.zero{color:var(--ink3)}
+.cell-overdue{color:var(--red);font-weight:500}
+.empty-state{padding:40px 20px;text-align:center;color:var(--ink3);font-size:12px}
 </style>
 </head>
 <body>
@@ -189,6 +218,7 @@ async function loadScenariosForEngagement(engId, domainId){
 async function loadInputDefs(domainId){ return sbSelect('vef_input_definitions', { eq:{domain_id:domainId} }); }
 async function loadInputValues(engId){ const arr = await sbSelect('vef_input_values', { eq:{engagement_id:engId} }); const m = {}; arr.forEach(iv => m[iv.input_key]=iv); return m; }
 async function loadSnapshots(engId){ return sbSelect('vef_output_snapshots', { eq:{engagement_id:engId}, order:['created_at',false] }); }
+async function loadAllSnapshots(){ return sbSelect('vef_output_snapshots', { order:['created_at',false] }); }
 async function loadEvidence(domainId){ return sbSelect('vef_evidence_registry', { eq:{domain_id:domainId} }); }
 
 /* ---------- FORMULA ENGINE ---------- */
@@ -253,9 +283,105 @@ function render(){
   renderModal();
 }
 function renderModal(){ document.getElementById('modal-root').innerHTML = ''; /* Chunk 5/10 fill this */ }
+/* ---------- SCREEN 2 — HOME ---------- */
+const STAGE_CHIP = {'discovery':'chip-blue','validation':'chip-blue','proposal':'chip-amber','finance review':'chip-amber','closed won':'chip-green','closed lost':'chip-ink'};
+const STATUS_CHIP = {'draft':'chip-grey','in progress':'chip-blue','customer review':'chip-amber','finance review':'chip-amber','delivered':'chip-green','completed':'chip-green'};
+const stageChip  = s => STAGE_CHIP [(s||'').toLowerCase()] || 'chip-grey';
+const statusChip = s => STATUS_CHIP[(s||'').toLowerCase()] || 'chip-grey';
+function latestArv(e){ const s = state.snapshots[e.engagement_id] || []; return s.length ? Number(s[0].annual_value) || 0 : 0; }
+function isActive(e){    const s=(e.deal_stage||'').toLowerCase(), st=(e.engagement_status||'').toLowerCase(); return !s.includes('closed') && !st.includes('completed'); }
+function isPilot(e){     return (e.phase||'').toLowerCase().includes('pilot'); }
+function isCompleted(e){ const s=(e.deal_stage||'').toLowerCase(), st=(e.engagement_status||'').toLowerCase(); return s.includes('closed') || st.includes('completed'); }
+function filterEngs(list){
+  let out = list;
+  if (state.homeFilter === 'active')         out = out.filter(isActive);
+  else if (state.homeFilter === 'pilot')     out = out.filter(isPilot);
+  else if (state.homeFilter === 'completed') out = out.filter(isCompleted);
+  const q = state.homeSearch.trim().toLowerCase();
+  if (q) out = out.filter(e => [e.analysis_name,e.vendor_name,e.prospect_name,e.champion_email,e.deal_stage,e.phase]
+    .some(v => v && String(v).toLowerCase().includes(q)));
+  return out;
+}
+function sortEngs(list){
+  const out = list.slice();
+  if (state.homeSort === 'updated')    out.sort((a,b) => (b.intake_date||'').localeCompare(a.intake_date||''));
+  else if (state.homeSort === 'arv')   out.sort((a,b) => latestArv(b) - latestArv(a));
+  else if (state.homeSort === 'stage') out.sort((a,b) => (a.deal_stage||'').localeCompare(b.deal_stage||''));
+  return out;
+}
+const homeRows = () => sortEngs(filterEngs(state.engagements));
+function computeHomeStats(){
+  const es = state.engagements;
+  return { total: es.length, active: es.filter(isActive).length, pilot: es.filter(isPilot).length,
+           totalArv: es.reduce((s,e) => s + latestArv(e), 0) };
+}
 function renderHome(){
-  const n = state.engagements.length;
-  return `<div class="boot">Analysis Home — lands in Chunk 4${state.loading?' · loading':` · ${n} engagement${n===1?'':'s'} loaded`}</div>`;
+  const s = computeHomeStats();
+  return `
+    <header class="topbar">
+      <div class="wordmark"><span class="alt">ALT</span> <span class="md">MERIDIAN</span></div>
+      <span class="topbar-label">Value Workspace</span>
+      <div class="topbar-right">
+        <span class="topbar-user">seller@altmeridian.com</span>
+        <button class="btn btn-primary btn-sm" data-action="open-new-analysis">+ New Analysis</button>
+      </div>
+    </header>
+    <nav class="home-sub">
+      <div class="home-tabs">${['all','active','pilot','completed'].map(t => `<button class="home-tab ${state.homeFilter===t?'is-active':''}" data-action="home-tab" data-tab="${t}">${t[0].toUpperCase()+t.slice(1)}</button>`).join('')}</div>
+      <input class="input home-search" placeholder="Search analyses…" value="${escapeHtml(state.homeSearch)}" data-action="home-search"/>
+      <div class="home-sort"><span>Sort</span>
+        <select class="select" data-action="home-sort">
+          <option value="updated" ${state.homeSort==='updated'?'selected':''}>Updated</option>
+          <option value="arv" ${state.homeSort==='arv'?'selected':''}>ARV</option>
+          <option value="stage" ${state.homeSort==='stage'?'selected':''}>Stage</option>
+        </select></div>
+    </nav>
+    <main class="page"><div class="container">
+      <div class="stats-row">
+        <div class="stat-card"><div class="stat-label">Total Analyses</div><div class="stat-value">${s.total}</div></div>
+        <div class="stat-card"><div class="stat-label">Active</div><div class="stat-value">${s.active}</div></div>
+        <div class="stat-card"><div class="stat-label">In Pilot</div><div class="stat-value">${s.pilot}</div></div>
+        <div class="stat-card"><div class="stat-label">Total ARV</div><div class="stat-value accent">${fmtMoney(s.totalArv)}</div></div>
+      </div>
+      ${state.loading ? `<div class="empty-state">Loading analyses…</div>` : renderAnalysisTable(homeRows())}
+    </div></main>`;
+}
+function renderAnalysisTable(rows){
+  if (!rows.length) return `<div class="table-wrap"><div class="empty-state">No analyses match the current filters.</div></div>`;
+  return `<div class="table-wrap"><table class="tbl">
+    <thead><tr><th class="an-cell">Analysis · Customer</th><th>Domain</th><th>Stage</th><th>Phase</th><th>Champion</th><th>Pilot Date</th><th>Next Follow-Up</th><th style="text-align:right">ARV</th><th>Status</th><th>Updated</th></tr></thead>
+    <tbody>${rows.map(renderAnalysisRow).join('')}</tbody>
+  </table></div>`;
+}
+function renderAnalysisRow(e){
+  const dom = state.domains[e.domain_id]?.domain_name || '—';
+  const fu  = daysUntil(e.next_followup_date || e.next_action_date);
+  const arv = latestArv(e);
+  return `<tr data-action="open-engagement" data-id="${escapeHtml(e.engagement_id)}">
+    <td class="an-cell"><div class="an-name">${escapeHtml(e.analysis_name || e.vendor_name || 'Untitled analysis')}</div><div class="an-cust">${escapeHtml(e.prospect_name || '—')}</div></td>
+    <td><span class="chip chip-grey">${escapeHtml(dom)}</span></td>
+    <td><span class="chip ${stageChip(e.deal_stage)}">${escapeHtml(e.deal_stage || '—')}</span></td>
+    <td><span class="chip chip-grey">${escapeHtml(e.phase || '—')}</span></td>
+    <td class="cell-mono">${escapeHtml(e.champion_email || '—')}</td>
+    <td class="cell-mono">${fmtDate(e.pilot_start_date)}</td>
+    <td class="cell-mono ${fu!==null&&fu<0?'cell-overdue':''}">${fmtDate(e.next_followup_date || e.next_action_date)}</td>
+    <td class="cell-arv ${arv>0?'':'zero'}">${arv>0?fmtMoney(arv):'—'}</td>
+    <td><span class="chip ${statusChip(e.engagement_status)}">${escapeHtml(e.engagement_status || 'Draft')}</span></td>
+    <td class="cell-mono">${relTime(e.intake_date)}</td>
+  </tr>`;
+}
+async function onOpenEngagement(id){
+  const e = state.engagements.find(x => x.engagement_id === id);
+  if (!e) return toast('Engagement not found', true);
+  setState({ screen:'workspace', activeEngagementId:id, activeTab:'value-case', loading:true });
+  try {
+    const dom = e.domain_id;
+    const [sc, defs, ivs, snaps, ev] = await Promise.all([
+      loadScenariosForEngagement(id, dom), loadInputDefs(dom), loadInputValues(id), loadSnapshots(id), loadEvidence(dom)
+    ]);
+    state.scenarios[id] = sc; state.inputDefs[dom] = defs; state.inputValues[id] = ivs; state.snapshots[id] = snaps; state.evidence[dom] = ev;
+    setState({ loading:false });
+  } catch (err) { console.error(err); toast('Load failed: ' + (err.message || err), true); setState({ loading:false }); }
 }
 function renderWorkspace(){ return `<div class="boot">Workspace — lands in Chunk 6</div>`; }
 
@@ -293,8 +419,12 @@ async function onLoginSubmit(e){
   e.preventDefault();
   setState({ screen: 'home', loading: true });
   try {
-    const [domains, engagements] = await Promise.all([loadDomains(), loadEngagements()]);
-    setState({ domains, engagements, loading: false });
+    const [domains, engagements, allSnaps] = await Promise.all([
+      loadDomains(), loadEngagements(), loadAllSnapshots().catch(() => [])
+    ]);
+    const snapshots = {};
+    (allSnaps || []).forEach(s => (snapshots[s.engagement_id] = snapshots[s.engagement_id] || []).push(s));
+    setState({ domains, engagements, snapshots, loading: false });
   } catch (err) {
     console.error(err);
     toast('Load failed: ' + (err.message || err), true);
@@ -312,7 +442,22 @@ document.addEventListener('submit', e => {
 document.addEventListener('click', e => {
   const node = e.target.closest('[data-action]');
   if (!node || node.tagName === 'FORM') return;
-  /* click handlers for subsequent chunks dispatch here */
+  const a = node.getAttribute('data-action');
+  if (a === 'home-tab')         return setState({ homeFilter: node.getAttribute('data-tab') });
+  if (a === 'open-engagement')  return onOpenEngagement(node.getAttribute('data-id'));
+  if (a === 'open-new-analysis')return toast('New Analysis modal lands in Chunk 5');
+});
+document.addEventListener('input', e => {
+  const node = e.target.closest('[data-action]');
+  if (!node || node.getAttribute('data-action') !== 'home-search') return;
+  state.homeSearch = node.value;
+  const wrap = document.querySelector('.table-wrap');
+  if (wrap) wrap.outerHTML = renderAnalysisTable(homeRows());
+});
+document.addEventListener('change', e => {
+  const node = e.target.closest('[data-action]');
+  if (!node) return;
+  if (node.getAttribute('data-action') === 'home-sort') setState({ homeSort: node.value });
 });
 
 /* ---------- BOOT ---------- */
