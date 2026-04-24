@@ -221,6 +221,33 @@ input,select,textarea{font:inherit;color:inherit}
 .ig-range{display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--ink3);letter-spacing:.04em}
 .sensitivity-tag{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.06em;padding:1px 6px;border-radius:2px;font-weight:500}
 .sensitivity-High{background:var(--red-dim);color:var(--red)} .sensitivity-Medium{background:var(--amber-dim);color:var(--amber)} .sensitivity-Low{background:#eceae6;color:var(--ink3)}
+/* Outputs tab */
+.three-q{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
+.tq-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:18px 22px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:6px}
+.tq-card.acting{border-top:3px solid var(--red)} .tq-card.delay{border-top:3px solid var(--amber)} .tq-card.nothing{border-top:3px solid var(--ink)}
+.tq-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3)}
+.tq-value{font-family:var(--display);font-size:28px;font-weight:700;letter-spacing:-.01em;line-height:1.05}
+.tq-value.red{color:var(--red)} .tq-value.amber{color:var(--amber)} .tq-value.ink{color:var(--ink)}
+.tq-value .u{font-size:13px;opacity:.5;margin-left:2px;font-weight:500}
+.tq-sub{font-family:var(--mono);font-size:10px;color:var(--ink2)}
+.tq-tier{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-top:2px}
+.wf-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:14px 20px;box-shadow:var(--shadow);margin-bottom:16px}
+.wf-row{display:grid;grid-template-columns:220px 1fr 80px 60px 90px;gap:10px;align-items:center;padding:6px 0;font-size:11px}
+.wf-row.shadow{opacity:.55}
+.wf-name{color:var(--ink2);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wf-bar-wrap{background:#f5f2ed;border-radius:2px;height:18px;overflow:hidden}
+.wf-bar{height:100%;background:var(--red);border-radius:2px;transition:width .3s} .wf-bar.shadow{background:#d1ccc5}
+.wf-val{font-family:var(--mono);text-align:right;color:var(--ink);font-weight:500}
+.wf-pct{font-family:var(--mono);text-align:right;color:var(--ink3)}
+.wf-status{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);text-align:right}
+.fin-wrap{background:#fff;border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow)}
+.fin-tbl{width:100%;border-collapse:collapse;font-size:12px}
+.fin-tbl td{padding:10px 16px;border-bottom:1px solid var(--border)}
+.fin-tbl td:first-child{color:var(--ink2);font-family:var(--mono);text-transform:uppercase;font-size:10px;letter-spacing:.06em}
+.fin-tbl td:last-child{text-align:right;font-family:var(--mono);color:var(--ink);font-weight:500}
+.fin-tbl tr:last-child td{border-bottom:0}
+.fin-tbl tr.emph td{background:#faf8f4;font-weight:600} .fin-tbl tr.emph td:last-child{color:var(--red)}
+.fin-note{padding:10px 16px;background:var(--amber-dim);color:var(--amber);font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-family:var(--mono);border-top:1px solid var(--border)}
 </style>
 </head>
 <body>
@@ -836,7 +863,64 @@ async function applyInputPreset(preset){
   try { for (const r of rows) await sbUpsert('vef_input_values', r, 'engagement_id,input_key'); toast('Applied ' + preset + ' preset'); }
   catch (err) { toast('Save failed: ' + (err.message || err), true); }
 }
-function renderOutputsTab(e)  { return `<div class="tab-placeholder">Outputs tab lands in Chunk 9</div>`; }
+function renderOutputsTab(e){
+  const scenarios = state.scenarios[e.engagement_id] || [];
+  const defs = state.inputDefs[e.domain_id] || [];
+  const ivs = state.inputValues[e.engagement_id] || {};
+  const a = computeAnalysis(e, scenarios, ivs, defs);
+  const tier = state.preset || 'typical';
+  const total = a.arvFull;
+  return `
+    <div class="section-head"><h2 class="section-title">The Three Questions</h2></div>
+    <div class="three-q">
+      <div class="tq-card acting">
+        <div class="tq-label">Value of Acting</div>
+        <div class="tq-value red">${fmtMoney(a.arvY1)}</div>
+        <div class="tq-sub">Year 1 realized · after activation ramp (50%)</div>
+        <div class="tq-tier">Tier · ${tier}</div>
+      </div>
+      <div class="tq-card delay">
+        <div class="tq-label">Cost of Delay</div>
+        <div class="tq-value amber">${fmtMoney(a.monthlyDelay)}<span class="u">/mo</span></div>
+        <div class="tq-sub">Per month of inaction</div>
+      </div>
+      <div class="tq-card nothing">
+        <div class="tq-label">Cost of Doing Nothing</div>
+        <div class="tq-value ink">${fmtMoney(a.coi3yr)}</div>
+        <div class="tq-sub">3-year cumulative · ramped</div>
+      </div>
+    </div>
+    <div class="section-head"><h2 class="section-title">Scenario Breakdown</h2></div>
+    ${scenarios.length ? `<div class="wf-card">${a.perScenario.map(p => {
+      const s = scenarios.find(x => x.scenario_id === p.scenario_id);
+      const pct = total > 0 ? Math.round(p.arv / total * 100) : 0;
+      const shadow = p.pool_shadow;
+      const statusText = shadow ? 'Pool-shadowed' : p.active ? 'Active' : 'Inactive';
+      return `<div class="wf-row ${shadow?'shadow':''}">
+        <div class="wf-name">${escapeHtml(s?.mechanism_label || p.scenario_id)}</div>
+        <div class="wf-bar-wrap"><div class="wf-bar ${shadow?'shadow':''}" style="width:${p.active?Math.max(3,pct):3}%"></div></div>
+        <div class="wf-val">${fmtMoney(p.arv)}</div>
+        <div class="wf-pct">${p.active && !shadow ? pct+'%' : '—'}</div>
+        <div class="wf-status">${statusText}</div>
+      </div>`;
+    }).join('')}</div>` : `<div class="tab-placeholder">No scenarios to chart.</div>`}
+    <div class="section-head"><h2 class="section-title">Financial Summary</h2></div>
+    <div class="fin-wrap">
+      <table class="fin-tbl"><tbody>
+        <tr><td>Y1 Realized Value</td><td>${fmtMoney(a.arvY1)}</td></tr>
+        <tr><td>Y2 · full adoption</td><td>${fmtMoney(a.arvY2)}</td></tr>
+        <tr><td>Y3 · full adoption</td><td>${fmtMoney(a.arvY3)}</td></tr>
+        <tr class="emph"><td>3-Year Total</td><td>${fmtMoney(a.arvY1+a.arvY2+a.arvY3)}</td></tr>
+        <tr><td>NPV · 10% discount, Y1 face</td><td>${a.npv != null ? fmtMoney(a.npv) : 'N/A'}</td></tr>
+        <tr><td>Payback Period</td><td>${a.payback != null ? a.payback.toFixed(1) + ' mo' : 'N/A'}</td></tr>
+        <tr><td>BCR</td><td>${a.bcr != null ? a.bcr.toFixed(2) + 'x' : 'N/A'}</td></tr>
+        <tr><td>Monthly Cost of Delay</td><td>${fmtMoney(a.monthlyDelay)}</td></tr>
+        <tr><td>Monthly Cost of Doing Nothing</td><td>${fmtMoney(a.coi3yr/36)}</td></tr>
+      </tbody></table>
+      ${!a.impl ? `<div class="fin-note">Implementation cost not provided — payback + BCR shown as N/A. Enter in the Deal tab to compute.</div>` : ''}
+    </div>
+  `;
+}
 function renderSnapshotsTab(e){ return `<div class="tab-placeholder">Snapshots tab lands in Chunk 10</div>`; }
 function renderDealTab(e)     { return `<div class="tab-placeholder">Deal tab lands in Chunk 11</div>`; }
 
