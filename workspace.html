@@ -418,6 +418,14 @@ input,select,textarea{font:inherit;color:inherit}
 .vefa-chip-rec{background:transparent;color:var(--red);border:1px solid var(--red);padding:1px 8px}
 .vefa-chip-matched{background:var(--blue-dim);color:var(--blue)}
 .vefa-empty{padding:30px 14px;text-align:center;color:var(--ink3);font-family:var(--mono);font-size:11px}
+.vefa-step2-banner{padding:8px 12px;background:var(--amber-dim);border:1px solid rgba(180,83,9,.2);border-radius:var(--r);color:var(--amber);font-family:var(--mono);font-size:11px;margin-bottom:10px;line-height:1.5}
+.vefa-step2-actions{display:flex;gap:8px;align-items:center;margin-bottom:10px;flex-wrap:wrap}
+.vefa-scen-search{flex:1;min-width:160px;border:1px solid var(--border2);border-radius:var(--r);padding:6px 10px;font-family:var(--mono);font-size:11px;color:var(--ink);background:#fff}
+.vefa-scen-search:focus{outline:0;border-color:var(--red);box-shadow:0 0 0 2px var(--red-dim)}
+.vefa-theme-filters{display:flex;gap:4px;flex-wrap:wrap;flex-basis:100%;margin-top:4px}
+.vefa-theme-chip{padding:3px 10px;border-radius:var(--r-chip);font-family:var(--mono);font-size:10px;color:var(--ink2);border:1px solid var(--border2);background:#fff;transition:all .12s;cursor:pointer;text-transform:uppercase;letter-spacing:.06em}
+.vefa-theme-chip:hover{color:var(--ink);border-color:var(--ink3)}
+.vefa-theme-chip.is-on{background:var(--red);color:#fff;border-color:var(--red)}
 </style>
 </head>
 <body>
@@ -637,6 +645,7 @@ function makeVEFAssistState(){
     championEmail:'', economicBuyerEmail:'', nextFollowUp:'',
     whatToProve:'', valueFocus:[],
     availableScenarios:[], selectedScenarioIds:new Set(),
+    step2Search:'', step2ThemeFilter:'all',
     evidenceNotes:'', domainSignals:[], domainThemes:[]
   };
 }
@@ -1063,7 +1072,6 @@ function vefaPaintNextButton(){
   if (n === 0) btn.setAttribute('disabled', ''); else btn.removeAttribute('disabled');
 }
 function renderVEFAssistStep2(v){
-  const scens = (v.availableScenarios || []).slice().sort((a,b) => (a.print_priority || 99) - (b.print_priority || 99));
   const dom = state.domains[v.domainId];
   const domName = dom?.domain_name || v.domainId || 'No domain';
   const foci = (v.valueFocus || []).map(f => `<span class="chip">${escapeHtml(f)}</span>`).join('');
@@ -1072,10 +1080,67 @@ function renderVEFAssistStep2(v){
     ${foci ? `<div class="vefa-step2-foci">${foci}</div>` : ''}
   </div>`;
   if (v.step2Loading) return `<div class="vefa-step2">${header}<div class="vefa-placeholder">Loading scenarios…</div></div>`;
-  if (!scens.length)  return `<div class="vefa-step2">${header}<div class="vefa-empty">No scenarios found for this domain.</div></div>`;
-  return `<div class="vefa-step2">${header}
-    <div class="vefa-scen-list" id="vefa-scen-list">${scens.map(s => renderVEFAScenRow(s, v)).join('')}</div>
+  if (!(v.availableScenarios || []).length) return `<div class="vefa-step2">${header}<div class="vefa-empty">No scenarios found for this domain.</div></div>`;
+  const filtered = vefaFilteredScenarios(v);
+  const body = filtered.length
+    ? filtered.map(s => renderVEFAScenRow(s, v)).join('')
+    : '<div class="vefa-empty">No scenarios match your filters.</div>';
+  return `<div class="vefa-step2">
+    ${header}
+    ${renderVEFAStep2Banner(v)}
+    ${renderVEFAStep2Actions(v)}
+    <div class="vefa-scen-list" id="vefa-scen-list">${body}</div>
   </div>`;
+}
+function vefaFilteredScenarios(v){
+  let list = (v.availableScenarios || []).slice();
+  const theme = v.step2ThemeFilter || 'all';
+  if (theme !== 'all') list = list.filter(s => (s.value_theme || '') === theme);
+  const q = (v.step2Search || '').toLowerCase().trim();
+  if (q){
+    list = list.filter(s => {
+      const hay = ((s.mechanism_label||'') + ' ' + (s.one_liner||'') + ' ' + (s.description||'') + ' ' + (s.scenario_id||'')).toLowerCase();
+      return hay.includes(q);
+    });
+  }
+  return list.sort((a,b) => (a.print_priority || 99) - (b.print_priority || 99));
+}
+function renderVEFAStep2Banner(v){
+  const matched = (v.extractedClaims || []).filter(c => c.matchedScenarioId).length;
+  if (!matched) return '';
+  return `<div class="vefa-step2-banner">${matched} claim${matched===1?'':'s'} matched to scenarios below. Matched scenarios are pre-selected.</div>`;
+}
+function renderVEFAStep2Actions(v){
+  const themes = Array.from(new Set((v.availableScenarios || []).map(s => (s.value_theme || '').trim()).filter(Boolean)));
+  const active = v.step2ThemeFilter || 'all';
+  const themeChips = [['all','All'], ...themes.map(t => [t, t])].map(([val, label]) => {
+    const on = active === val ? ' is-on' : '';
+    return `<button type="button" class="vefa-theme-chip${on}" data-action="vefa-theme-filter" data-theme="${escapeHtml(val)}">${escapeHtml(label)}</button>`;
+  }).join('');
+  return `<div class="vefa-step2-actions">
+    <button class="btn btn-ghost btn-sm" data-action="vefa-select-recommended">Select all recommended</button>
+    <button class="btn btn-ghost btn-sm" data-action="vefa-clear-all">Clear all</button>
+    <input type="text" class="vefa-scen-search" data-action="vefa-scen-search" placeholder="Search scenarios…" value="${escapeHtml(v.step2Search || '')}"/>
+    <div class="vefa-theme-filters">${themeChips}</div>
+  </div>`;
+}
+function paintVEFAScenList(){
+  const list = document.getElementById('vefa-scen-list');
+  if (!list) return;
+  const v = state.vefAssist;
+  const filtered = vefaFilteredScenarios(v);
+  list.innerHTML = filtered.length
+    ? filtered.map(s => renderVEFAScenRow(s, v)).join('')
+    : '<div class="vefa-empty">No scenarios match your filters.</div>';
+}
+function vefaSelectRecommended(){
+  const v = state.vefAssist;
+  (v.availableScenarios || []).forEach(s => { if (s.active_by_default) v.selectedScenarioIds.add(s.scenario_id); });
+  paintVEFAScenList(); vefaPaintNextButton();
+}
+function vefaClearAll(){
+  state.vefAssist.selectedScenarioIds.clear();
+  paintVEFAScenList(); vefaPaintNextButton();
 }
 function renderVEFAScenRow(s, v){
   const checked = v.selectedScenarioIds.has(s.scenario_id);
@@ -1968,6 +2033,16 @@ document.addEventListener('click', e => {
     const i = arr.indexOf(f); if (i >= 0) arr.splice(i, 1); else arr.push(f);
     node.classList.toggle('is-on'); return;
   }
+  if (a === 'vefa-select-recommended') return vefaSelectRecommended();
+  if (a === 'vefa-clear-all')          return vefaClearAll();
+  if (a === 'vefa-theme-filter'){
+    const t = node.getAttribute('data-theme');
+    state.vefAssist.step2ThemeFilter = t;
+    document.querySelectorAll('[data-action="vefa-theme-filter"]').forEach(btn => {
+      btn.classList.toggle('is-on', btn.getAttribute('data-theme') === t);
+    });
+    paintVEFAScenList(); return;
+  }
   if (a === 'vefa-finish')       return toast('Finish handler lands in Chunk F');
   if (a === 'back-to-home')      return setState({ screen:'home', activeEngagementId:null, activeTab:'value-case' });
   if (a === 'ws-tab')            return setState({ activeTab: node.getAttribute('data-tab') });
@@ -2004,6 +2079,12 @@ document.addEventListener('input', e => {
   if (a === 'vefa-field'){
     // Silent per-keystroke mutation so text/date/textarea inputs keep focus.
     state.vefAssist[node.getAttribute('data-key')] = node.value;
+  }
+  if (a === 'vefa-scen-search'){
+    // Targeted list subtree refresh — search input never re-renders,
+    // focus persists mid-keystroke (lesson 2026-04-23).
+    state.vefAssist.step2Search = node.value;
+    paintVEFAScenList();
   }
 });
 document.addEventListener('focusout', e => {
