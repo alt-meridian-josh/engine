@@ -44,3 +44,24 @@
 **Root cause:** Forgot to separate baseline from derived state.
 **Rule going forward:** Any state that can be rescaled or re-expressed needs an explicit baseline stored on first mutation (`baselineImpact ??= annualImpact`). Derive rendered values from baseline every time; never mutate the baseline.
 **Applies to:** alt-meridian, any modeling UI
+
+## 2026-04-24 — Schema-uncertain inserts: stash auxiliary fields in JSON sidecar
+**Context:** Rebuild of workspace.html (v2) — user said some columns on `vef_engagements` and `vef_output_snapshots` may not exist yet on every tenant, and SELECTs should read defensively. But INSERTs with unknown columns hard-fail.
+**What happened:** The Save Snapshot modal needed to capture stage/phase at time of snapshot per spec, but `stage_at_snapshot` / `phase_at_snapshot` aren't in the documented schema. Similarly the New Analysis modal had an 'Executive Sponsor Email' field with no matching column.
+**Root cause:** Reading defensively via `select=*` works because any column order is returned; inserting a non-existent column is a hard PostgREST error.
+**Rule going forward:** When a spec requires capturing fields that may not exist as columns: (a) stash them inside an existing JSON column (`input_snapshot._meta`), or (b) serialize into `notes` with a labeled prefix. Never send a speculative column on INSERT — fail-closed beats fail-loud in a demo. Document the location in the commit.
+**Applies to:** alt-meridian, supabase
+
+## 2026-04-24 — Direct browser Anthropic API needs the permissive-origin header
+**Context:** Meridian AI drawer does direct `fetch` to `api.anthropic.com/v1/messages` from the browser (no backend).
+**What happened:** First attempts from a browser silently fail CORS without the explicit opt-in header.
+**Root cause:** Anthropic requires `anthropic-dangerous-direct-browser-access: true` for browser-origin calls; without it CORS blocks the preflight.
+**Rule going forward:** Browser-direct Anthropic fetches need all four headers: `content-type`, `x-api-key`, `anthropic-version: 2023-06-01`, `anthropic-dangerous-direct-browser-access: true`. Default to prompt-for-key + `localStorage` persistence — never hard-code a key in the HTML.
+**Applies to:** alt-meridian, any single-file AI UI
+
+## 2026-04-24 — Full-page re-render breaks scroll and focus for chat drawers
+**Context:** Meridian drawer is rendered inside `renderWorkspace`, which is replaced wholesale on every `render()` call. After each message the scroll position reset to top and the input lost focus.
+**What happened:** Symptom only showed up once chat had enough messages to scroll. Fix: add an `afterRender()` hook called via `requestAnimationFrame` from the render dispatcher; restores `scrollTop = scrollHeight` on `.mx-body` and refocuses the composer input when not disabled.
+**Root cause:** Vanilla full-render pattern loses imperative DOM state (scroll, focus) every frame.
+**Rule going forward:** Any SPA that does full-page innerHTML re-renders needs a lightweight `afterRender` hook for imperative state (scroll, focus, intersection observers, etc). Call it via rAF so the new DOM is painted first.
+**Applies to:** alt-meridian, single-file SPAs
