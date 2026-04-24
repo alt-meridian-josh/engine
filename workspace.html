@@ -132,6 +132,11 @@ input,select,textarea{font:inherit;color:inherit}
 .cell-arv.zero{color:var(--ink3)}
 .cell-overdue{color:var(--red);font-weight:500}
 .empty-state{padding:40px 20px;text-align:center;color:var(--ink3);font-size:12px}
+/* Form grid (modal) */
+.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px 12px}
+.form-grid .field{margin:0} .form-grid .full{grid-column:1/-1}
+.form-section{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);margin:10px 0 2px;grid-column:1/-1;font-weight:500;border-top:1px solid var(--border);padding-top:10px}
+.form-section.first{border-top:0;margin-top:0;padding-top:0}
 </style>
 </head>
 <body>
@@ -282,7 +287,101 @@ function render(){
   else if (state.screen === 'workspace') app.innerHTML = renderWorkspace();
   renderModal();
 }
-function renderModal(){ document.getElementById('modal-root').innerHTML = ''; /* Chunk 5/10 fill this */ }
+function renderModal(){
+  const root = document.getElementById('modal-root');
+  if (!state.modal){ root.innerHTML = ''; return; }
+  if (state.modal === 'newAnalysis') root.innerHTML = renderNewAnalysisModal();
+}
+
+/* ---------- NEW ANALYSIS MODAL ---------- */
+const STAGES = ['Discovery','Validation','Proposal','Finance Review','Closed Won','Closed Lost'];
+const PHASES = ['Pre-Sale','PoC','Pilot — Active','Pilot — Complete','Phase 1 Rollout','Phase 2 Expansion','Renewal'];
+const FU_TRIGGERS = ['30-day check-in','90-day review','Pilot complete','Renewal','Expansion','Manual'];
+
+function renderNewAnalysisModal(){
+  const opt = (arr, sel='') => arr.map(v => `<option value="${escapeHtml(v)}"${v===sel?' selected':''}>${escapeHtml(v)}</option>`).join('');
+  const doms = Object.values(state.domains);
+  const fld = (label, html, full=false, req=false) =>
+    `<div class="field${full?' full':''}"><label class="label">${label}${req?'<span class="req">*</span>':''}</label>${html}</div>`;
+  return `
+    <div class="modal-overlay" data-action="modal-backdrop">
+      <div class="modal-card">
+        <div class="modal-head">
+          <h2 class="modal-title">New Analysis</h2>
+          <p class="modal-sub">Seed a value case</p>
+        </div>
+        <form data-action="new-analysis-submit" autocomplete="off">
+          <div class="modal-body"><div class="form-grid">
+            <div class="form-section first">Core</div>
+            ${fld('Analysis Name', `<input class="input" name="analysis_name" required placeholder="e.g. Kroger DC RFID Pilot"/>`, true, true)}
+            ${fld('Customer / Account', `<input class="input" name="prospect_name" required/>`, false, true)}
+            ${fld('Vendor / Solution',  `<input class="input" name="vendor_name" required/>`, false, true)}
+            ${fld('Domain', `<select class="select" name="domain_id" required>${doms.map(d => `<option value="${escapeHtml(d.domain_id)}">${escapeHtml(d.domain_name || d.domain_id)}</option>`).join('')}</select>`, false, true)}
+            ${fld('Sales Stage', `<select class="select" name="deal_stage" required>${opt(STAGES)}</select>`, false, true)}
+            ${fld('Delivery Phase', `<select class="select" name="phase" required>${opt(PHASES, 'Pre-Sale')}</select>`, true, true)}
+            <div class="form-section">Contacts</div>
+            ${fld('Champion Name',  `<input class="input" name="champion_role"/>`)}
+            ${fld('Champion Email', `<input class="input" name="champion_email" type="email"/>`)}
+            ${fld('Economic Buyer Email',    `<input class="input" name="economic_buyer_email" type="email"/>`)}
+            ${fld('Executive Sponsor Email', `<input class="input" name="executive_sponsor_email" type="email"/>`)}
+            <div class="form-section">Dates</div>
+            ${fld('Pilot Start', `<input class="input" name="pilot_start_date" type="date"/>`)}
+            ${fld('Pilot End',   `<input class="input" name="pilot_end_date" type="date"/>`)}
+            ${fld('Go-Live',     `<input class="input" name="go_live_date" type="date"/>`)}
+            ${fld('Next Follow-Up', `<input class="input" name="next_followup_date" type="date" required/>`, false, true)}
+            ${fld('Follow-Up Trigger', `<select class="select" name="followup_trigger">${opt(FU_TRIGGERS)}</select>`, true)}
+            ${fld('Notes', `<textarea class="textarea" name="notes" placeholder="Context, discovery notes, key unknowns…"></textarea>`, true)}
+          </div></div>
+          <div class="modal-foot">
+            <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Create Analysis →</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  `;
+}
+
+async function onNewAnalysisSubmit(e){
+  e.preventDefault();
+  const f = e.target;
+  const today = new Date().toISOString().slice(0,10);
+  const exec = f.executive_sponsor_email.value.trim();
+  const note = f.notes.value.trim();
+  const row = {
+    engagement_id: 'ENG-WS-' + Date.now(),
+    analysis_name: f.analysis_name.value.trim(),
+    prospect_name: f.prospect_name.value.trim(),
+    vendor_name:   f.vendor_name.value.trim(),
+    domain_id:     f.domain_id.value,
+    deal_stage:    f.deal_stage.value,
+    phase:         f.phase.value,
+    champion_role:        f.champion_role.value.trim() || null,
+    champion_email:       f.champion_email.value.trim() || null,
+    economic_buyer_email: f.economic_buyer_email.value.trim() || null,
+    pilot_start_date:   f.pilot_start_date.value || null,
+    pilot_end_date:     f.pilot_end_date.value || null,
+    go_live_date:       f.go_live_date.value || null,
+    next_followup_date: f.next_followup_date.value || null,
+    followup_trigger:   f.followup_trigger.value || null,
+    notes: [note, exec ? 'Exec sponsor: ' + exec : ''].filter(Boolean).join('\n') || null,
+    engagement_status: 'Draft',
+    intake_date: today,
+    owner: 'seller@altmeridian.com'
+  };
+  try {
+    const created = await sbInsert('vef_engagements', row);
+    const eng = created || row;
+    state.engagements.unshift(eng);
+    state.snapshots[eng.engagement_id] = [];
+    setState({ modal: null });
+    toast('Analysis created — ' + eng.analysis_name);
+    onOpenEngagement(eng.engagement_id);
+  } catch (err) {
+    console.error(err);
+    toast('Insert failed: ' + (err.message || err), true);
+  }
+}
 /* ---------- SCREEN 2 — HOME ---------- */
 const STAGE_CHIP = {'discovery':'chip-blue','validation':'chip-blue','proposal':'chip-amber','finance review':'chip-amber','closed won':'chip-green','closed lost':'chip-ink'};
 const STATUS_CHIP = {'draft':'chip-grey','in progress':'chip-blue','customer review':'chip-amber','finance review':'chip-amber','delivered':'chip-green','completed':'chip-green'};
@@ -437,15 +536,21 @@ document.addEventListener('submit', e => {
   const form = e.target.closest('form[data-action]');
   if (!form) return;
   const action = form.getAttribute('data-action');
-  if (action === 'login-submit') return onLoginSubmit(e);
+  if (action === 'login-submit')         return onLoginSubmit(e);
+  if (action === 'new-analysis-submit')  return onNewAnalysisSubmit(e);
 });
 document.addEventListener('click', e => {
   const node = e.target.closest('[data-action]');
   if (!node || node.tagName === 'FORM') return;
   const a = node.getAttribute('data-action');
-  if (a === 'home-tab')         return setState({ homeFilter: node.getAttribute('data-tab') });
-  if (a === 'open-engagement')  return onOpenEngagement(node.getAttribute('data-id'));
-  if (a === 'open-new-analysis')return toast('New Analysis modal lands in Chunk 5');
+  if (a === 'home-tab')          return setState({ homeFilter: node.getAttribute('data-tab') });
+  if (a === 'open-engagement')   return onOpenEngagement(node.getAttribute('data-id'));
+  if (a === 'open-new-analysis') return setState({ modal: 'newAnalysis' });
+  if (a === 'close-modal')       return setState({ modal: null });
+  if (a === 'modal-backdrop' && e.target === node) return setState({ modal: null });
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && state.modal){ e.preventDefault(); setState({ modal: null }); }
 });
 document.addEventListener('input', e => {
   const node = e.target.closest('[data-action]');
