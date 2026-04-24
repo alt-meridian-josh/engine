@@ -137,6 +137,30 @@ input,select,textarea{font:inherit;color:inherit}
 .form-grid .field{margin:0} .form-grid .full{grid-column:1/-1}
 .form-section{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);margin:10px 0 2px;grid-column:1/-1;font-weight:500;border-top:1px solid var(--border);padding-top:10px}
 .form-section.first{border-top:0;margin-top:0;padding-top:0}
+/* Workspace */
+.ws-topbar{padding:0 14px;gap:10px}
+.ws-back{color:var(--ink3);font-size:11px;padding:5px 9px;border-radius:var(--r);transition:background .12s,color .12s;font-family:var(--mono)}
+.ws-back:hover{background:#1f1d1a;color:var(--topbar-text)}
+.ws-crumb{display:flex;flex-direction:column;line-height:1.15;min-width:0;margin-right:4px}
+.ws-crumb-name{font-family:var(--display);font-weight:600;color:#fff;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
+.ws-crumb-cust{font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em}
+.ws-topbar-chips{display:flex;gap:4px}
+.ws-layout{display:grid;grid-template-columns:200px 1fr;min-height:calc(100vh - 44px)}
+.ws-sidebar{background:#fff;border-right:1px solid var(--border);padding:14px 0;display:flex;flex-direction:column;gap:12px;position:sticky;top:44px;align-self:start;height:calc(100vh - 44px);overflow-y:auto}
+.ws-meta{padding:0 14px 12px;display:flex;flex-direction:column;gap:8px;border-bottom:1px solid var(--border)}
+.ws-meta-row{display:flex;flex-direction:column;gap:1px}
+.ws-meta-label{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3)}
+.ws-meta-value{font-size:11px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono)}
+.ws-nav{display:flex;flex-direction:column;gap:1px}
+.ws-nav-item{display:flex;align-items:center;gap:9px;padding:8px 14px;font-family:var(--mono);font-size:12px;color:var(--ink2);text-align:left;border-left:3px solid transparent;transition:background .12s,color .12s,border-color .12s;width:100%}
+.ws-nav-item:hover{background:var(--bg);color:var(--ink)}
+.ws-nav-item.is-active{background:var(--red-dim);color:var(--red);border-left-color:var(--red);font-weight:500}
+.ws-nav-icon{width:14px;font-size:11px;text-align:center;opacity:.9}
+.fd-link{margin-top:auto;padding:10px 14px;border-top:1px solid var(--border);font-size:10px}
+.fd-link a{color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;transition:color .12s}
+.fd-link a:hover{color:var(--red)}
+.ws-main{padding:20px 24px;overflow-x:auto}
+.tab-placeholder{padding:40px 20px;text-align:center;color:var(--ink3);font-size:12px;background:#fff;border:1px dashed var(--border);border-radius:var(--r)}
 </style>
 </head>
 <body>
@@ -482,7 +506,73 @@ async function onOpenEngagement(id){
     setState({ loading:false });
   } catch (err) { console.error(err); toast('Load failed: ' + (err.message || err), true); setState({ loading:false }); }
 }
-function renderWorkspace(){ return `<div class="boot">Workspace — lands in Chunk 6</div>`; }
+/* ---------- SCREEN 3 — WORKSPACE SHELL ---------- */
+const TABS = [
+  { id:'value-case', label:'Value Case', icon:'◆' },
+  { id:'inputs',     label:'Inputs',     icon:'⊞' },
+  { id:'outputs',    label:'Outputs',    icon:'↗' },
+  { id:'snapshots',  label:'Snapshots',  icon:'⊙' },
+  { id:'deal',       label:'Deal',       icon:'○' }
+];
+const currentEng = () => state.engagements.find(e => e.engagement_id === state.activeEngagementId);
+
+function renderWorkspace(){
+  const e = currentEng();
+  if (!e) return `<div class="boot">Engagement not loaded</div>`;
+  return `${renderWorkspaceTopbar(e)}<div class="ws-layout">${renderSidebar(e)}<main class="ws-main">${renderWorkspaceMain(e)}</main></div>`;
+}
+
+function renderWorkspaceTopbar(e){
+  return `
+    <header class="topbar ws-topbar">
+      <button class="ws-back" data-action="back-to-home">← Analyses</button>
+      <div class="ws-crumb">
+        <div class="ws-crumb-name">${escapeHtml(e.analysis_name || e.vendor_name || 'Untitled')}</div>
+        <div class="ws-crumb-cust">${escapeHtml(e.prospect_name || '—')}</div>
+      </div>
+      <div class="ws-topbar-chips">
+        <span class="chip ${stageChip(e.deal_stage)}">${escapeHtml(e.deal_stage || '—')}</span>
+        <span class="chip chip-outline">${escapeHtml(e.phase || '—')}</span>
+      </div>
+      <div class="topbar-right">
+        <button class="btn btn-dark-ghost btn-sm" data-action="toggle-meridian">Meridian ◆</button>
+        <button class="btn btn-dark-ghost btn-sm" data-action="open-save-snapshot">Save Snapshot</button>
+        <button class="btn btn-primary btn-sm" data-action="generate-report">Generate Report</button>
+      </div>
+    </header>`;
+}
+
+function renderSidebar(e){
+  const dom = state.domains[e.domain_id]?.domain_name || e.domain_id || '—';
+  return `
+    <aside class="ws-sidebar">
+      <div class="ws-meta">
+        <div class="ws-meta-row"><div class="ws-meta-label">Domain</div><div class="ws-meta-value">${escapeHtml(dom)}</div></div>
+        <div class="ws-meta-row"><div class="ws-meta-label">Owner</div><div class="ws-meta-value">${escapeHtml(e.owner || '—')}</div></div>
+        <div class="ws-meta-row"><div class="ws-meta-label">Updated</div><div class="ws-meta-value">${relTime(e.intake_date)}</div></div>
+        <div class="ws-meta-row"><div class="ws-meta-label">Engagement ID</div><div class="ws-meta-value">${escapeHtml(e.engagement_id)}</div></div>
+      </div>
+      <nav class="ws-nav">
+        ${TABS.map(t => `<button class="ws-nav-item ${state.activeTab===t.id?'is-active':''}" data-action="ws-tab" data-tab="${t.id}"><span class="ws-nav-icon">${t.icon}</span>${t.label}</button>`).join('')}
+      </nav>
+      <div class="fd-link"><a href="fd-admin.html" target="_blank" rel="noopener">fd-admin →</a></div>
+    </aside>`;
+}
+
+function renderWorkspaceMain(e){
+  if (state.loading) return `<div class="tab-placeholder">Loading engagement…</div>`;
+  if (state.activeTab === 'value-case') return renderValueCaseTab(e);
+  if (state.activeTab === 'inputs')     return renderInputsTab(e);
+  if (state.activeTab === 'outputs')    return renderOutputsTab(e);
+  if (state.activeTab === 'snapshots')  return renderSnapshotsTab(e);
+  if (state.activeTab === 'deal')       return renderDealTab(e);
+  return '';
+}
+function renderValueCaseTab(e){ return `<div class="tab-placeholder">Value Case tab lands in Chunk 7</div>`; }
+function renderInputsTab(e)   { return `<div class="tab-placeholder">Inputs tab lands in Chunk 8</div>`; }
+function renderOutputsTab(e)  { return `<div class="tab-placeholder">Outputs tab lands in Chunk 9</div>`; }
+function renderSnapshotsTab(e){ return `<div class="tab-placeholder">Snapshots tab lands in Chunk 10</div>`; }
+function renderDealTab(e)     { return `<div class="tab-placeholder">Deal tab lands in Chunk 11</div>`; }
 
 /* ---------- SCREEN 1 — LOGIN ---------- */
 function renderLogin(){
@@ -548,6 +638,11 @@ document.addEventListener('click', e => {
   if (a === 'open-new-analysis') return setState({ modal: 'newAnalysis' });
   if (a === 'close-modal')       return setState({ modal: null });
   if (a === 'modal-backdrop' && e.target === node) return setState({ modal: null });
+  if (a === 'back-to-home')      return setState({ screen:'home', activeEngagementId:null, activeTab:'value-case' });
+  if (a === 'ws-tab')            return setState({ activeTab: node.getAttribute('data-tab') });
+  if (a === 'toggle-meridian')   return toast('Meridian drawer lands in Chunk 12');
+  if (a === 'open-save-snapshot')return toast('Save Snapshot lands in Chunk 10');
+  if (a === 'generate-report')   return toast('Report export — stub');
 });
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape' && state.modal){ e.preventDefault(); setState({ modal: null }); }
