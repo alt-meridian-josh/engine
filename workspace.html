@@ -95,6 +95,14 @@ input,select,textarea{font:inherit;color:inherit}
 .sk{background:linear-gradient(90deg,#ede9e3,#f7f6f3,#ede9e3);background-size:200% 100%;animation:sk 1.3s infinite;border-radius:var(--r)}
 @keyframes sk{0%{background-position:200% 0}100%{background-position:-200% 0}}
 .boot{padding:80px 24px;text-align:center;color:var(--ink3);font-size:12px;letter-spacing:.05em;text-transform:uppercase}
+/* Login */
+.login-page{display:flex;align-items:center;justify-content:center;padding:60px 20px;min-height:calc(100vh - 44px)}
+.login-wrap{width:100%;max-width:400px}
+.login-card{padding:32px 32px 28px}
+.login-brand{font-family:var(--display);font-weight:700;letter-spacing:.06em;font-size:11px;color:var(--ink3);margin-bottom:20px;text-transform:uppercase}
+.login-brand .alt{color:var(--red)}
+.login-title{font-size:22px;font-weight:700;margin-bottom:4px;line-height:1.2}
+.login-sub{font-size:12px;color:var(--ink3);font-style:italic;margin-bottom:22px;line-height:1.4;font-family:var(--display)}
 </style>
 </head>
 <body>
@@ -235,6 +243,81 @@ function computeAnalysis(engagement, scenarios, inputsMap, inputDefs){
   const bcr     = impl > 0 ? (arvY1 + arvY2 + arvY3) / impl : null;
   return { arvY1, arvY2, arvY3, arvFull, monthlyDelay, coi3yr, npv, payback, bcr, perScenario: per, impl };
 }
+
+/* ---------- RENDER DISPATCH ---------- */
+function render(){
+  const app = document.getElementById('app');
+  if (state.screen === 'login')          app.innerHTML = renderLogin();
+  else if (state.screen === 'home')      app.innerHTML = renderHome();
+  else if (state.screen === 'workspace') app.innerHTML = renderWorkspace();
+  renderModal();
+}
+function renderModal(){ document.getElementById('modal-root').innerHTML = ''; /* Chunk 5/10 fill this */ }
+function renderHome(){
+  const n = state.engagements.length;
+  return `<div class="boot">Analysis Home — lands in Chunk 4${state.loading?' · loading':` · ${n} engagement${n===1?'':'s'} loaded`}</div>`;
+}
+function renderWorkspace(){ return `<div class="boot">Workspace — lands in Chunk 6</div>`; }
+
+/* ---------- SCREEN 1 — LOGIN ---------- */
+function renderLogin(){
+  return `
+    <header class="topbar">
+      <div class="wordmark"><span class="alt">ALT</span> <span class="md">MERIDIAN</span></div>
+      <span class="topbar-label">Value Workspace</span>
+    </header>
+    <main class="page login-page">
+      <div class="login-wrap">
+        <div class="card login-card">
+          <div class="login-brand"><span class="alt">ALT</span> MERIDIAN</div>
+          <h1 class="login-title">Sign in to your workspace</h1>
+          <p class="login-sub">Value belongs to mechanisms, not solutions.</p>
+          <form data-action="login-submit" autocomplete="off">
+            <div class="field">
+              <label class="label">Email</label>
+              <input class="input" type="email" name="email" value="seller@altmeridian.com"/>
+            </div>
+            <div class="field">
+              <label class="label">Password</label>
+              <input class="input" type="password" name="password" value="altmeridian2026"/>
+            </div>
+            <button type="submit" class="btn btn-primary btn-block">Enter Workspace →</button>
+          </form>
+        </div>
+      </div>
+    </main>
+  `;
+}
+
+async function onLoginSubmit(e){
+  e.preventDefault();
+  setState({ screen: 'home', loading: true });
+  try {
+    const [domains, engagements] = await Promise.all([loadDomains(), loadEngagements()]);
+    setState({ domains, engagements, loading: false });
+  } catch (err) {
+    console.error(err);
+    toast('Load failed: ' + (err.message || err), true);
+    setState({ loading: false });
+  }
+}
+
+/* ---------- EVENT DELEGATION ---------- */
+document.addEventListener('submit', e => {
+  const form = e.target.closest('form[data-action]');
+  if (!form) return;
+  const action = form.getAttribute('data-action');
+  if (action === 'login-submit') return onLoginSubmit(e);
+});
+document.addEventListener('click', e => {
+  const node = e.target.closest('[data-action]');
+  if (!node || node.tagName === 'FORM') return;
+  /* click handlers for subsequent chunks dispatch here */
+});
+
+/* ---------- BOOT ---------- */
+function init(){ render(); }
+document.addEventListener('DOMContentLoaded', init);
 </script>
 </body>
 </html>
