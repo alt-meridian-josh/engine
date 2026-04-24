@@ -248,6 +248,21 @@ input,select,textarea{font:inherit;color:inherit}
 .fin-tbl tr:last-child td{border-bottom:0}
 .fin-tbl tr.emph td{background:#faf8f4;font-weight:600} .fin-tbl tr.emph td:last-child{color:var(--red)}
 .fin-note{padding:10px 16px;background:var(--amber-dim);color:var(--amber);font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-family:var(--mono);border-top:1px solid var(--border)}
+/* Snapshots */
+.snap-timeline{position:relative;padding-left:20px}
+.snap-timeline::before{content:'';position:absolute;left:4px;top:10px;bottom:10px;width:2px;background:var(--red)}
+.snap-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:14px 18px;box-shadow:var(--shadow);margin-bottom:12px;position:relative}
+.snap-card::before{content:'';position:absolute;left:-20px;top:18px;width:10px;height:10px;border-radius:50%;background:#fff;border:2px solid var(--red)}
+.snap-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:10px;flex-wrap:wrap}
+.snap-label-big{font-family:var(--display);font-size:14px;font-weight:600;color:var(--ink)}
+.snap-meta{font-family:var(--mono);font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+.snap-chips{display:flex;gap:4px;flex-wrap:wrap}
+.snap-metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;padding:10px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-bottom:10px}
+.snap-metric{display:flex;flex-direction:column;gap:1px}
+.snap-metric-label{font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3)}
+.snap-metric-value{font-family:var(--display);font-size:14px;font-weight:600;color:var(--ink)} .snap-metric-value.accent{color:var(--red)}
+.snap-notes{font-family:var(--mono);font-size:11px;color:var(--ink2);margin-bottom:10px;line-height:1.5}
+.snap-actions{display:flex;gap:6px}
 </style>
 </head>
 <body>
@@ -401,7 +416,8 @@ function render(){
 function renderModal(){
   const root = document.getElementById('modal-root');
   if (!state.modal){ root.innerHTML = ''; return; }
-  if (state.modal === 'newAnalysis') root.innerHTML = renderNewAnalysisModal();
+  if (state.modal === 'newAnalysis')  root.innerHTML = renderNewAnalysisModal();
+  if (state.modal === 'saveSnapshot') root.innerHTML = renderSaveSnapshotModal();
 }
 
 /* ---------- NEW ANALYSIS MODAL ---------- */
@@ -921,7 +937,93 @@ function renderOutputsTab(e){
     </div>
   `;
 }
-function renderSnapshotsTab(e){ return `<div class="tab-placeholder">Snapshots tab lands in Chunk 10</div>`; }
+const SNAP_LABELS  = ['Kickoff','Champion Session','CFO Review','Delivery','30-Day Follow-Up','90-Day Review','Pilot Complete','Renewal'];
+const SNAP_INTENTS = ['Convince','Measure','Justify','Track'];
+
+function renderSnapshotsTab(e){
+  const snaps = state.snapshots[e.engagement_id] || [];
+  const ordered = snaps.slice().sort((x,y) => (y.created_at || '').localeCompare(x.created_at || ''));
+  return `
+    <div class="section-head">
+      <h2 class="section-title">Milestone Snapshots<span class="section-count">${snaps.length} saved</span></h2>
+      <button class="btn btn-primary btn-sm" data-action="open-save-snapshot">+ Save Snapshot</button>
+    </div>
+    ${ordered.length
+      ? `<div class="snap-timeline">${ordered.map(renderSnapshotCard).join('')}</div>`
+      : `<div class="tab-placeholder">No snapshots yet. Save your first milestone when the model is ready.</div>`}
+  `;
+}
+
+function renderSnapshotCard(s){
+  const stageAt = s.input_snapshot?._meta?.stage;
+  const phaseAt = s.input_snapshot?._meta?.phase;
+  return `<div class="snap-card">
+    <div class="snap-head">
+      <div><div class="snap-label-big">${escapeHtml(s.snapshot_label || 'Snapshot')}</div><div class="snap-meta">${fmtDate(s.created_at)} · v${s.snapshot_version || 1}${s.intent ? ' · ' + escapeHtml(s.intent) : ''}</div></div>
+      <div class="snap-chips">${stageAt ? `<span class="chip ${stageChip(stageAt)}">${escapeHtml(stageAt)}</span>` : ''}${phaseAt ? `<span class="chip chip-outline">${escapeHtml(phaseAt)}</span>` : ''}</div>
+    </div>
+    <div class="snap-metrics">
+      <div class="snap-metric"><div class="snap-metric-label">ARV</div><div class="snap-metric-value accent">${fmtMoney(s.annual_value)}</div></div>
+      <div class="snap-metric"><div class="snap-metric-label">Payback</div><div class="snap-metric-value">${s.payback_mo != null ? Number(s.payback_mo).toFixed(1) + ' mo' : '—'}</div></div>
+      <div class="snap-metric"><div class="snap-metric-label">BCR</div><div class="snap-metric-value">${s.bcr != null ? Number(s.bcr).toFixed(2) + 'x' : '—'}</div></div>
+      <div class="snap-metric"><div class="snap-metric-label">Monthly Delay</div><div class="snap-metric-value">${fmtMoney(s.monthly_delay_cost)}</div></div>
+    </div>
+    ${s.notes ? `<div class="snap-notes">${escapeHtml(s.notes)}</div>` : ''}
+    <div class="snap-actions">
+      <button class="btn btn-ghost btn-sm" data-action="open-snap" data-sid="${escapeHtml(s.id || '')}">Open</button>
+      <button class="btn btn-ghost btn-sm" data-action="export-snap">Export PDF</button>
+    </div>
+  </div>`;
+}
+
+function renderSaveSnapshotModal(){
+  const opt = arr => arr.map(v => `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`).join('');
+  return `
+    <div class="modal-overlay" data-action="modal-backdrop">
+      <div class="modal-card" style="max-width:460px">
+        <div class="modal-head"><h2 class="modal-title">Save Snapshot</h2><p class="modal-sub">Freeze this analysis at a milestone</p></div>
+        <form data-action="save-snap-submit" autocomplete="off">
+          <div class="modal-body">
+            <div class="field"><label class="label">Milestone label<span class="req">*</span></label><select class="select" name="label" required>${opt(SNAP_LABELS)}</select></div>
+            <div class="field"><label class="label">Intent<span class="req">*</span></label><select class="select" name="intent" required>${opt(SNAP_INTENTS)}</select></div>
+            <div class="field"><label class="label">Notes</label><textarea class="textarea" name="notes" placeholder="What changed · what's next · open questions"></textarea></div>
+          </div>
+          <div class="modal-foot">
+            <button type="button" class="btn btn-ghost" data-action="close-modal">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Snapshot →</button>
+          </div>
+        </form>
+      </div>
+    </div>`;
+}
+
+async function onSaveSnapshotSubmit(e){
+  e.preventDefault();
+  const f = e.target;
+  const eng = currentEng(); if (!eng) return;
+  const scenarios = state.scenarios[eng.engagement_id] || [];
+  const defs = state.inputDefs[eng.domain_id] || [];
+  const ivs = state.inputValues[eng.engagement_id] || {};
+  const a = computeAnalysis(eng, scenarios, ivs, defs);
+  const existing = state.snapshots[eng.engagement_id] || [];
+  const version = (existing.reduce((m,s) => Math.max(m, s.snapshot_version || 0), 0) || 0) + 1;
+  const inputSnap = { _meta: { stage: eng.deal_stage, phase: eng.phase, preset: state.preset || 'typical' } };
+  defs.forEach(d => { inputSnap[d.input_key] = ivs[d.input_key]?.provided_value ?? d.typical_value ?? d.default_value ?? null; });
+  const row = {
+    engagement_id: eng.engagement_id, domain_id: eng.domain_id,
+    snapshot_label: f.label.value, intent: f.intent.value, snapshot_version: version,
+    annual_value: a.arvFull, payback_mo: a.payback, bcr: a.bcr, monthly_delay_cost: a.monthlyDelay,
+    active_scenario_ids: scenarios.filter(s => s.active).map(s => s.scenario_id).join(','),
+    input_snapshot: inputSnap, notes: f.notes.value.trim() || null
+  };
+  try {
+    const created = await sbInsert('vef_output_snapshots', row);
+    const snap = created || { ...row, id: uid('snap'), created_at: new Date().toISOString() };
+    (state.snapshots[eng.engagement_id] = state.snapshots[eng.engagement_id] || []).unshift(snap);
+    setState({ modal: null });
+    toast('Snapshot saved · ' + snap.snapshot_label);
+  } catch (err) { console.error(err); toast('Save failed: ' + (err.message || err), true); }
+}
 function renderDealTab(e)     { return `<div class="tab-placeholder">Deal tab lands in Chunk 11</div>`; }
 
 /* ---------- SCREEN 1 — LOGIN ---------- */
@@ -978,6 +1080,7 @@ document.addEventListener('submit', e => {
   const action = form.getAttribute('data-action');
   if (action === 'login-submit')         return onLoginSubmit(e);
   if (action === 'new-analysis-submit')  return onNewAnalysisSubmit(e);
+  if (action === 'save-snap-submit')     return onSaveSnapshotSubmit(e);
 });
 document.addEventListener('click', e => {
   const node = e.target.closest('[data-action]');
@@ -991,7 +1094,9 @@ document.addEventListener('click', e => {
   if (a === 'back-to-home')      return setState({ screen:'home', activeEngagementId:null, activeTab:'value-case' });
   if (a === 'ws-tab')            return setState({ activeTab: node.getAttribute('data-tab') });
   if (a === 'toggle-meridian')   return toast('Meridian drawer lands in Chunk 12');
-  if (a === 'open-save-snapshot')return toast('Save Snapshot lands in Chunk 10');
+  if (a === 'open-save-snapshot')return setState({ modal: 'saveSnapshot' });
+  if (a === 'open-snap')         return toast('Snapshot restore — coming soon');
+  if (a === 'export-snap')       return toast('PDF export — coming soon');
   if (a === 'generate-report')   return toast('Report export — stub');
   if (a === 'toggle-scenario')   return toggleScenarioActive(node.getAttribute('data-sid'));
   if (a === 'toggle-evidence' || a === 'toggle-cfo'){ const bag = a === 'toggle-cfo' ? (state.cfoOpen = state.cfoOpen || {}) : (state.evOpen = state.evOpen || {}); const sid = node.getAttribute('data-sid'); bag[sid] = !bag[sid]; return render(); }
