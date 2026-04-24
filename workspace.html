@@ -375,6 +375,26 @@ input,select,textarea{font:inherit;color:inherit}
 .vefa-v-adjust{background:var(--amber-dim);color:var(--amber)}
 .vefa-v-challenge{background:var(--red-dim);color:var(--red)}
 .vefa-v-missing{background:var(--blue-dim);color:var(--blue)}
+.vefa-form{display:flex;flex-direction:column;gap:12px}
+.vefa-row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.vefa-field{display:flex;flex-direction:column;gap:4px;min-width:0}
+.vefa-label{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink2);font-weight:500}
+.vefa-label .req{color:var(--red);margin-left:2px}
+.vefa-input,.vefa-select,.vefa-textarea{border:1px solid var(--border2);border-radius:var(--r);padding:7px 10px;font-family:var(--mono);font-size:12px;color:var(--ink);background:#fff;width:100%}
+.vefa-textarea{resize:vertical;line-height:1.5;min-height:64px}
+.vefa-input:focus,.vefa-select:focus,.vefa-textarea:focus{outline:0;border-color:var(--red);box-shadow:0 0 0 2px var(--red-dim)}
+.vefa-focus-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+.vefa-focus-chip{padding:4px 10px;border-radius:var(--r-chip);font-family:var(--mono);font-size:11px;color:var(--ink2);border:1px solid var(--border2);background:#fff;transition:all .12s;cursor:pointer}
+.vefa-focus-chip:hover{border-color:var(--ink3);color:var(--ink)}
+.vefa-focus-chip.is-on{background:var(--red);color:#fff;border-color:var(--red)}
+.vefa-panel-r.vefa-panel-tinted{background:var(--red-dim);border-color:rgba(214,59,47,.2)}
+.vefa-interp-title{font-family:var(--display);font-size:13px;font-weight:600;color:var(--red);margin-bottom:10px}
+.vefa-interp-sub{font-family:var(--mono);font-size:10px;color:var(--ink2);line-height:1.5}
+.vefa-interp-block{margin-top:12px}
+.vefa-interp-label{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);margin-bottom:4px}
+.vefa-interp-val{font-family:var(--mono);font-size:11px;color:var(--ink)}
+.vefa-interp-chips{display:flex;flex-wrap:wrap;gap:4px}
+.vefa-interp-empty{font-family:var(--mono);font-size:10px;color:var(--ink3);font-style:italic}
 </style>
 </head>
 <body>
@@ -671,7 +691,7 @@ function renderVEFAssistProgress(v){
 function renderVEFAssistStep(v){
   switch (v.step){
     case 0: return renderVEFAssistStep0(v);
-    case 1: return '<div class="vefa-placeholder">Step 1 — Context (Chunk C)</div>';
+    case 1: return renderVEFAssistStep1(v);
     case 2: return '<div class="vefa-placeholder">Step 2 — Scenarios (Chunk D1/D2)</div>';
     case 3: return '<div class="vefa-placeholder">Step 3 — Evidence & Audit (Chunk E)</div>';
     default: return '';
@@ -885,6 +905,100 @@ function vefaComputeVerdict(claim, match){
   }
   return 'Adjust';
 }
+/* ---------- VEF ASSIST · STEP 1 (CONTEXT) ---------- */
+const VEFA_FOCI = ['Cost Reduction','Throughput','Compliance','Risk','Revenue','Experience','Strategic'];
+function vefaReqTag(r){ return r ? ' <span class="req">*</span>' : ''; }
+function vefaInput(key, label, req, type, val){
+  return `<div class="vefa-field"><label class="vefa-label">${escapeHtml(label)}${vefaReqTag(req)}</label>
+    <input class="vefa-input" type="${type}" data-action="vefa-field" data-key="${key}" value="${escapeHtml(val || '')}"/></div>`;
+}
+function vefaSelectField(key, label, req, options, val){
+  const opts = options.map(o => `<option value="${escapeHtml(o)}"${o===val?' selected':''}>${escapeHtml(o)}</option>`).join('');
+  return `<div class="vefa-field"><label class="vefa-label">${escapeHtml(label)}${vefaReqTag(req)}</label>
+    <select class="vefa-select" data-action="vefa-select" data-key="${key}">${opts}</select></div>`;
+}
+function vefaTextareaField(key, label, placeholder, val){
+  return `<div class="vefa-field"><label class="vefa-label">${escapeHtml(label)}</label>
+    <textarea class="vefa-textarea" data-action="vefa-field" data-key="${key}" placeholder="${escapeHtml(placeholder)}" rows="3">${escapeHtml(val || '')}</textarea></div>`;
+}
+function renderVEFADomainSelect(v){
+  const byTech = {};
+  Object.values(state.domains || {}).forEach(d => {
+    const tech = d.technology || 'Other';
+    (byTech[tech] = byTech[tech] || []).push(d);
+  });
+  const groups = Object.keys(byTech).sort().map(tech => {
+    const rows = byTech[tech].slice().sort((a,b) => (a.domain_name||'').localeCompare(b.domain_name||''));
+    const opts = rows.map(d => `<option value="${escapeHtml(d.domain_id)}"${d.domain_id===v.domainId?' selected':''}>${escapeHtml(d.domain_name || d.domain_id)}</option>`).join('');
+    return `<optgroup label="${escapeHtml(tech)}">${opts}</optgroup>`;
+  }).join('');
+  return `<div class="vefa-field"><label class="vefa-label">Domain${vefaReqTag(true)}</label>
+    <select class="vefa-select" data-action="vefa-select" data-key="domainId"><option value="">— Select a domain —</option>${groups}</select></div>`;
+}
+function renderVEFAValueFocus(v){
+  const set = new Set(v.valueFocus || []);
+  const chips = VEFA_FOCI.map(f => `<button type="button" class="vefa-focus-chip ${set.has(f)?'is-on':''}" data-action="vefa-focus-toggle" data-focus="${escapeHtml(f)}">${escapeHtml(f)}</button>`).join('');
+  return `<div class="vefa-field"><label class="vefa-label">Primary Value Focus</label><div class="vefa-focus-row">${chips}</div></div>`;
+}
+function renderVEFAssistStep1(v){
+  return `<div class="vefa-layout">
+    <div class="vefa-panel-l"><div class="vefa-form">
+      ${vefaInput('analysisName','Analysis Name',true,'text',v.analysisName)}
+      ${vefaInput('customer','Customer / Account',true,'text',v.customer)}
+      ${vefaInput('vendor','Vendor / Solution',true,'text',v.vendor)}
+      ${renderVEFADomainSelect(v)}
+      <div class="vefa-row-2">${vefaSelectField('stage','Sales Stage',true,STAGES,v.stage)}${vefaSelectField('phase','Delivery Phase',true,PHASES,v.phase)}</div>
+      <div class="vefa-row-2">${vefaInput('championEmail','Champion Email',false,'email',v.championEmail)}${vefaInput('economicBuyerEmail','Economic Buyer Email',false,'email',v.economicBuyerEmail)}</div>
+      ${vefaInput('nextFollowUp','Next Follow-Up Date',false,'date',v.nextFollowUp)}
+      ${vefaTextareaField('whatToProve','What are we trying to prove?','e.g. Show CFO that RFID pays back in under 12 months for 200-store rollout',v.whatToProve)}
+      ${renderVEFAValueFocus(v)}
+    </div></div>
+    <div class="vefa-panel-r vefa-panel-tinted"><div id="vefa-interp">${renderVEFAInterpretation(v)}</div></div>
+  </div>`;
+}
+function renderVEFAInterpretation(v){
+  if (!v.domainId){
+    return `<div class="vefa-interp-title">VEF Interpretation</div><div class="vefa-interp-sub">Pick a domain to see recommended signals and themes.</div>`;
+  }
+  if (v.interpLoading){
+    return `<div class="vefa-interp-title">VEF Interpretation</div><div class="vefa-interp-sub">Loading VEF data…</div>`;
+  }
+  const dom = state.domains[v.domainId];
+  const sigs = (v.domainSignals || []).slice(0,4);
+  const themes = v.domainThemes || [];
+  const count = (v._domainScenarioCount != null) ? String(v._domainScenarioCount) : '—';
+  const sigHtml = sigs.length
+    ? `<div class="vefa-interp-chips">${sigs.map(s => `<span class="chip">${escapeHtml(s.signal_name || s.signal_id || '—')}</span>`).join('')}</div>`
+    : `<div class="vefa-interp-empty">No signals configured for this domain</div>`;
+  const themeHtml = themes.length
+    ? `<div class="vefa-interp-chips">${themes.map(t => `<span class="theme-chip theme-${escapeHtml((t||'').replace(/\s+/g,''))}">${escapeHtml(t)}</span>`).join('')}</div>`
+    : `<div class="vefa-interp-empty">—</div>`;
+  return `<div class="vefa-interp-title">VEF Interpretation</div>
+    <div class="vefa-interp-block"><div class="vefa-interp-label">Detected signals</div>${sigHtml}</div>
+    <div class="vefa-interp-block"><div class="vefa-interp-label">Value themes</div>${themeHtml}</div>
+    <div class="vefa-interp-block"><div class="vefa-interp-label">Recommended engine</div><div class="vefa-interp-val">${escapeHtml(dom?.domain_name || v.domainId)}</div></div>
+    <div class="vefa-interp-block"><div class="vefa-interp-label">Scenarios available</div><div class="vefa-interp-val">${escapeHtml(count)}</div></div>`;
+}
+function paintVEFAInterp(){
+  const node = document.getElementById('vefa-interp');
+  if (node) node.innerHTML = renderVEFAInterpretation(state.vefAssist);
+}
+async function vefaOnDomainChange(){
+  const v = state.vefAssist;
+  if (!v.domainId){ v.domainSignals=[]; v.domainThemes=[]; v._domainScenarioCount=null; paintVEFAInterp(); return; }
+  v.interpLoading = true; paintVEFAInterp();
+  const [sigs, scens] = await Promise.all([
+    sbSelect('vef_value_signals', { eq:{domain_id:v.domainId} }).catch(() => []),
+    sbSelect('vef_value_scenarios', { eq:{domain_id:v.domainId} }).catch(() => [])
+  ]);
+  v.domainSignals = sigs || [];
+  const seen = new Set(); const themes = [];
+  (scens || []).forEach(s => { const t = (s.value_theme || '').trim(); if (t && !seen.has(t)){ seen.add(t); themes.push(t); } });
+  v.domainThemes = themes;
+  v._domainScenarioCount = (scens || []).length;
+  v.interpLoading = false; paintVEFAInterp();
+}
+
 function vefaMatchAndVerdict(claim, pool){
   const match = vefaMatchScenario(claim, pool);
   return {
@@ -1741,6 +1855,13 @@ document.addEventListener('click', e => {
   if (a === 'vefa-back')         return vefaStep(-1);
   if (a === 'vefa-extract')      return vefaExtract();
   if (a === 'vefa-skip')         return vefaSkipImport();
+  if (a === 'vefa-focus-toggle'){
+    // Toggle chip imperatively — no setState — so the form keeps its typed state.
+    const f = node.getAttribute('data-focus');
+    const arr = state.vefAssist.valueFocus || (state.vefAssist.valueFocus = []);
+    const i = arr.indexOf(f); if (i >= 0) arr.splice(i, 1); else arr.push(f);
+    node.classList.toggle('is-on'); return;
+  }
   if (a === 'vefa-finish')       return toast('Finish handler lands in Chunk F');
   if (a === 'back-to-home')      return setState({ screen:'home', activeEngagementId:null, activeTab:'value-case' });
   if (a === 'ws-tab')            return setState({ activeTab: node.getAttribute('data-tab') });
@@ -1773,6 +1894,10 @@ document.addEventListener('input', e => {
     state.vefAssist.importText = node.value;
     const btn = document.querySelector('[data-action="vefa-extract"]');
     if (btn) btn.disabled = !node.value.trim() || state.vefAssist.extracting;
+  }
+  if (a === 'vefa-field'){
+    // Silent per-keystroke mutation so text/date/textarea inputs keep focus.
+    state.vefAssist[node.getAttribute('data-key')] = node.value;
   }
 });
 document.addEventListener('focusout', e => {
@@ -1808,6 +1933,12 @@ document.addEventListener('change', e => {
   const node = e.target.closest('[data-action]');
   if (!node) return;
   const a = node.getAttribute('data-action');
+  if (a === 'vefa-select'){
+    const key = node.getAttribute('data-key');
+    state.vefAssist[key] = node.value;
+    if (key === 'domainId') vefaOnDomainChange();
+    return;
+  }
   if (a === 'home-sort')     return setState({ homeSort: node.value });
   if (a === 'deal-select' || a === 'deal-date') return patchEngField(node.getAttribute('data-field'), node.value || null);
   if (a === 'deal-textarea') return patchEngField(node.getAttribute('data-field'), node.value || null);
