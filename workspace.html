@@ -356,6 +356,25 @@ input,select,textarea{font:inherit;color:inherit}
 .vefa-claims-hint{font-family:var(--mono);font-size:10px;color:var(--ink2);margin-top:4px}
 .vefa-spinner{width:20px;height:20px;border:2px solid var(--border2);border-top-color:var(--red);border-radius:50%;animation:vefa-spin .7s linear infinite;margin-bottom:10px}
 @keyframes vefa-spin{to{transform:rotate(360deg)}}
+.vefa-claims-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.vefa-claims-title{font-family:var(--display);font-size:12px;font-weight:600;color:var(--ink)}
+.vefa-claims-count{font-family:var(--mono);font-size:9px;color:var(--ink3);background:#eceae6;padding:2px 7px;border-radius:var(--r-chip);letter-spacing:.04em}
+.vefa-claims-list{display:flex;flex-direction:column;gap:8px;overflow-y:auto;max-height:420px;padding-right:2px}
+.vefa-claim{padding:10px 12px;border:1px solid var(--border);border-radius:var(--r);background:#fff}
+.vefa-claim-head{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+.vefa-claim-metric{font-family:var(--mono);font-size:11px;color:var(--ink);line-height:1.5;flex:1;min-width:0;word-wrap:break-word}
+.vefa-claim-metric strong{color:var(--red);font-weight:600}
+.vefa-claim-raw{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-top:4px;font-style:italic;line-height:1.5}
+.vefa-claim-mech{margin-top:8px}
+.vefa-claim-range{margin-top:4px;font-family:var(--mono);font-size:10px;color:var(--ink3)}
+.vefa-chip{display:inline-block;padding:2px 8px;border-radius:var(--r-chip);font-family:var(--mono);font-size:10px;letter-spacing:.04em}
+.vefa-chip-match{background:var(--red-dim);color:var(--red)}
+.vefa-chip-no{background:#eceae6;color:var(--ink3)}
+.vefa-verdict{flex:0 0 auto;padding:2px 8px;border-radius:var(--r-chip);font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;font-weight:600;white-space:nowrap}
+.vefa-v-accept{background:var(--green-dim);color:var(--green)}
+.vefa-v-adjust{background:var(--amber-dim);color:var(--amber)}
+.vefa-v-challenge{background:var(--red-dim);color:var(--red)}
+.vefa-v-missing{background:var(--blue-dim);color:var(--blue)}
 </style>
 </head>
 <body>
@@ -728,8 +747,31 @@ function renderVEFAssistClaimsPanel(v){
       <div class="vefa-claims-state">Extracted claims will appear here</div>
     </div>`;
   }
-  // Claim row render lands in Chunk B2.
-  return `<div class="vefa-claims"><div class="vefa-claims-state">${v.extractedClaims.length} claim(s) extracted — panel render ships in Chunk B2</div></div>`;
+  return `<div class="vefa-claims">
+    <div class="vefa-claims-head">
+      <div class="vefa-claims-title">Extracted Claims</div>
+      <span class="vefa-claims-count">${v.extractedClaims.length}</span>
+    </div>
+    <div class="vefa-claims-list">${v.extractedClaims.map(renderVEFAssistClaimRow).join('')}</div>
+  </div>`;
+}
+function renderVEFAssistClaimRow(c){
+  const metric = (c.metric || '').trim() || '—';
+  const val = (c.value || '').trim();
+  const tf = (c.timeframe || '').trim();
+  const vClass = 'vefa-v-' + (c.verdict || 'adjust').toLowerCase();
+  const mech = c.matchedOneLiner
+    ? `<span class="vefa-chip vefa-chip-match" title="${escapeHtml(c.matchedScenarioId || '')}">${escapeHtml(c.matchedOneLiner)}</span>`
+    : `<span class="vefa-chip vefa-chip-no">No mechanism match</span>`;
+  return `<div class="vefa-claim">
+    <div class="vefa-claim-head">
+      <div class="vefa-claim-metric">${escapeHtml(metric)}${val ? ': <strong>' + escapeHtml(val) + '</strong>' : ''}${tf ? ' · ' + escapeHtml(tf) : ''}</div>
+      <span class="vefa-verdict ${vClass}">${escapeHtml(c.verdict || 'Adjust')}</span>
+    </div>
+    ${c.raw ? `<div class="vefa-claim-raw">“${escapeHtml(c.raw)}”</div>` : ''}
+    <div class="vefa-claim-mech">${mech}</div>
+    ${c.matchedRange ? `<div class="vefa-claim-range">Alt Meridian range: ${escapeHtml(c.matchedRange)}</div>` : ''}
+  </div>`;
 }
 function vefaSkipImport(){
   const v = state.vefAssist;
@@ -762,11 +804,99 @@ async function vefaExtract(){
     setState({ vefAssist: { ...cur, extracting:false, extractError:'Extraction failed: ' + (err.message || err) } });
   }
 }
-function vefaProcessExtraction(_raw){
-  // JSON parse + claim→scenario matching + pre-select land in Chunk B2.
+async function vefaProcessExtraction(raw){
   const cur = state.vefAssist;
-  setState({ vefAssist: { ...cur, extracting:false } });
-  toast('Extraction received — parser + scenario matcher ship in Chunk B2');
+  const parsed = vefaParseClaimsJson(raw);
+  if (!parsed || !Array.isArray(parsed.claims)){
+    setState({ vefAssist: { ...cur, extracting:false,
+      extractError:'Could not parse claims from the model response. Try again, or Skip to proceed without extraction.' } });
+    return;
+  }
+  // Fetch and cache the global scenario pool once per modal open.
+  let pool = cur._matchPool;
+  if (!pool){
+    try { pool = await sbSelect('vef_value_scenarios'); }
+    catch { pool = []; }
+  }
+  const claims = parsed.claims.map(c => vefaMatchAndVerdict(c, pool));
+  const cur2 = state.vefAssist;
+  const nextSel = new Set(cur2.selectedScenarioIds);
+  claims.forEach(c => { if (c.matchedScenarioId) nextSel.add(c.matchedScenarioId); });
+  setState({ vefAssist: { ...cur2, extracting:false, extractError:null,
+    extractedClaims: claims, _matchPool: pool, selectedScenarioIds: nextSel } });
+  const matches = claims.filter(c => c.matchedScenarioId).length;
+  toast(matches
+    ? `${claims.length} claim(s) extracted · ${matches} matched to governed mechanisms`
+    : `${claims.length} claim(s) extracted · no mechanism matches yet`);
+}
+function vefaParseClaimsJson(raw){
+  if (!raw) return null;
+  let s = String(raw).trim();
+  s = s.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+  if (s[0] !== '{'){ const m = s.match(/\{[\s\S]*\}/); if (m) s = m[0]; }
+  try { return JSON.parse(s); } catch { return null; }
+}
+const VEFA_STOPWORDS = new Set(['the','and','for','with','from','that','this','into','over','per','any','all','has','are','was','were','not','its','via']);
+function vefaTokens(text){
+  return String(text || '').toLowerCase().split(/[^a-z0-9]+/)
+    .filter(t => t.length >= 3 && !VEFA_STOPWORDS.has(t));
+}
+function vefaMatchScenario(claim, pool){
+  const claimTokens = new Set(vefaTokens((claim.metric || '') + ' ' + (claim.context || '')));
+  if (!claimTokens.size || !pool || !pool.length) return null;
+  let best = null, bestScore = -1;
+  for (const s of pool){
+    const body = (s.one_liner || '') + ' ' + (s.description || '') + ' ' + (s.mechanism_label || '');
+    const strong = (s.mechanism_label || '') + ' ' + (s.value_theme || '');
+    const bodyT = new Set(vefaTokens(body)), strongT = new Set(vefaTokens(strong));
+    let hits = 0, strongHits = 0;
+    for (const t of claimTokens){
+      if (bodyT.has(t)){ hits++; if (strongT.has(t) && t.length >= 6) strongHits++; }
+    }
+    if (hits < 2 && strongHits < 1) continue;
+    const score = hits * 10 + strongHits * 5 - (s.print_priority || 99);
+    if (score > bestScore){ best = s; bestScore = score; }
+  }
+  return best;
+}
+function vefaParseNumber(s){
+  if (s == null) return null;
+  const m = String(s).match(/-?\d[\d,]*(?:\.\d+)?/);
+  if (!m) return null;
+  const n = parseFloat(m[0].replace(/,/g, ''));
+  return isFinite(n) ? n : null;
+}
+function vefaParseRange(text){
+  if (!text) return null;
+  const m = String(text).match(/(-?\$?\d[\d,]*(?:\.\d+)?)\s*(?:-|–|—|to)\s*(-?\$?\d[\d,]*(?:\.\d+)?)/i);
+  if (!m) return null;
+  const lo = vefaParseNumber(m[1]), hi = vefaParseNumber(m[2]);
+  if (lo == null || hi == null) return null;
+  return { lo: Math.min(lo, hi), hi: Math.max(lo, hi) };
+}
+function vefaComputeVerdict(claim, match){
+  if (!match) return 'Challenge';
+  const ev = (match.evidence_strength || '').toLowerCase();
+  if (!ev || ev === 'weak' || ev === 'none') return 'Challenge';
+  if (ev === 'strong'){
+    const range = vefaParseRange(match.typical_baseline_assumption);
+    const n = vefaParseNumber(claim.value);
+    if (range && n != null && n >= range.lo && n <= range.hi) return 'Accept';
+  }
+  return 'Adjust';
+}
+function vefaMatchAndVerdict(claim, pool){
+  const match = vefaMatchScenario(claim, pool);
+  return {
+    metric: claim.metric || '', value: claim.value || '',
+    timeframe: claim.timeframe || '', context: claim.context || '',
+    raw: claim.raw || '',
+    matchedScenarioId: match ? match.scenario_id : null,
+    matchedOneLiner:   match ? match.one_liner   : null,
+    matchedRange:      match ? match.typical_baseline_assumption : null,
+    matchedEvidence:   match ? match.evidence_strength : null,
+    verdict: vefaComputeVerdict(claim, match)
+  };
 }
 
 /* ---------- NEW ANALYSIS MODAL ---------- */
