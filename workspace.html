@@ -426,6 +426,27 @@ input,select,textarea{font:inherit;color:inherit}
 .vefa-theme-chip{padding:3px 10px;border-radius:var(--r-chip);font-family:var(--mono);font-size:10px;color:var(--ink2);border:1px solid var(--border2);background:#fff;transition:all .12s;cursor:pointer;text-transform:uppercase;letter-spacing:.06em}
 .vefa-theme-chip:hover{color:var(--ink);border-color:var(--ink3)}
 .vefa-theme-chip.is-on{background:var(--red);color:#fff;border-color:var(--red)}
+.vefa-step3{display:flex;flex-direction:column;gap:20px}
+.vefa-step3-section{display:flex;flex-direction:column;gap:8px}
+.vefa-step3-title{font-family:var(--display);font-size:13px;font-weight:600;color:var(--ink)}
+.vefa-step3-sub{font-family:var(--mono);font-size:10px;color:var(--ink2);line-height:1.5}
+.vefa-table{width:100%;border-collapse:collapse;font-family:var(--mono);font-size:11px}
+.vefa-table th{text-align:left;padding:6px 10px;font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);font-weight:500;border-bottom:1px solid var(--border);background:#faf8f4}
+.vefa-table td{padding:8px 10px;border-bottom:1px solid var(--border);color:var(--ink);vertical-align:top}
+.vefa-table tr:last-child td{border-bottom:0}
+.vefa-cell-scen,.vefa-cell-claim{max-width:260px;line-height:1.5;word-break:break-word}
+.vefa-cell-claim strong{color:var(--red);font-weight:600}
+.vefa-cell-num{color:var(--ink2);font-variant-numeric:tabular-nums}
+.vefa-cell-range{color:var(--ink2);font-size:10px;max-width:170px;word-break:break-word}
+.vefa-no-match{color:var(--ink3);font-style:italic}
+.vefa-ev-chip{display:inline-block;padding:2px 8px;border-radius:var(--r-chip);font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.06em;font-weight:500;white-space:nowrap}
+.vefa-ev-moderate{background:var(--amber-dim);color:var(--amber)}
+.vefa-ev-none,.vefa-ev-null{background:#eceae6;color:var(--ink3)}
+.vefa-status{display:inline-block;padding:2px 9px;border-radius:var(--r-chip);font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.06em;font-weight:500;white-space:nowrap}
+.vefa-st-go{background:var(--green-dim);color:var(--green)}
+.vefa-st-needs{background:var(--amber-dim);color:var(--amber)}
+.vefa-st-assumption{background:#eceae6;color:var(--ink3)}
+.vefa-notes{min-height:88px}
 </style>
 </head>
 <body>
@@ -725,7 +746,7 @@ function renderVEFAssistStep(v){
     case 0: return renderVEFAssistStep0(v);
     case 1: return renderVEFAssistStep1(v);
     case 2: return renderVEFAssistStep2(v);
-    case 3: return '<div class="vefa-placeholder">Step 3 — Evidence & Audit (Chunk E)</div>';
+    case 3: return renderVEFAssistStep3(v);
     default: return '';
   }
 }
@@ -1182,6 +1203,94 @@ function vefaMatchAndVerdict(claim, pool){
     matchedEvidence:   match ? match.evidence_strength : null,
     verdict: vefaComputeVerdict(claim, match)
   };
+}
+
+/* ---------- VEF ASSIST · STEP 3 (EVIDENCE & AUDIT) ---------- */
+function renderVEFAssistStep3(v){
+  const selected = (v.availableScenarios || []).filter(s => v.selectedScenarioIds.has(s.scenario_id));
+  return `<div class="vefa-step3">
+    <div class="vefa-step3-section">
+      <h3 class="vefa-step3-title">Evidence coverage for selected scenarios</h3>
+      <p class="vefa-step3-sub">Scenarios with weak or no evidence will be treated as explicit assumptions in the output.</p>
+      ${renderVEFAEvidenceTable(selected)}
+    </div>
+    ${(v.extractedClaims || []).length ? renderVEFAAuditSection(v) : ''}
+    <div class="vefa-step3-section">
+      <h3 class="vefa-step3-title">What evidence will we gather before finance review?</h3>
+      <textarea class="vefa-textarea vefa-notes" data-action="vefa-field" data-key="evidenceNotes" rows="4" placeholder="e.g. Customer ops to share Q1 cycle-count timing data; finance to share rollout cost from prior pilot.">${escapeHtml(v.evidenceNotes || '')}</textarea>
+    </div>
+  </div>`;
+}
+function vefaSourcesCount(s){
+  if (!s.evidence_ids) return 0;
+  return String(s.evidence_ids).split(',').map(x => x.trim()).filter(Boolean).length;
+}
+function vefaEvidenceStatus(s, sources){
+  const ev = (s.evidence_strength || '').toLowerCase();
+  if (ev === 'strong' && sources > 0) return { label:'Good to go', cls:'vefa-st-go' };
+  if (ev === 'moderate')              return { label:'Needs customer data', cls:'vefa-st-needs' };
+  return                                     { label:'Assumption', cls:'vefa-st-assumption' };
+}
+function vefaThemeClass(t){ return 'theme-' + String(t || '').replace(/\s+/g, ''); }
+function vefaEvChip(strength){
+  const ev = strength || 'None';
+  return `<span class="vefa-ev-chip vefa-ev-${ev.toLowerCase()}">${escapeHtml(ev)}</span>`;
+}
+function renderVEFAEvidenceTable(selected){
+  if (!selected.length) return `<div class="vefa-empty">No scenarios selected — go back to Step 2.</div>`;
+  const rows = selected.map(s => {
+    const sources = vefaSourcesCount(s);
+    const status = vefaEvidenceStatus(s, sources);
+    const oneLiner = (s.one_liner || s.mechanism_label || '—');
+    const truncated = oneLiner.length > 50 ? oneLiner.slice(0, 50) + '…' : oneLiner;
+    return `<tr>
+      <td class="vefa-cell-scen" title="${escapeHtml(oneLiner)}">${escapeHtml(truncated)}</td>
+      <td><span class="theme-chip ${vefaThemeClass(s.value_theme)}">${escapeHtml(s.value_theme || '—')}</span></td>
+      <td>${vefaEvChip(s.evidence_strength)}</td>
+      <td class="vefa-cell-num">${sources}</td>
+      <td><span class="vefa-status ${status.cls}">${escapeHtml(status.label)}</span></td>
+    </tr>`;
+  }).join('');
+  return `<table class="vefa-table">
+    <thead><tr><th>Scenario</th><th>Theme</th><th>Evidence</th><th>Sources</th><th>Status</th></tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+function renderVEFAAuditSection(v){
+  const claims = v.extractedClaims || [];
+  const matchedIds = new Set(claims.filter(c => c.matchedScenarioId).map(c => c.matchedScenarioId));
+  const missing = (v.availableScenarios || [])
+    .filter(s => s.active_by_default && !matchedIds.has(s.scenario_id))
+    .slice(0, 3);
+  const claimRows = claims.map(c => {
+    const oneLiner = c.matchedOneLiner || '';
+    const scenCell = c.matchedOneLiner
+      ? `<td class="vefa-cell-scen">${escapeHtml(oneLiner.length > 50 ? oneLiner.slice(0,50)+'…' : oneLiner)}</td>`
+      : `<td class="vefa-cell-scen"><span class="vefa-no-match">No match</span></td>`;
+    const verdictCls = 'vefa-v-' + (c.verdict || 'adjust').toLowerCase();
+    return `<tr>
+      <td class="vefa-cell-claim">${escapeHtml(c.metric || '—')}${c.value ? ': <strong>' + escapeHtml(c.value) + '</strong>' : ''}</td>
+      ${scenCell}
+      <td>${c.matchedEvidence ? vefaEvChip(c.matchedEvidence) : '—'}</td>
+      <td><span class="vefa-verdict ${verdictCls}">${escapeHtml(c.verdict || 'Adjust')}</span></td>
+      <td class="vefa-cell-range">${escapeHtml(c.matchedRange || '—')}</td>
+    </tr>`;
+  }).join('');
+  const missingRows = missing.map(s => `<tr>
+    <td class="vefa-cell-claim"><span class="vefa-no-match">Not in vendor deck</span></td>
+    <td class="vefa-cell-scen">${escapeHtml((s.one_liner || s.mechanism_label || '—').slice(0, 50))}</td>
+    <td>${vefaEvChip(s.evidence_strength)}</td>
+    <td><span class="vefa-verdict vefa-v-missing">Missing</span></td>
+    <td class="vefa-cell-range">${escapeHtml(s.typical_baseline_assumption || '—')}</td>
+  </tr>`).join('');
+  return `<div class="vefa-step3-section">
+    <h3 class="vefa-step3-title">Claim Audit</h3>
+    <p class="vefa-step3-sub">How vendor claims map to governed evidence in the Alt Meridian database.</p>
+    <table class="vefa-table">
+      <thead><tr><th>Claim</th><th>Matched Scenario</th><th>Evidence</th><th>Verdict</th><th>AM Range</th></tr></thead>
+      <tbody>${claimRows}${missingRows}</tbody>
+    </table>
+  </div>`;
 }
 
 /* ---------- NEW ANALYSIS MODAL ---------- */
