@@ -447,6 +447,8 @@ input,select,textarea{font:inherit;color:inherit}
 .vefa-st-needs{background:var(--amber-dim);color:var(--amber)}
 .vefa-st-assumption{background:#eceae6;color:var(--ink3)}
 .vefa-notes{min-height:88px}
+.vefa-update-confirm{margin-top:20px;padding:10px 14px;background:var(--amber-dim);border:1px solid rgba(180,83,9,.25);border-radius:var(--r);display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.vefa-update-text{flex:1;font-family:var(--mono);font-size:11px;color:var(--amber);line-height:1.5}
 </style>
 </head>
 <body>
@@ -676,7 +678,12 @@ function openVEFAssist(opts){
   va.open = true;
   va.mode = o.mode || 'new';
   va.engagementId = o.engagementId || null;
+  if (va.mode === 'update' && va.engagementId){
+    va.step = 1; // skip Import — no need to paste vendor claims against existing engagement
+    vefaPrefillFromEngagement(va, va.engagementId);
+  }
   setState({ modal:'vefAssist', vefAssist: va });
+  if (va.mode === 'update' && va.domainId) vefaOnDomainChange();
 }
 function closeVEFAssist(confirmIfDirty){
   if (confirmIfDirty !== false && vefAssistIsDirty()){
@@ -1341,6 +1348,89 @@ async function createAnalysisFromVEF(){
   }
 }
 
+/* ---------- VEF ASSIST · F2 (UPDATE PATH + PREFILL + SNAPSHOT PROMPT) ---------- */
+function vefaPrefillFromEngagement(va, engId){
+  const eng = state.engagements.find(e => e.engagement_id === engId);
+  if (!eng) return;
+  va.engagementId = engId;
+  va.analysisName       = eng.analysis_name  || '';
+  va.customer           = eng.prospect_name  || '';
+  va.vendor             = eng.vendor_name    || '';
+  va.domainId           = eng.domain_id      || '';
+  va.stage              = eng.deal_stage     || 'Discovery';
+  va.phase              = eng.phase          || 'Pre-Sale';
+  va.championEmail      = eng.champion_email        || '';
+  va.economicBuyerEmail = eng.economic_buyer_email  || '';
+  va.nextFollowUp       = eng.next_followup_date    || '';
+  const { body, meta } = vefaUnpackNotes(eng.notes);
+  va.evidenceNotes = body;
+  if (meta){
+    va.whatToProve = meta.whatToProve || '';
+    va.valueFocus  = Array.isArray(meta.valueFocus) ? meta.valueFocus.slice() : [];
+  }
+  (state.scenarios[engId] || []).forEach(s => { if (s.active) va.selectedScenarioIds.add(s.scenario_id); });
+}
+async function vefaSaveQuickSnapshot(engId){
+  const eng = state.engagements.find(e => e.engagement_id === engId); if (!eng) return;
+  const scens = state.scenarios[engId] || [];
+  const defs  = state.inputDefs[eng.domain_id] || [];
+  const ivs   = state.inputValues[engId] || {};
+  const a     = computeAnalysis(eng, scens, ivs, defs);
+  const ex    = state.snapshots[engId] || [];
+  const ver   = (ex.reduce((m,s) => Math.max(m, s.snapshot_version || 0), 0) || 0) + 1;
+  const inputSnap = { _meta:{ stage: eng.deal_stage, phase: eng.phase, source: 'vef-assist-pre-update' } };
+  defs.forEach(d => { inputSnap[d.input_key] = ivs[d.input_key]?.provided_value ?? d.typical_value ?? d.default_value ?? null; });
+  const row = {
+    engagement_id: engId, domain_id: eng.domain_id,
+    snapshot_label: 'Pre-VEF-Assist Update', intent: 'Track', snapshot_version: ver,
+    annual_value: a.arvFull, payback_mo: a.payback, bcr: a.bcr, monthly_delay_cost: a.monthlyDelay,
+    active_scenario_ids: scens.filter(s => s.active).map(s => s.scenario_id).join(','),
+    input_snapshot: inputSnap, notes: 'Auto-snapshot before VEF Assist update'
+  };
+  const snap = (await sbInsert('vef_output_snapshots', row)) || row;
+  (state.snapshots[engId] = state.snapshots[engId] || []).unshift(snap);
+}
+function vefaUpdateInitiate(){
+  // DOM-injected strip (non-blocking, no nested modal) — Q8.
+  if (document.getElementById('vefa-update-strip')) return;
+  const body = document.querySelector('.vefa-body'); if (!body) return;
+  const wrap = document.createElement('div');
+  wrap.id = 'vefa-update-strip';
+  wrap.className = 'vefa-update-confirm';
+  wrap.innerHTML = `<span class="vefa-update-text">Save snapshot before updating?</span>
+    <button class="btn btn-ghost btn-sm" data-action="vefa-update-skip">Skip</button>
+    <button class="btn btn-primary btn-sm" data-action="vefa-update-snap">Save Snapshot</button>`;
+  body.appendChild(wrap);
+  body.scrollTop = body.scrollHeight;
+}
+async function updateAnalysisFromVEF(saveSnapFirst){
+  const v = state.vefAssist;
+  if (!v.engagementId) return toast('No engagement to update', true);
+  if (!vefaValidateRequired(v)) return;
+  try {
+    if (saveSnapFirst) await vefaSaveQuickSnapshot(v.engagementId);
+    const patch = vefaBuildEngagementRow(v);
+    await sbPatch('vef_engagements', { engagement_id: v.engagementId }, patch);
+    const eng = state.engagements.find(e => e.engagement_id === v.engagementId);
+    if (eng) Object.assign(eng, patch);
+    // Sync selections: for every scenario that's in availableScenarios OR in state.scenarios[engId],
+    // upsert with active = membership in selectedScenarioIds. Union ensures we deactivate rows that
+    // were previously active but unchecked in Step 2.
+    const pool = new Map();
+    (v.availableScenarios || []).forEach(s => pool.set(s.scenario_id, s));
+    (state.scenarios[v.engagementId] || []).forEach(s => pool.set(s.scenario_id, s));
+    await Promise.all(Array.from(pool.keys()).map(sid => sbUpsert('vef_scenario_selections',
+      { engagement_id: v.engagementId, scenario_id: sid, active: v.selectedScenarioIds.has(sid) },
+      'engagement_id,scenario_id')));
+    closeVEFAssist(false);
+    toast(saveSnapFirst ? 'Snapshot saved · analysis updated' : 'Analysis updated');
+    onOpenEngagement(v.engagementId);
+  } catch (err) {
+    console.error(err);
+    toast('Update failed: ' + (err.message || err), true);
+  }
+}
+
 function renderVEFAAuditSection(v){
   const claims = v.extractedClaims || [];
   const matchedIds = new Set(claims.filter(c => c.matchedScenarioId).map(c => c.matchedScenarioId));
@@ -1597,6 +1687,7 @@ function renderWorkspaceTopbar(e){
       </div>
       <div class="topbar-right">
         <button class="btn btn-dark-ghost btn-sm" data-action="toggle-meridian">Meridian ◆</button>
+        <button class="btn btn-dark-ghost btn-sm" data-action="vefa-open-update">Update Analysis</button>
         <button class="btn btn-dark-ghost btn-sm" data-action="open-save-snapshot">Save Snapshot</button>
         <button class="btn btn-primary btn-sm" data-action="generate-report">Generate Report</button>
       </div>
@@ -2238,8 +2329,14 @@ document.addEventListener('click', e => {
     paintVEFAScenList(); return;
   }
   if (a === 'vefa-finish'){
-    if (state.vefAssist.mode === 'update') return toast('Update path lands in Chunk F2');
+    if (state.vefAssist.mode === 'update') return vefaUpdateInitiate();
     return createAnalysisFromVEF();
+  }
+  if (a === 'vefa-update-snap') return updateAnalysisFromVEF(true);
+  if (a === 'vefa-update-skip') return updateAnalysisFromVEF(false);
+  if (a === 'vefa-open-update'){
+    if (!state.activeEngagementId) return toast('No active engagement', true);
+    return openVEFAssist({ mode:'update', engagementId: state.activeEngagementId });
   }
   if (a === 'back-to-home')      return setState({ screen:'home', activeEngagementId:null, activeTab:'value-case' });
   if (a === 'ws-tab')            return setState({ activeTab: node.getAttribute('data-tab') });
