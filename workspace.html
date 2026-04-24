@@ -343,6 +343,19 @@ input,select,textarea{font:inherit;color:inherit}
 .theme-Revenue{background:var(--green-dim);color:var(--green)}
 .theme-Experience{background:#ede7f5;color:#5a3f8a}
 .theme-Strategic{background:#eceae6;color:var(--ink3)}
+.vefa-import-ta{width:100%;min-height:180px;padding:12px 14px;border:1px solid var(--border2);border-radius:var(--r);font-family:var(--mono);font-size:12px;color:var(--ink);background:#fff;resize:vertical;line-height:1.55}
+.vefa-import-ta:focus{outline:0;border-color:var(--red);box-shadow:0 0 0 2px var(--red-dim)}
+.vefa-import-ta::placeholder{color:var(--ink3);white-space:pre-wrap}
+.vefa-import-hint{margin-top:8px;font-family:var(--mono);font-size:10px;color:var(--ink3);line-height:1.5}
+.vefa-import-actions{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap}
+.vefa-claims{height:100%;min-height:180px;display:flex;flex-direction:column;gap:8px}
+.vefa-claims-empty,.vefa-claims-loading,.vefa-claims-error{align-items:center;justify-content:center;text-align:center;padding:24px 12px}
+.vefa-claims-icon{font-size:24px;color:var(--ink3);margin-bottom:6px;line-height:1}
+.vefa-claims-state{font-family:var(--mono);font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;line-height:1.5}
+.vefa-claims-error .vefa-claims-state{color:var(--red)}
+.vefa-claims-hint{font-family:var(--mono);font-size:10px;color:var(--ink2);margin-top:4px}
+.vefa-spinner{width:20px;height:20px;border:2px solid var(--border2);border-top-color:var(--red);border-radius:50%;animation:vefa-spin .7s linear infinite;margin-bottom:10px}
+@keyframes vefa-spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -556,7 +569,7 @@ function afterRender(){
 function makeVEFAssistState(){
   return {
     open:false, mode:'new', engagementId:null, step:0,
-    importText:'', extractedClaims:[], extracting:false,
+    importText:'', extractedClaims:[], extracting:false, extractError:null,
     analysisName:'', customer:'', vendor:'', domainId:'',
     stage:'Discovery', phase:'Pre-Sale',
     championEmail:'', economicBuyerEmail:'', nextFollowUp:'',
@@ -638,7 +651,7 @@ function renderVEFAssistProgress(v){
 }
 function renderVEFAssistStep(v){
   switch (v.step){
-    case 0: return '<div class="vefa-placeholder">Step 0 — Import (Chunk B1/B2)</div>';
+    case 0: return renderVEFAssistStep0(v);
     case 1: return '<div class="vefa-placeholder">Step 1 — Context (Chunk C)</div>';
     case 2: return '<div class="vefa-placeholder">Step 2 — Scenarios (Chunk D1/D2)</div>';
     case 3: return '<div class="vefa-placeholder">Step 3 — Evidence & Audit (Chunk E)</div>';
@@ -664,6 +677,96 @@ function vefaStep(delta){
   const next = Math.max(0, Math.min(3, v.step + delta));
   if (next === v.step) return;
   setState({ vefAssist: { ...v, step: next } });
+}
+
+/* ---------- VEF ASSIST · STEP 0 (IMPORT) ---------- */
+const VEFA_EXTRACT_SYSTEM = `You are a value engineering analyst. Extract all quantified claims from the provided text. For each claim identify: the metric name, the claimed value/percentage, the timeframe if stated, and the context. Return ONLY valid JSON in this exact format with no other text:
+{
+  "claims": [
+    {
+      "metric": "cycle count time reduction",
+      "value": "30%",
+      "timeframe": "annual",
+      "context": "warehouse operations",
+      "raw": "original text fragment"
+    }
+  ]
+}`;
+
+function renderVEFAssistStep0(v){
+  const canExtract = !!v.importText && v.importText.trim() && !v.extracting;
+  const extractLabel = v.extracting ? 'Analyzing claims…' : 'Extract & Map →';
+  return `<div class="vefa-layout">
+    <div class="vefa-panel-l">
+      <textarea class="vefa-import-ta" data-action="vefa-import-input" rows="8"
+        placeholder="Paste vendor ROI claims, key metrics, or business case summary here...&#10;&#10;e.g. 'Vendor claims 30% reduction in cycle count time, $2.4M annual savings, 18-month payback for a 200-store rollout. Based on RFID deployment at 3 pilot stores.'">${escapeHtml(v.importText || '')}</textarea>
+      <div class="vefa-import-hint">Paste text content from PDFs, decks, or Excel models. Include any quantified claims, percentages, dollar figures, or timeframes.</div>
+      <div class="vefa-import-actions">
+        <button class="btn btn-primary btn-sm" data-action="vefa-extract" ${canExtract ? '' : 'disabled'}>${escapeHtml(extractLabel)}</button>
+        <button class="btn btn-ghost btn-sm" data-action="vefa-skip" ${v.extracting ? 'disabled' : ''}>Skip — start from scratch →</button>
+      </div>
+    </div>
+    <div class="vefa-panel-r">${renderVEFAssistClaimsPanel(v)}</div>
+  </div>`;
+}
+function renderVEFAssistClaimsPanel(v){
+  if (v.extracting){
+    return `<div class="vefa-claims vefa-claims-loading">
+      <div class="vefa-spinner" aria-hidden="true"></div>
+      <div class="vefa-claims-state">Analyzing claims…</div>
+    </div>`;
+  }
+  if (v.extractError){
+    return `<div class="vefa-claims vefa-claims-error">
+      <div class="vefa-claims-state">${escapeHtml(v.extractError)}</div>
+      <div class="vefa-claims-hint">You can retry, or click Skip to proceed without extraction.</div>
+    </div>`;
+  }
+  if (!v.extractedClaims || !v.extractedClaims.length){
+    return `<div class="vefa-claims vefa-claims-empty">
+      <div class="vefa-claims-icon">◇</div>
+      <div class="vefa-claims-state">Extracted claims will appear here</div>
+    </div>`;
+  }
+  // Claim row render lands in Chunk B2.
+  return `<div class="vefa-claims"><div class="vefa-claims-state">${v.extractedClaims.length} claim(s) extracted — panel render ships in Chunk B2</div></div>`;
+}
+function vefaSkipImport(){
+  const v = state.vefAssist;
+  if (v.extracting) return;
+  setState({ vefAssist: { ...v, extractedClaims:[], extractError:null, step:1 } });
+}
+async function vefaExtract(){
+  const v = state.vefAssist;
+  if (!v.importText || !v.importText.trim() || v.extracting) return;
+  const key = getAnthropicKey();
+  if (!key) return toast('VEF Assist needs an API key', true);
+  setState({ vefAssist: { ...v, extracting:true, extractError:null, extractedClaims:[] } });
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method:'POST',
+      headers:{ 'content-type':'application/json', 'x-api-key':key, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: VEFA_EXTRACT_SYSTEM,
+        messages: [{ role:'user', content: state.vefAssist.importText.trim() }]
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error?.message || ('HTTP ' + res.status));
+    const raw = data.content?.[0]?.text || '';
+    vefaProcessExtraction(raw);
+  } catch (err){
+    const cur = state.vefAssist;
+    setState({ vefAssist: { ...cur, extracting:false, extractError:'Extraction failed: ' + (err.message || err) } });
+  }
+}
+function vefaProcessExtraction(_raw){
+  // JSON parse + claim→scenario matching + pre-select land in Chunk B2.
+  const cur = state.vefAssist;
+  setState({ vefAssist: { ...cur, extracting:false } });
+  toast('Extraction received — parser + scenario matcher ship in Chunk B2');
 }
 
 /* ---------- NEW ANALYSIS MODAL ---------- */
@@ -1506,6 +1609,8 @@ document.addEventListener('click', e => {
   if (a === 'vefa-close')        return closeVEFAssist(true);
   if (a === 'vefa-next')         return vefaStep(+1);
   if (a === 'vefa-back')         return vefaStep(-1);
+  if (a === 'vefa-extract')      return vefaExtract();
+  if (a === 'vefa-skip')         return vefaSkipImport();
   if (a === 'vefa-finish')       return toast('Finish handler lands in Chunk F');
   if (a === 'back-to-home')      return setState({ screen:'home', activeEngagementId:null, activeTab:'value-case' });
   if (a === 'ws-tab')            return setState({ activeTab: node.getAttribute('data-tab') });
@@ -1532,6 +1637,13 @@ document.addEventListener('input', e => {
   const node = e.target.closest('[data-action]'); if (!node) return;
   const a = node.getAttribute('data-action');
   if (a === 'slider-input') onSliderInput(node.getAttribute('data-key'), node.value);
+  if (a === 'vefa-import-input'){
+    // Mutate silently — no setState — so the textarea keeps focus mid-type
+    // (lesson 2026-04-23: search-input focus loss on full re-render).
+    state.vefAssist.importText = node.value;
+    const btn = document.querySelector('[data-action="vefa-extract"]');
+    if (btn) btn.disabled = !node.value.trim() || state.vefAssist.extracting;
+  }
 });
 document.addEventListener('focusout', e => {
   const node = e.target.closest('[data-action="edit-input-val"],[data-action="deal-edit"]');
