@@ -305,6 +305,9 @@ input,select,textarea{font:inherit;color:inherit}
 .mx-input:focus{outline:0;border-color:var(--red);box-shadow:0 0 0 2px var(--red-dim)}
 .mx-send{padding:6px 12px;background:var(--red);color:#fff;border-radius:var(--r);font-size:11px;font-family:var(--mono);font-weight:500;transition:background .12s}
 .mx-send:hover{background:var(--red-hover)} .mx-send:disabled{opacity:.5;cursor:not-allowed}
+.mx-head-actions{display:flex;gap:4px;align-items:center}
+.mx-icon-btn{color:var(--ink3);padding:3px 7px;border-radius:2px;font-size:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;transition:color .12s,background .12s} .mx-icon-btn:hover{color:var(--ink);background:var(--bg)}
+.sk-row{height:56px;margin-bottom:8px;border-radius:var(--r)} .sk-row:first-child{margin-top:0}
 </style>
 </head>
 <body>
@@ -454,12 +457,21 @@ function render(){
   else if (state.screen === 'home')      app.innerHTML = renderHome();
   else if (state.screen === 'workspace') app.innerHTML = renderWorkspace();
   renderModal();
+  requestAnimationFrame(afterRender);
 }
 function renderModal(){
   const root = document.getElementById('modal-root');
   if (!state.modal){ root.innerHTML = ''; return; }
   if (state.modal === 'newAnalysis')  root.innerHTML = renderNewAnalysisModal();
   if (state.modal === 'saveSnapshot') root.innerHTML = renderSaveSnapshotModal();
+}
+function afterRender(){
+  const body = document.querySelector('.mx-body');
+  if (body && state.meridianOpen) body.scrollTop = body.scrollHeight;
+  if (state.meridianOpen){
+    const inp = document.querySelector('.mx-input');
+    if (inp && !inp.disabled && document.activeElement !== inp) inp.focus();
+  }
 }
 
 /* ---------- NEW ANALYSIS MODAL ---------- */
@@ -611,7 +623,7 @@ function renderHome(){
         <div class="stat-card"><div class="stat-label">In Pilot</div><div class="stat-value">${s.pilot}</div></div>
         <div class="stat-card"><div class="stat-label">Total ARV</div><div class="stat-value accent">${fmtMoney(s.totalArv)}</div></div>
       </div>
-      ${state.loading ? `<div class="empty-state">Loading analyses…</div>` : renderAnalysisTable(homeRows())}
+      ${state.loading ? `<div class="table-wrap" style="padding:14px">${Array(5).fill(0).map(()=>`<div class="sk sk-row"></div>`).join('')}</div>` : renderAnalysisTable(homeRows())}
     </div></main>`;
 }
 function renderAnalysisTable(rows){
@@ -705,7 +717,7 @@ function renderSidebar(e){
 }
 
 function renderWorkspaceMain(e){
-  if (state.loading) return `<div class="tab-placeholder">Loading engagement…</div>`;
+  if (state.loading) return `<div class="sk sk-row" style="height:88px;margin-bottom:12px"></div><div class="sk sk-row" style="height:120px;margin-bottom:12px"></div><div class="sk sk-row" style="height:220px"></div>`;
   if (state.activeTab === 'value-case') return renderValueCaseTab(e);
   if (state.activeTab === 'inputs')     return renderInputsTab(e);
   if (state.activeTab === 'outputs')    return renderOutputsTab(e);
@@ -1196,7 +1208,14 @@ function renderMeridianDrawer(){
   const history = state.meridianHistory[e.engagement_id] || [];
   return `
     <aside class="mx-drawer ${state.meridianOpen?'is-open':''}">
-      <div class="mx-head"><div class="mx-title"><span class="dot">◆</span>Meridian</div><button class="mx-close" data-action="toggle-meridian">×</button></div>
+      <div class="mx-head">
+        <div class="mx-title"><span class="dot">◆</span>Meridian</div>
+        <div class="mx-head-actions">
+          <button class="mx-icon-btn" data-action="mx-reset-key" title="Change API key">Key</button>
+          <button class="mx-icon-btn" data-action="mx-clear" title="Clear chat">Clear</button>
+          <button class="mx-close" data-action="toggle-meridian" title="Close">×</button>
+        </div>
+      </div>
       <div class="mx-body">${history.length === 0
         ? `<div class="mx-empty">No chat yet — pick a prompt below or type a question.</div>`
         : history.map(m => {
@@ -1205,8 +1224,8 @@ function renderMeridianDrawer(){
           }).join('')}</div>
       <div class="mx-chips">${prompts.map(p => `<button class="mx-chip" data-action="mx-quick" data-prompt="${escapeHtml(p)}">${escapeHtml(p)}</button>`).join('')}</div>
       <form class="mx-input-row" data-action="mx-submit" autocomplete="off">
-        <input class="mx-input" name="msg" placeholder="Ask Meridian…"/>
-        <button class="mx-send" type="submit">Send</button>
+        <input class="mx-input" name="msg" placeholder="Ask Meridian…" ${history.some(m => m.content === '__thinking__') ? 'disabled' : ''}/>
+        <button class="mx-send" type="submit" ${history.some(m => m.content === '__thinking__') ? 'disabled' : ''}>Send</button>
       </form>
     </aside>`;
 }
@@ -1295,6 +1314,8 @@ document.addEventListener('click', e => {
   if (a === 'ws-tab')            return setState({ activeTab: node.getAttribute('data-tab') });
   if (a === 'toggle-meridian')   return setState({ meridianOpen: !state.meridianOpen });
   if (a === 'mx-quick')          return callMeridian(node.getAttribute('data-prompt'));
+  if (a === 'mx-reset-key')      { localStorage.removeItem('anthropic_api_key'); return toast('API key cleared — next send will prompt again'); }
+  if (a === 'mx-clear')          { const eng = currentEng(); if (eng) state.meridianHistory[eng.engagement_id] = []; return render(); }
   if (a === 'open-save-snapshot')return setState({ modal: 'saveSnapshot' });
   if (a === 'open-snap')         return toast('Snapshot restore — coming soon');
   if (a === 'export-snap')       return toast('PDF export — coming soon');
