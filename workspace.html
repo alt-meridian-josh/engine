@@ -162,40 +162,87 @@ input,select,textarea{font:inherit;color:inherit}
 .ws-main{padding:20px 24px;overflow-x:auto}
 .tab-placeholder{padding:40px 20px;text-align:center;color:var(--ink3);font-size:12px;background:#fff;border:1px dashed var(--border);border-radius:var(--r)}
 /* Value Case */
-.vc-narrative{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:14px 18px;margin-bottom:16px;font-family:var(--display);font-style:italic;font-size:14px;color:var(--ink2);line-height:1.5;box-shadow:var(--shadow)}
-.vc-narrative b{color:var(--ink);font-style:normal;font-weight:600}
-.vc-signals{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
-.vc-signal{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow)}
-.vc-signal-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);margin-bottom:6px}
-.vc-signal-value{font-family:var(--display);font-size:24px;font-weight:700;letter-spacing:-.01em;line-height:1.05}
-.vc-signal-value.red{color:var(--red)} .vc-signal-value.amber{color:var(--amber)} .vc-signal-value.ink{color:var(--ink)}
-.vc-signal-value .u{font-size:11px;opacity:.5;margin-left:2px;font-weight:500}
-.vc-signal-sub{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-top:4px}
+/* ---------- VALUE CASE TAB v3 — SECTION 1: HEADLINE ---------- */
+.vc-headline{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;padding:4px 4px 18px;border-bottom:1px solid var(--border2);margin-bottom:20px;flex-wrap:wrap}
+.vc-headline-left{min-width:0;flex:1 1 240px}
+.vc-customer{font-family:var(--display);font-weight:700;font-size:28px;color:var(--ink);letter-spacing:-.02em;line-height:1.1}
+.vc-domain{font-family:var(--mono);font-size:12px;color:var(--ink3);margin-top:6px;text-transform:uppercase;letter-spacing:.06em}
+.vc-metrics{display:flex;align-items:flex-end;gap:32px;flex-shrink:0;flex-wrap:wrap}
+.vc-metric{display:flex;flex-direction:column;gap:4px}
+.vc-metric-value{font-family:var(--display);font-weight:700;font-size:32px;line-height:1;letter-spacing:-.02em;color:var(--ink3)}
+.vc-metric-value.is-red{color:var(--red)}
+.vc-metric-value.is-amber{color:var(--amber);font-weight:600;font-size:22px}
+.vc-metric-label{font-family:var(--mono);font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em}
+.vc-conf-chip{font-family:var(--mono);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;padding:6px 12px;border-radius:var(--r-chip);white-space:nowrap}
+.vc-conf-governed{background:var(--green-dim);color:var(--green)}
+.vc-conf-exploratory{background:var(--amber-dim);color:var(--amber)}
+.vc-conf-default{background:#eceae6;color:var(--ink2)}
+/* ---------- VALUE CASE TAB v3 — SECTION 2: STATUS BLOCK ---------- */
+.vc-status-grid{display:grid;grid-template-columns:55fr 45fr;gap:24px;margin-bottom:24px}
+.vc-status-left,.vc-status-right{min-width:0}
+.vc-status-right{background:#faf9f7;border:1px solid var(--border);border-radius:var(--r);padding:16px}
+.vc-status-header{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink3);margin-bottom:10px}
+.vc-mech-row{display:flex;align-items:center;gap:10px;padding:7px 4px;border-bottom:1px solid var(--border);font-size:12px;line-height:1.4}
+.vc-mech-row:last-child{border-bottom:0}
+.vc-mech-icon{flex-shrink:0;width:14px;text-align:center;font-size:13px;line-height:1;font-weight:600}
+.vc-mech-active .vc-mech-icon{color:var(--green)}
+.vc-mech-shadowed .vc-mech-icon,.vc-mech-inactive .vc-mech-icon{color:var(--ink3)}
+.vc-mech-text{flex:1 1 auto;min-width:0;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vc-mech-shadowed .vc-mech-text,.vc-mech-inactive .vc-mech-text{color:var(--ink3)}
+.vc-mech-tag{font-family:var(--mono);font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;flex-shrink:0}
+.vc-mech-arv{font-family:var(--mono);font-size:12px;font-weight:500;flex-shrink:0;text-align:right;min-width:80px;color:var(--ink3)}
+.vc-mech-arv.is-red{color:var(--red)}
+.vc-empty{padding:14px 4px;color:var(--ink3);font-size:12px;font-style:italic}
+.vc-link{color:var(--red);text-decoration:none;cursor:pointer;font-style:normal;background:none;border:0;padding:0;font-family:inherit;font-size:inherit}
+.vc-link:hover{text-decoration:underline}
+.vc-gap-row{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:12px;line-height:1.4;color:var(--ink)}
+.vc-gap-row+.vc-gap-row{border-top:1px solid var(--border)}
+.vc-gap-dot{flex-shrink:0;width:8px;height:8px;border-radius:50%;background:#ccc}
+.vc-gap-dot.is-amber{background:var(--amber)}
+.vc-gap-dot.is-red{background:var(--red)}
+.vc-gap-dot.is-grey{background:var(--ink3)}
+.vc-gap-label{flex:1 1 auto;min-width:0}
+.vc-gap-more{font-family:var(--mono);font-size:10px;color:var(--ink3);padding-top:8px;margin-top:8px;border-top:1px solid var(--border);text-transform:uppercase;letter-spacing:.06em}
+.vc-empty-gaps{color:var(--ink3);font-size:12px;font-style:italic;padding:6px 0}
+/* ---------- VALUE CASE TAB v3 — SECTION 3: NEXT ACTION ---------- */
+.vc-next{background:#fff;border:1px solid var(--border);border-left:3px solid var(--red);border-radius:var(--r);padding:14px 18px;margin-bottom:24px;box-shadow:var(--shadow);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.vc-next-header{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--red);font-weight:600;flex-shrink:0}
+.vc-next-body{flex:1 1 240px;color:var(--ink);font-size:13px;line-height:1.5}
+.vc-next-body b{font-weight:600;color:var(--ink)}
+.vc-next-btn{flex-shrink:0}
+/* ---------- VALUE CASE TAB v3 — SECTION 4: SCENARIO DETAIL ---------- */
+.vc-detail{margin-bottom:24px}
+.vc-detail-toggle{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--ink2);background:none;border:0;cursor:pointer;padding:6px 0;letter-spacing:.04em}
+.vc-detail-toggle:hover{color:var(--ink)}
+.vc-detail-toggle .caret{transition:transform .12s;display:inline-block}
+.vc-detail-toggle.is-open .caret{transform:rotate(90deg)}
+.vc-detail-body{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+.vc-scen-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:10px 14px;box-shadow:var(--shadow);transition:opacity .12s}
+.vc-scen-card.is-inactive{opacity:.6}
+.vc-scen-card-row{display:flex;align-items:center;gap:12px;cursor:pointer}
+.vc-scen-card-left{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:10px}
+.vc-scen-one{flex:1 1 auto;min-width:0;color:var(--ink);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vc-scen-card-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.vc-scen-card-arv{font-family:var(--mono);font-size:12px;color:var(--ink3);font-weight:500;min-width:80px;text-align:right}
+.vc-scen-card-arv.is-red{color:var(--red)}
+.vc-scen-card-detail{padding-top:10px;margin-top:10px;border-top:1px solid var(--border);font-size:12px;line-height:1.5;display:grid;grid-template-columns:120px 1fr;gap:6px 12px;font-family:var(--mono)}
+.vc-scen-card-detail dt{color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;font-size:10px;padding-top:1px}
+.vc-scen-card-detail dd{margin:0;color:var(--ink)}
+/* ---------- VALUE CASE TAB v3 — SECTION 5: HEALTH STRIP ---------- */
+.vc-health{display:flex;flex-wrap:wrap;gap:10px;padding:14px 0 4px;border-top:1px solid var(--border);margin-top:8px}
+.vc-health-chip{display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:11px}
+.vc-health-label{color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;font-size:10px}
+.vc-health-value{color:var(--ink)}
 .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px}
 .section-title{font-family:var(--display);font-size:15px;font-weight:600;color:var(--ink)}
 .section-count{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-left:8px;text-transform:uppercase;letter-spacing:.08em;font-weight:400}
-.sc-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:16px 20px;box-shadow:var(--shadow);margin-bottom:10px;transition:opacity .12s} .sc-card.inactive{opacity:.55}
-.sc-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start} .sc-head-left{flex:1;min-width:0} .sc-head-right{text-align:right;white-space:nowrap}
-.sc-top{display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap}
-.sc-name{font-family:var(--display);font-weight:600;color:var(--ink);font-size:14px;margin-bottom:3px;line-height:1.3} .sc-one{font-family:var(--mono);font-size:11px;color:var(--ink2)}
-.sc-annual{font-family:var(--display);font-weight:700;font-size:22px;color:var(--red);letter-spacing:-.01em;line-height:1.05} .sc-annual.muted{color:var(--ink3)}
-.sc-monthly{font-family:var(--mono);font-size:11px;color:var(--ink3);margin-top:3px}
-.sc-foot{display:flex;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid var(--border);align-items:center;flex-wrap:wrap}
+/* .sc-switch + .sc-switch-track survive: reused by Value Case Section 4 toggle. */
 .sc-switch{display:inline-flex;align-items:center;gap:8px;padding:3px 9px;border-radius:var(--r);border:1px solid var(--border2);color:var(--ink3);font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em;transition:all .12s;background:#fff}
 .sc-switch:hover{color:var(--ink)}
 .sc-switch.is-on{background:var(--green-dim);border-color:var(--green);color:var(--green)}
 .sc-switch-track{width:24px;height:12px;background:#d1ccc5;border-radius:999px;position:relative;display:inline-block;transition:background .12s}
 .sc-switch-track::after{content:'';position:absolute;top:1px;left:1px;width:10px;height:10px;background:#fff;border-radius:50%;transition:transform .12s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
 .sc-switch.is-on .sc-switch-track{background:var(--green)}.sc-switch.is-on .sc-switch-track::after{transform:translateX(12px)}
-.sc-collapse{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);padding:3px 8px;border-radius:var(--r);transition:color .12s,background .12s} .sc-collapse:hover{color:var(--ink);background:var(--bg)} .sc-collapse.is-open{color:var(--red)}
-.sc-evidence,.sc-cfo{margin-top:10px;padding:10px 12px;border-radius:var(--r);font-size:12px;color:var(--ink2);line-height:1.5;font-family:var(--mono)}
-.sc-evidence{background:var(--bg);border-left:3px solid var(--ink3)} .sc-cfo{background:var(--amber-dim);border-left:3px solid var(--amber)}
-.sc-sl{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);margin-bottom:4px;font-weight:500} .sc-sl.amber{color:var(--amber)}
-.shadow-section{margin-top:14px;background:#fff;border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
-.shadow-head{width:100%;text-align:left;padding:10px 16px;font-family:var(--mono);font-size:11px;color:var(--ink2);text-transform:uppercase;letter-spacing:.06em;transition:background .12s} .shadow-head:hover{background:var(--bg)}
-.shadow-body{padding:6px 16px 12px;border-top:1px solid var(--border)}
-.shadow-row{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:12px;border-bottom:1px solid var(--border)} .shadow-row:last-child{border-bottom:0}
-.shadow-name{flex:1;color:var(--ink2)}
 .caret{display:inline-block;transition:transform .15s;margin-right:4px} .is-open .caret{transform:rotate(90deg)}
 /* Inputs tab */
 .preset-bar{display:flex;gap:4px}
@@ -465,9 +512,9 @@ input,select,textarea{font:inherit;color:inherit}
 const state = {
   screen:'login', engagements:[], domains:{}, activeEngagementId:null,
   scenarios:{}, inputDefs:{}, inputValues:{}, snapshots:{}, evidence:{},
-  activeTab:'value-case', meridianOpen:false, meridianHistory:{},
+  activeTab:'value-case', meridianOpen:false, meridianHistory:{}, meridianPreload:null,
   homeFilter:'all', homeSearch:'', homeSort:'updated',
-  modal:null, loading:false, poolShadowOpen:false,
+  modal:null, loading:false, vcDetailOpen:false, vcCardOpen:{},
   vefAssist: makeVEFAssistState()
 };
 function setState(patch){ Object.assign(state, patch); if (typeof render === 'function') render(); }
@@ -1641,103 +1688,389 @@ function renderWorkspaceMain(e){
   return '';
 }
 const THEME_CHIP = {'labor':'chip-blue','compliance':'chip-amber','risk':'chip-red','strategic':'chip-green'};
-function evidenceChip(s){
-  const v = (s.evidence_strength || 'tier-3').toLowerCase();
-  if (v.includes('1') || v.includes('customer')) return 'chip-green';
-  if (v.includes('2') || v.includes('benchmark')) return 'chip-amber';
-  return 'chip-grey';
-}
 
 function renderValueCaseTab(e){
   const scenarios = state.scenarios[e.engagement_id] || [];
   const defs = state.inputDefs[e.domain_id] || [];
-  const ivs = state.inputValues[e.engagement_id] || {};
+  const ivs  = state.inputValues[e.engagement_id] || {};
   const analysis = computeAnalysis(e, scenarios, ivs, defs);
-  const counted = analysis.perScenario.filter(p => p.active && !p.pool_shadow);
-  const shadowed = analysis.perScenario.filter(p => p.pool_shadow);
-  const dom = state.domains[e.domain_id]?.domain_name || 'this domain';
-  const top = counted.slice().sort((a,b) => b.arv - a.arv)[0];
-  const topTheme = top ? (scenarios.find(s => s.scenario_id === top.scenario_id)?.value_theme || 'no clear lead') : 'no active mechanism';
-  const consArv = analysis.arvFull * 0.75, aggArv = analysis.arvFull * 1.25;
-  const narrative = scenarios.length
-    ? `This analysis covers <b>${counted.length}</b> active mechanism${counted.length===1?'':'s'} for <b>${escapeHtml(e.prospect_name || 'the prospect')}</b> in <b>${escapeHtml(dom)}</b>. The current defensible range is <b>${fmtMoney(consArv)} — ${fmtMoney(aggArv)}</b>, led by <b>${escapeHtml(topTheme)}</b>.`
-    : `No scenarios have been loaded for this engagement yet. Check that the domain has scenarios seeded in vef_value_scenarios.`;
-  const shadowIds = new Set(shadowed.map(p => p.scenario_id));
-  const mainScenarios = scenarios.filter(s => !shadowIds.has(s.scenario_id));
+  const conf = vcConfidence(scenarios, ivs, analysis);
+  const customer = e.prospect_name || 'Untitled engagement';
+  const dom = state.domains[e.domain_id]?.domain_name || e.domain_id || '';
+  const next = vcNextAction(e, scenarios, defs, ivs, analysis, conf);
   return `
-    <div class="vc-narrative">${narrative}</div>
-    <div class="vc-signals">
-      <div class="vc-signal"><div class="vc-signal-label">Value of Acting</div><div class="vc-signal-value red">${fmtMoney(analysis.arvFull)}</div><div class="vc-signal-sub">Annual · full adoption</div></div>
-      <div class="vc-signal"><div class="vc-signal-label">Cost of Delay</div><div class="vc-signal-value amber">${fmtMoney(analysis.monthlyDelay)}<span class="u">/mo</span></div><div class="vc-signal-sub">Per month of inaction</div></div>
-      <div class="vc-signal"><div class="vc-signal-label">Cost of Doing Nothing</div><div class="vc-signal-value ink">${fmtMoney(analysis.coi3yr)}</div><div class="vc-signal-sub">3-year cumulative</div></div>
-    </div>
-    <div class="section-head">
-      <h2 class="section-title">Economic Mechanisms<span class="section-count">${counted.length} active · ${scenarios.length} total · evidence: ${evidenceSummary(scenarios.filter(s => s.active))}</span></h2>
-    </div>
-    ${scenarios.length
-      ? mainScenarios.map(s => renderScenarioCard(s, analysis.perScenario.find(p => p.scenario_id === s.scenario_id))).join('')
-      : `<div class="tab-placeholder">No scenarios seeded for domain <b>${escapeHtml(e.domain_id)}</b>.</div>`}
-    ${shadowed.length ? renderShadowed(scenarios, shadowed) : ''}
+    ${renderVCHeadline(customer, dom, analysis, conf)}
+    ${renderVCStatus(e, scenarios, analysis, defs, ivs)}
+    ${renderVCNextAction(next)}
+    ${renderVCDetail(scenarios, analysis)}
+    ${renderVCHealthStrip(e, scenarios, analysis, defs, ivs)}
   `;
 }
 
-function evidenceSummary(active){
-  if (!active.length) return 'n/a';
-  const c = {t1:0,t2:0,t3:0};
-  active.forEach(s => {
-    const v = (s.evidence_strength||'').toLowerCase();
-    if (v.includes('1')||v.includes('customer')) c.t1++;
-    else if (v.includes('2')||v.includes('benchmark')) c.t2++;
-    else c.t3++;
+// Returns 'governed' | 'exploratory' | 'default' per spec:
+//   default     = no buyer inputs at all
+//   governed    = govInputs >= 3 OR every active non-shadowed scenario is grounded
+//   exploratory = otherwise
+function vcConfidence(scenarios, ivs, analysis){
+  const provided = Object.values(ivs || {}).filter(v => {
+    const x = v && v.provided_value;
+    return x != null && String(x).trim() !== '';
   });
-  return `T1×${c.t1} · T2×${c.t2} · T3×${c.t3}`;
+  if (!provided.length) return 'default';
+  const govInputs = provided.length;
+  const activeIds = new Set((analysis.perScenario || []).filter(p => p.active && !p.pool_shadow).map(p => p.scenario_id));
+  const grounded = (scenarios || []).filter(s => {
+    if (!activeIds.has(s.scenario_id)) return false;
+    const req = s.inputs_required;
+    const arr = Array.isArray(req) ? req : typeof req === 'string' ? req.split(',').map(k => k.trim()).filter(Boolean) : [];
+    if (!arr.length) return true;
+    return arr.every(k => {
+      const v = ivs[k] && ivs[k].provided_value;
+      return v != null && String(v).trim() !== '';
+    });
+  });
+  const allGrounded = activeIds.size > 0 && grounded.length === activeIds.size;
+  return (govInputs >= 3 || allGrounded) ? 'governed' : 'exploratory';
 }
 
-function renderScenarioCard(s, pe){
-  const on = !!(pe ? pe.active : s.active);
-  const arv = pe?.arv || 0, monthly = pe?.delay || 0;
-  const evOpen  = !!(state.evOpen  && state.evOpen [s.scenario_id]);
-  const cfoOpen = !!(state.cfoOpen && state.cfoOpen[s.scenario_id]);
+function renderVCHeadline(customer, dom, A, conf){
+  const arv = A.arvFull || 0, delay = A.monthlyDelay || 0;
+  const arvCls = arv > 0 ? 'is-red' : '';
+  const labels = { governed:'GOVERNED', exploratory:'EXPLORATORY', default:'DEFAULT' };
   return `
-    <div class="sc-card ${on?'':'inactive'}">
-      <div class="sc-head">
-        <div class="sc-head-left">
-          <div class="sc-top">
-            <span class="chip ${THEME_CHIP[(s.value_theme||'').toLowerCase()]||'chip-grey'}">${escapeHtml(s.value_theme || 'other')}</span>
-            <span class="chip ${evidenceChip(s)}">${escapeHtml(s.evidence_strength || 'tier 3')}</span>
-            ${s.activation_horizon ? `<span class="chip chip-outline">${escapeHtml(s.activation_horizon)}</span>` : ''}
-          </div>
-          <div class="sc-name">${escapeHtml(s.mechanism_label || 'Mechanism')}</div>
-          <div class="sc-one">${escapeHtml(s.one_liner || s.description || '—')}</div>
-        </div>
-        <div class="sc-head-right">
-          <div class="sc-annual ${on?'':'muted'}">${fmtMoney(arv)}</div>
-          <div class="sc-monthly">${fmtMoney(monthly)}<span class="u">/mo</span></div>
-        </div>
+    <div class="vc-headline">
+      <div class="vc-headline-left">
+        <div class="vc-customer">${escapeHtml(customer)}</div>
+        <div class="vc-domain">${escapeHtml(dom)}</div>
       </div>
-      <div class="sc-foot">
-        <button class="sc-switch ${on?'is-on':''}" data-action="toggle-scenario" data-sid="${escapeHtml(s.scenario_id)}">
-          <span class="sc-switch-track"></span><span>${on?'Active':'Inactive'}</span>
-        </button>
-        <button class="sc-collapse ${evOpen?'is-open':''}" data-action="toggle-evidence" data-sid="${escapeHtml(s.scenario_id)}"><span class="caret">▸</span>Evidence</button>
-        <button class="sc-collapse ${cfoOpen?'is-open':''}" data-action="toggle-cfo" data-sid="${escapeHtml(s.scenario_id)}"><span class="caret">▸</span>CFO Objection</button>
+      <div class="vc-metrics">
+        <div class="vc-metric">
+          <div class="vc-metric-value ${arvCls}">${fmtMoney(arv)}</div>
+          <div class="vc-metric-label">annual value</div>
+        </div>
+        <div class="vc-metric">
+          <div class="vc-metric-value is-amber">${fmtMoney(delay)}</div>
+          <div class="vc-metric-label">per month of inaction</div>
+        </div>
+        <span class="vc-conf-chip vc-conf-${conf}">${labels[conf]}</span>
       </div>
-      ${evOpen  ? `<div class="sc-evidence"><div class="sc-sl">Typical baseline</div>${escapeHtml(s.typical_baseline_assumption || '—')}</div>` : ''}
-      ${cfoOpen ? `<div class="sc-cfo"><div class="sc-sl amber">CFO Challenge</div>${escapeHtml(s.cfo_challenge || '—')}</div>` : ''}
     </div>`;
 }
 
-function renderShadowed(scenarios, shadowedPer){
-  const open = state.poolShadowOpen;
-  const ids = new Set(shadowedPer.map(p => p.scenario_id));
-  const ss = scenarios.filter(s => ids.has(s.scenario_id));
+function renderVCStatus(e, scenarios, analysis, defs, ivs){
   return `
-    <div class="shadow-section">
-      <button class="shadow-head ${open?'is-open':''}" data-action="toggle-shadow"><span class="caret">▸</span>Pool-shadowed (${ss.length}) — highest-value scenario per pool counts toward totals</button>
-      ${open ? `<div class="shadow-body">${ss.map(s => {
-        const pe = shadowedPer.find(p => p.scenario_id === s.scenario_id);
-        return `<div class="shadow-row"><span class="chip ${THEME_CHIP[(s.value_theme||'').toLowerCase()]||'chip-grey'}">${escapeHtml(s.value_theme||'other')}</span><span class="shadow-name">${escapeHtml(s.mechanism_label || s.scenario_id)}</span><span class="muted mono">${fmtMoney(pe?.arv)}</span></div>`;
-      }).join('')}</div>` : ''}
+    <div class="vc-status-grid">
+      <div class="vc-status-left">
+        <div class="vc-status-header">Active mechanisms</div>
+        ${renderVCMechanismsList(scenarios, analysis)}
+      </div>
+      <div class="vc-status-right">
+        <div class="vc-status-header">Gaps &amp; next inputs</div>
+        ${renderVCGapsList(vcGaps(e, scenarios, defs, ivs, analysis))}
+      </div>
+    </div>`;
+}
+
+function renderVCMechanismsList(scenarios, analysis){
+  if (!scenarios.length){
+    return `<div class="vc-empty">No scenarios activated. <button class="vc-link" data-action="vefa-open-update">Open VEF Assist →</button> to select mechanisms.</div>`;
+  }
+  const peById = {};
+  (analysis.perScenario || []).forEach(p => { peById[p.scenario_id] = p; });
+  const active = [], shadowed = [], inactive = [];
+  scenarios.forEach(s => {
+    const pe = peById[s.scenario_id] || {};
+    if (pe.active && pe.pool_shadow) shadowed.push({ s, pe });
+    else if (pe.active)              active.push({ s, pe });
+    else                             inactive.push({ s, pe });
+  });
+  active.sort((a, b)   => (b.pe.arv || 0) - (a.pe.arv || 0));
+  shadowed.sort((a, b) => (b.pe.arv || 0) - (a.pe.arv || 0));
+  return [
+    ...active.map(x   => renderVCMechRow(x.s, x.pe, 'active')),
+    ...shadowed.map(x => renderVCMechRow(x.s, x.pe, 'shadowed')),
+    ...inactive.map(x => renderVCMechRow(x.s, x.pe, 'inactive'))
+  ].join('');
+}
+
+function renderVCMechRow(s, pe, kind){
+  const ICON = { active:'✓', shadowed:'◐', inactive:'○' };
+  const TAG  = { active:'',  shadowed:'pool-shadowed', inactive:'inactive' };
+  const oneLiner = s.one_liner || s.mechanism_label || s.scenario_id || '';
+  const arv = pe.arv || 0;
+  const arvCls = arv > 0 ? 'is-red' : '';
+  const showActiveExtras = kind === 'active';
+  return `
+    <div class="vc-mech-row vc-mech-${kind}">
+      <span class="vc-mech-icon">${ICON[kind]}</span>
+      <span class="vc-mech-text" title="${escapeHtml(oneLiner)}">${escapeHtml(oneLiner)}</span>
+      ${TAG[kind] ? `<span class="vc-mech-tag">${TAG[kind]}</span>` : ''}
+      ${showActiveExtras ? vcEvBadge(s.evidence_strength) : ''}
+      ${showActiveExtras ? `<span class="vc-mech-arv ${arvCls}">${fmtMoney(arv)}</span>` : ''}
+    </div>`;
+}
+
+function vcEvBadge(raw){
+  const v = (raw || '').toLowerCase();
+  let cls, label;
+  if      (v.includes('strong')   || v.includes('1') || v.includes('customer'))  { cls = 'vefa-ev-strong';   label = 'strong'; }
+  else if (v.includes('moderate') || v.includes('2') || v.includes('benchmark')) { cls = 'vefa-ev-moderate'; label = 'moderate'; }
+  else                                                                            { cls = 'vefa-ev-weak';     label = (raw && String(raw).trim()) || 'weak'; }
+  return `<span class="chip ${cls}">${escapeHtml(label)}</span>`;
+}
+
+// Returns ordered gap list per spec — TYPE 4 first, then 1 (by parent ARV
+// desc), 2, 3 (by ARV desc), 5 last. Cap is applied at render time.
+function vcGaps(e, scenarios, defs, ivs, analysis){
+  const gaps = [];
+  const peById = {};
+  (analysis.perScenario || []).forEach(p => { peById[p.scenario_id] = p; });
+  const activeScens = (scenarios || []).filter(s => {
+    const pe = peById[s.scenario_id];
+    return pe && pe.active && !pe.pool_shadow;
+  });
+  const reqOf = s => {
+    const r = s.inputs_required;
+    return Array.isArray(r) ? r : typeof r === 'string' ? r.split(',').map(k => k.trim()).filter(Boolean) : [];
+  };
+  const filled = key => {
+    const v = ivs && ivs[key] && ivs[key].provided_value;
+    return v != null && String(v).trim() !== '';
+  };
+
+  // TYPE 4 — overdue follow-up (red).
+  if (e.next_followup_date){
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const fuStr = String(e.next_followup_date).slice(0, 10);
+    if (fuStr < todayStr){
+      const days = Math.floor((new Date(todayStr + 'T00:00:00') - new Date(fuStr + 'T00:00:00')) / 86400000);
+      gaps.push({ kind:'overdue', label:`Follow-up overdue by ${days} day${days === 1 ? '' : 's'}`, dot:'red', impact: Infinity });
+    }
+  }
+
+  // TYPE 1 — high-sensitivity inputs unconfirmed (amber).
+  (defs || []).filter(d => (d.sensitivity || '').toLowerCase() === 'high').forEach(d => {
+    if (filled(d.input_key)) return;
+    let parentArv = 0;
+    activeScens.forEach(s => {
+      if (reqOf(s).includes(d.input_key)){
+        const arv = peById[s.scenario_id]?.arv || 0;
+        if (arv > parentArv) parentArv = arv;
+      }
+    });
+    gaps.push({ kind:'high-input', label:`${d.label || d.input_key} — not confirmed`, dot:'amber', impact: parentArv });
+  });
+
+  // TYPE 2 — implementation cost missing (amber).
+  if (!filled('implementation_cost')){
+    gaps.push({ kind:'impl-cost', label:'Implementation cost — needed for payback + BCR', dot:'amber' });
+  }
+
+  // TYPE 3 — weak-evidence active scenarios (amber).
+  activeScens.forEach(s => {
+    const ev = (s.evidence_strength || '').toLowerCase().trim();
+    if (!ev || ev === 'weak'){
+      const arv = peById[s.scenario_id]?.arv || 0;
+      const oneLiner = s.one_liner || s.mechanism_label || s.scenario_id || '';
+      gaps.push({ kind:'weak-ev', label:`${oneLiner} — weak evidence`, dot:'amber', impact: arv });
+    }
+  });
+
+  // TYPE 5 — no snapshot saved (grey).
+  const snaps = state.snapshots[e.engagement_id] || [];
+  if (!snaps.length){
+    gaps.push({ kind:'no-snap', label:'No milestone snapshot saved yet', dot:'grey' });
+  }
+
+  const typeOrder = { 'overdue':0, 'high-input':1, 'impl-cost':2, 'weak-ev':3, 'no-snap':4 };
+  gaps.sort((a, b) => {
+    const t = typeOrder[a.kind] - typeOrder[b.kind];
+    if (t !== 0) return t;
+    return (b.impact || 0) - (a.impact || 0);
+  });
+  return gaps;
+}
+
+function renderVCGapsList(gaps){
+  if (!gaps.length) return `<div class="vc-empty-gaps">Nothing flagged.</div>`;
+  const cap = 5;
+  const visible = gaps.slice(0, cap);
+  const hidden = gaps.length - visible.length;
+  const rows = visible.map(g =>
+    `<div class="vc-gap-row"><span class="vc-gap-dot is-${g.dot}"></span><span class="vc-gap-label">${escapeHtml(g.label)}</span></div>`
+  ).join('');
+  return rows + (hidden > 0 ? `<div class="vc-gap-more">+${hidden} more not shown</div>` : '');
+}
+
+// Returns the highest-priority next-action descriptor, or null if nothing
+// applies. Priorities are evaluated 1→6 in order; first match wins.
+function vcNextAction(e, scenarios, defs, ivs, analysis, conf){
+  const ivsObj = ivs || {};
+  const peById = {};
+  (analysis.perScenario || []).forEach(p => { peById[p.scenario_id] = p; });
+  const activeScens = (scenarios || []).filter(s => {
+    const pe = peById[s.scenario_id];
+    return pe && pe.active && !pe.pool_shadow;
+  });
+  const reqOf = s => {
+    const r = s.inputs_required;
+    return Array.isArray(r) ? r : typeof r === 'string' ? r.split(',').map(k => k.trim()).filter(Boolean) : [];
+  };
+  const filled = key => {
+    const v = ivsObj[key] && ivsObj[key].provided_value;
+    return v != null && String(v).trim() !== '';
+  };
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const fuStr = e.next_followup_date ? String(e.next_followup_date).slice(0, 10) : '';
+  const overdue = fuStr && fuStr < todayStr;
+  const highSensDefs = (defs || []).filter(d => (d.sensitivity || '').toLowerCase() === 'high');
+  const unconfirmedHigh = highSensDefs.filter(d => !filled(d.input_key));
+  const totalHigh = highSensDefs.length;
+  const snaps = state.snapshots[e.engagement_id] || [];
+
+  // PRIORITY 1 — overdue follow-up.
+  if (overdue){
+    const days = Math.floor((new Date(todayStr + 'T00:00:00') - new Date(fuStr + 'T00:00:00')) / 86400000);
+    const champ = e.champion_email || 'your champion';
+    return {
+      body: `Follow-up with <b>${escapeHtml(champ)}</b> is overdue by ${days} day${days === 1 ? '' : 's'}.`,
+      btnLabel:'Go to Deal →', btnAction:'ws-tab', btnData:{ tab:'deal' }
+    };
+  }
+  // PRIORITY 2 — top high-sensitivity input has a discovery question.
+  if (unconfirmedHigh.length){
+    let topArv = -1, topScen = null, topDef = null;
+    unconfirmedHigh.forEach(d => {
+      activeScens.forEach(s => {
+        if (!reqOf(s).includes(d.input_key)) return;
+        const arv = peById[s.scenario_id]?.arv || 0;
+        if (arv > topArv){ topArv = arv; topScen = s; topDef = d; }
+      });
+    });
+    const dq = topScen?.discovery_questions || '';
+    const firstQ = String(dq).split('|')[0].trim();
+    if (firstQ){
+      return {
+        body: `Ask your champion: <b>${escapeHtml(firstQ)}</b>`,
+        btnLabel:'Ask Meridian →', btnAction:'vc-ask-meridian', btnData:{ question:firstQ }
+      };
+    }
+  }
+  // PRIORITY 3 — governed but no snapshot.
+  if (conf === 'governed' && !snaps.length){
+    return {
+      body:'Analysis is governed. Save a milestone before your next meeting.',
+      btnLabel:'Save Snapshot →', btnAction:'open-save-snapshot', btnData:{}
+    };
+  }
+  // PRIORITY 4 — exploratory (some inputs, not yet governed).
+  if (conf === 'exploratory'){
+    return {
+      body: `<b>${unconfirmedHigh.length}</b> of <b>${totalHigh}</b> high-sensitivity inputs are unconfirmed. Ground the model to unlock governed output.`,
+      btnLabel:'Start Discovery →', btnAction:'toggle-meridian', btnData:{}
+    };
+  }
+  // PRIORITY 5 — default (no buyer inputs at all).
+  if (conf === 'default'){
+    return {
+      body:'No buyer inputs captured yet. Start with VEF Assist to activate the right scenarios.',
+      btnLabel:'Open VEF Assist →', btnAction:'vefa-open-update', btnData:{}
+    };
+  }
+  // PRIORITY 6 — everything complete.
+  return {
+    body:'Value case is governed and snapshot saved.',
+    btnLabel:'Generate Report →', btnAction:'generate-report', btnData:{}
+  };
+}
+
+function renderVCNextAction(na){
+  if (!na) return '';
+  const dataAttrs = Object.entries(na.btnData || {})
+    .map(([k, v]) => `data-${k}="${escapeHtml(String(v))}"`).join(' ');
+  return `
+    <div class="vc-next">
+      <div class="vc-next-header">Next action</div>
+      <div class="vc-next-body">${na.body}</div>
+      <button class="btn btn-primary btn-sm vc-next-btn" data-action="${na.btnAction}" ${dataAttrs}>${escapeHtml(na.btnLabel)}</button>
+    </div>`;
+}
+
+function renderVCDetail(scenarios, analysis){
+  const peById = {};
+  (analysis.perScenario || []).forEach(p => { peById[p.scenario_id] = p; });
+  const activeScens = (scenarios || []).filter(s => {
+    const pe = peById[s.scenario_id];
+    return pe && pe.active && !pe.pool_shadow;
+  }).slice().sort((a, b) => (peById[b.scenario_id]?.arv || 0) - (peById[a.scenario_id]?.arv || 0));
+  const open = !!state.vcDetailOpen;
+  return `
+    <div class="vc-detail">
+      <button class="vc-detail-toggle ${open ? 'is-open' : ''}" data-action="vc-toggle-detail">
+        <span class="caret">▸</span>Scenario detail (${activeScens.length} active)
+      </button>
+      ${open ? `<div class="vc-detail-body">${activeScens.map(s => renderVCScenarioRow(s, peById[s.scenario_id])).join('')}</div>` : ''}
+    </div>`;
+}
+
+function renderVCScenarioRow(s, pe){
+  const open = !!(state.vcCardOpen && state.vcCardOpen[s.scenario_id]);
+  const arv = pe?.arv || 0;
+  const arvCls = arv > 0 ? 'is-red' : '';
+  const oneLiner = s.one_liner || s.mechanism_label || s.scenario_id || '';
+  const isActive = !!(pe && pe.active);
+  return `
+    <div class="vc-scen-card ${isActive ? '' : 'is-inactive'}">
+      <div class="vc-scen-card-row" data-action="vc-toggle-card" data-sid="${escapeHtml(s.scenario_id)}">
+        <div class="vc-scen-card-left">
+          <span class="chip ${THEME_CHIP[(s.value_theme || '').toLowerCase()] || 'chip-grey'}">${escapeHtml(s.value_theme || 'other')}</span>
+          <div class="vc-scen-one" title="${escapeHtml(oneLiner)}">${escapeHtml(oneLiner)}</div>
+        </div>
+        <div class="vc-scen-card-right">
+          ${vcEvBadge(s.evidence_strength)}
+          <span class="vc-scen-card-arv ${arvCls}">${fmtMoney(arv)}</span>
+          <button class="sc-switch ${isActive ? 'is-on' : ''}" data-action="toggle-scenario" data-sid="${escapeHtml(s.scenario_id)}">
+            <span class="sc-switch-track"></span><span>${isActive ? 'On' : 'Off'}</span>
+          </button>
+        </div>
+      </div>
+      ${open ? `<dl class="vc-scen-card-detail">
+        <dt>Mechanism</dt><dd>${escapeHtml(s.mechanism_label || '—')}</dd>
+        <dt>CFO challenge</dt><dd>${escapeHtml(s.cfo_challenge || '—')}</dd>
+        <dt>Evidence</dt><dd>${escapeHtml(s.evidence_strength || '—')}</dd>
+      </dl>` : ''}
+    </div>`;
+}
+
+function renderVCHealthStrip(e, scenarios, analysis, defs, ivs){
+  const peById = {};
+  (analysis.perScenario || []).forEach(p => { peById[p.scenario_id] = p; });
+  const activeScens = (scenarios || []).filter(s => peById[s.scenario_id]?.active && !peById[s.scenario_id]?.pool_shadow);
+  const shadowedCount = (scenarios || []).filter(s => peById[s.scenario_id]?.active && peById[s.scenario_id]?.pool_shadow).length;
+  const high = (defs || []).filter(d => (d.sensitivity || '').toLowerCase() === 'high');
+  const filledHigh = high.filter(d => {
+    const v = ivs && ivs[d.input_key] && ivs[d.input_key].provided_value;
+    return v != null && String(v).trim() !== '';
+  });
+  const completeStr = high.length ? Math.round(filledHigh.length / high.length * 100) + '%' : '—';
+  let strong = 0, moderate = 0, weak = 0;
+  activeScens.forEach(s => {
+    const v = (s.evidence_strength || '').toLowerCase();
+    if      (v.includes('strong')   || v.includes('1') || v.includes('customer'))  strong++;
+    else if (v.includes('moderate') || v.includes('2') || v.includes('benchmark')) moderate++;
+    else                                                                            weak++;
+  });
+  const snaps = state.snapshots[e.engagement_id] || [];
+  const last = snaps[0];
+  const lastStr = last
+    ? `${escapeHtml(last.snapshot_label || 'unlabeled')} · ${escapeHtml(relTime(last.created_at) || '')}`
+    : 'None saved';
+  return `
+    <div class="vc-health">
+      <div class="vc-health-chip"><span class="vc-health-label">Data completeness</span><span class="vc-health-value">${completeStr}</span></div>
+      <div class="vc-health-chip"><span class="vc-health-label">Evidence</span><span class="vc-health-value">${strong} strong · ${moderate} moderate · ${weak} weak</span></div>
+      <div class="vc-health-chip"><span class="vc-health-label">Scenarios</span><span class="vc-health-value">${activeScens.length} active · ${shadowedCount} shadowed</span></div>
+      <div class="vc-health-chip"><span class="vc-health-label">Last snapshot</span><span class="vc-health-value">${lastStr}</span></div>
     </div>`;
 }
 
@@ -2259,7 +2592,31 @@ document.addEventListener('click', e => {
   }
   if (a === 'back-to-home')      return setState({ screen:'home', activeEngagementId:null, activeTab:'value-case' });
   if (a === 'ws-tab')            return setState({ activeTab: node.getAttribute('data-tab') });
-  if (a === 'toggle-meridian')   return setState({ meridianOpen: !state.meridianOpen });
+  if (a === 'toggle-meridian'){
+    const opening = !state.meridianOpen;
+    setState({ meridianOpen: opening });
+    if (opening && state.meridianPreload){
+      const q = state.meridianPreload; state.meridianPreload = null;
+      callMeridian(q);
+    }
+    return;
+  }
+  if (a === 'vc-ask-meridian'){
+    const q = (node.getAttribute('data-question') || '').trim();
+    state.meridianPreload = q || null;
+    if (!state.meridianOpen) setState({ meridianOpen: true });
+    if (state.meridianPreload){
+      const msg = state.meridianPreload; state.meridianPreload = null;
+      callMeridian(msg);
+    }
+    return;
+  }
+  if (a === 'vc-toggle-detail') return setState({ vcDetailOpen: !state.vcDetailOpen });
+  if (a === 'vc-toggle-card'){
+    const sid = node.getAttribute('data-sid'); if (!sid) return;
+    const cur = state.vcCardOpen || {};
+    return setState({ vcCardOpen: { ...cur, [sid]: !cur[sid] } });
+  }
   if (a === 'mx-quick')          return callMeridian(node.getAttribute('data-prompt'));
   if (a === 'mx-reset-key')      { localStorage.removeItem('anthropic_api_key'); return toast('API key cleared — next send will prompt again'); }
   if (a === 'mx-clear')          { const eng = currentEng(); if (eng) state.meridianHistory[eng.engagement_id] = []; return render(); }
@@ -2268,8 +2625,6 @@ document.addEventListener('click', e => {
   if (a === 'export-snap')       return toast('PDF export — coming soon');
   if (a === 'generate-report')   return toast('Report export — stub');
   if (a === 'toggle-scenario')   return toggleScenarioActive(node.getAttribute('data-sid'));
-  if (a === 'toggle-evidence' || a === 'toggle-cfo'){ const bag = a === 'toggle-cfo' ? (state.cfoOpen = state.cfoOpen || {}) : (state.evOpen = state.evOpen || {}); const sid = node.getAttribute('data-sid'); bag[sid] = !bag[sid]; return render(); }
-  if (a === 'toggle-shadow')     return setState({ poolShadowOpen: !state.poolShadowOpen });
   if (a === 'input-preset')      return applyInputPreset(node.getAttribute('data-preset'));
   if (a === 'edit-input-val' || a === 'deal-edit'){
     if (node.getAttribute('contenteditable') === 'true') return;

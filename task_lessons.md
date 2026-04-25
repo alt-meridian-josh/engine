@@ -101,6 +101,20 @@
 **Rule going forward:** When a task names "issues to fix," do a structured read-only audit first — for each issue, list (a) what's reachable, (b) what's actually unreachable, (c) shared dependencies. Report findings with line numbers and wait for go. The audit pass also gives you a free verification baseline for the fix.
 **Applies to:** all
 
+## 2026-04-25 — Preserve orphan-looking helpers across chunks during rip-and-replace
+**Context:** Value Case redesign, six chunks, one file (workspace.html). Chunks 1–4 didn't call `renderScenarioCard` / `renderShadowed` / `evidenceSummary` / `evidenceChip`, but Chunk 5 (collapsible scenario detail) was a plausible reuse site.
+**What happened:** Held on retiring the four helpers for four chunks. Chunk 5 ended up building a different compact card (different layout, different per-card state, no Evidence/CFO collapsibles) so the old helpers became truly orphan only at Chunk 5's end. Cleanup at Chunk 6 was −85 / +2. The win was that Chunk 5 plucked `.sc-switch` + `.sc-switch-track` out of the soon-to-be-retired `renderScenarioCard` and reused them — that was trivially obvious only because the parent fn was still in the file.
+**Root cause:** "Orphan now" ≠ "orphan for the duration of the rebuild." During active rip-and-replace, anything a future chunk *might* want is conditionally live. Premature deletion turns "obvious to reuse" into "have to re-derive or grep history."
+**Rule going forward:** During multi-chunk rebuilds, retire dead helpers in a *terminal QA chunk* — not in the chunk that first orphans them. Two-pass deletion: pass 1 marks "no current callers" (don't act); pass 2 (after the rebuild lands) confirms "no future callers either" and removes.
+**Applies to:** alt-meridian, any multi-chunk SPA rebuild
+
+## 2026-04-25 — Audit cleanup-chunk size before scoping; split when the cap forces it
+**Context:** The original Chunk 5 was scoped as "Section 4 + Section 5 + QA pass." Once Sections 4+5 were written, the QA cleanup added ~80 lines of orphan-removal — total projected ~190, over the 150-line cap.
+**What happened:** Caught the overrun *before* writing the cleanup code by running a pre-implementation grep pass: every orphan helper, every CSS class still referenced, every state field that becomes unused, every dispatch arm whose body is gone. Inventory came in at 4 helpers + 2 state fields + 3 dispatch arms + ~16 dead CSS lines. Splitting cleanup into its own Chunk 6 made both halves clean (Chunk 5 = 112 lines, Chunk 6 = 87 lines).
+**Root cause:** "Build + cleanup in one chunk" is the natural mental model, but cleanup is its own kind of work with its own diff cost. That cost is measurable by audit, not by intuition.
+**Rule going forward:** Any chunk that includes "remove orphan X" gets preceded by an explicit grep inventory: every token to remove, every CSS class retained, every dispatch arm. If audit + new-feature exceeds the cap, the cleanup gets its own chunk. Don't estimate cleanup cost from memory.
+**Applies to:** alt-meridian, all
+
 ## 2026-04-25 — Verify branch state before merging — `git fetch` first
 **Context:** User asked to merge a feature branch to main. I checked `git branch -a` first and didn't see the named branch — concluded "doesn't exist." Then a later fetch revealed `origin/claude/vef-assist-Qb4q5` did exist on the remote and held exactly the work the user described. I'd also reported `origin/main` was at `62e0e04` when in fact the next fetch updated it to `41e25bf` mid-conversation.
 **What happened:** Two false-negative findings reported to the user before any destructive action — caught only because the user pushed back. If I'd just merged `chunk-f3-ZQCdv` (the only feature branch I "saw"), I'd have shipped the wrong work under the wrong commit message.
