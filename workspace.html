@@ -236,28 +236,13 @@ input,select,textarea{font:inherit;color:inherit}
 .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px}
 .section-title{font-family:var(--display);font-size:15px;font-weight:600;color:var(--ink)}
 .section-count{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-left:8px;text-transform:uppercase;letter-spacing:.08em;font-weight:400}
-.sc-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:16px 20px;box-shadow:var(--shadow);margin-bottom:10px;transition:opacity .12s} .sc-card.inactive{opacity:.55}
-.sc-head{display:flex;justify-content:space-between;gap:18px;align-items:flex-start} .sc-head-left{flex:1;min-width:0} .sc-head-right{text-align:right;white-space:nowrap}
-.sc-top{display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap}
-.sc-name{font-family:var(--display);font-weight:600;color:var(--ink);font-size:14px;margin-bottom:3px;line-height:1.3} .sc-one{font-family:var(--mono);font-size:11px;color:var(--ink2)}
-.sc-annual{font-family:var(--display);font-weight:700;font-size:22px;color:var(--red);letter-spacing:-.01em;line-height:1.05} .sc-annual.muted{color:var(--ink3)}
-.sc-monthly{font-family:var(--mono);font-size:11px;color:var(--ink3);margin-top:3px}
-.sc-foot{display:flex;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid var(--border);align-items:center;flex-wrap:wrap}
+/* .sc-switch + .sc-switch-track survive: reused by Value Case Section 4 toggle. */
 .sc-switch{display:inline-flex;align-items:center;gap:8px;padding:3px 9px;border-radius:var(--r);border:1px solid var(--border2);color:var(--ink3);font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em;transition:all .12s;background:#fff}
 .sc-switch:hover{color:var(--ink)}
 .sc-switch.is-on{background:var(--green-dim);border-color:var(--green);color:var(--green)}
 .sc-switch-track{width:24px;height:12px;background:#d1ccc5;border-radius:999px;position:relative;display:inline-block;transition:background .12s}
 .sc-switch-track::after{content:'';position:absolute;top:1px;left:1px;width:10px;height:10px;background:#fff;border-radius:50%;transition:transform .12s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
 .sc-switch.is-on .sc-switch-track{background:var(--green)}.sc-switch.is-on .sc-switch-track::after{transform:translateX(12px)}
-.sc-collapse{font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);padding:3px 8px;border-radius:var(--r);transition:color .12s,background .12s} .sc-collapse:hover{color:var(--ink);background:var(--bg)} .sc-collapse.is-open{color:var(--red)}
-.sc-evidence,.sc-cfo{margin-top:10px;padding:10px 12px;border-radius:var(--r);font-size:12px;color:var(--ink2);line-height:1.5;font-family:var(--mono)}
-.sc-evidence{background:var(--bg);border-left:3px solid var(--ink3)} .sc-cfo{background:var(--amber-dim);border-left:3px solid var(--amber)}
-.sc-sl{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);margin-bottom:4px;font-weight:500} .sc-sl.amber{color:var(--amber)}
-.shadow-section{margin-top:14px;background:#fff;border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
-.shadow-head{width:100%;text-align:left;padding:10px 16px;font-family:var(--mono);font-size:11px;color:var(--ink2);text-transform:uppercase;letter-spacing:.06em;transition:background .12s} .shadow-head:hover{background:var(--bg)}
-.shadow-body{padding:6px 16px 12px;border-top:1px solid var(--border)}
-.shadow-row{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:12px;border-bottom:1px solid var(--border)} .shadow-row:last-child{border-bottom:0}
-.shadow-name{flex:1;color:var(--ink2)}
 .caret{display:inline-block;transition:transform .15s;margin-right:4px} .is-open .caret{transform:rotate(90deg)}
 /* Inputs tab */
 .preset-bar{display:flex;gap:4px}
@@ -529,7 +514,7 @@ const state = {
   scenarios:{}, inputDefs:{}, inputValues:{}, snapshots:{}, evidence:{},
   activeTab:'value-case', meridianOpen:false, meridianHistory:{}, meridianPreload:null,
   homeFilter:'all', homeSearch:'', homeSort:'updated',
-  modal:null, loading:false, poolShadowOpen:false, vcDetailOpen:false, vcCardOpen:{},
+  modal:null, loading:false, vcDetailOpen:false, vcCardOpen:{},
   vefAssist: makeVEFAssistState()
 };
 function setState(patch){ Object.assign(state, patch); if (typeof render === 'function') render(); }
@@ -1703,12 +1688,6 @@ function renderWorkspaceMain(e){
   return '';
 }
 const THEME_CHIP = {'labor':'chip-blue','compliance':'chip-amber','risk':'chip-red','strategic':'chip-green'};
-function evidenceChip(s){
-  const v = (s.evidence_strength || 'tier-3').toLowerCase();
-  if (v.includes('1') || v.includes('customer')) return 'chip-green';
-  if (v.includes('2') || v.includes('benchmark')) return 'chip-amber';
-  return 'chip-grey';
-}
 
 function renderValueCaseTab(e){
   const scenarios = state.scenarios[e.engagement_id] || [];
@@ -2092,66 +2071,6 @@ function renderVCHealthStrip(e, scenarios, analysis, defs, ivs){
       <div class="vc-health-chip"><span class="vc-health-label">Evidence</span><span class="vc-health-value">${strong} strong · ${moderate} moderate · ${weak} weak</span></div>
       <div class="vc-health-chip"><span class="vc-health-label">Scenarios</span><span class="vc-health-value">${activeScens.length} active · ${shadowedCount} shadowed</span></div>
       <div class="vc-health-chip"><span class="vc-health-label">Last snapshot</span><span class="vc-health-value">${lastStr}</span></div>
-    </div>`;
-}
-
-function evidenceSummary(active){
-  if (!active.length) return 'n/a';
-  const c = {t1:0,t2:0,t3:0};
-  active.forEach(s => {
-    const v = (s.evidence_strength||'').toLowerCase();
-    if (v.includes('1')||v.includes('customer')) c.t1++;
-    else if (v.includes('2')||v.includes('benchmark')) c.t2++;
-    else c.t3++;
-  });
-  return `T1×${c.t1} · T2×${c.t2} · T3×${c.t3}`;
-}
-
-function renderScenarioCard(s, pe){
-  const on = !!(pe ? pe.active : s.active);
-  const arv = pe?.arv || 0, monthly = pe?.delay || 0;
-  const evOpen  = !!(state.evOpen  && state.evOpen [s.scenario_id]);
-  const cfoOpen = !!(state.cfoOpen && state.cfoOpen[s.scenario_id]);
-  return `
-    <div class="sc-card ${on?'':'inactive'}">
-      <div class="sc-head">
-        <div class="sc-head-left">
-          <div class="sc-top">
-            <span class="chip ${THEME_CHIP[(s.value_theme||'').toLowerCase()]||'chip-grey'}">${escapeHtml(s.value_theme || 'other')}</span>
-            <span class="chip ${evidenceChip(s)}">${escapeHtml(s.evidence_strength || 'tier 3')}</span>
-            ${s.activation_horizon ? `<span class="chip chip-outline">${escapeHtml(s.activation_horizon)}</span>` : ''}
-          </div>
-          <div class="sc-name">${escapeHtml(s.mechanism_label || 'Mechanism')}</div>
-          <div class="sc-one">${escapeHtml(s.one_liner || s.description || '—')}</div>
-        </div>
-        <div class="sc-head-right">
-          <div class="sc-annual ${on?'':'muted'}">${fmtMoney(arv)}</div>
-          <div class="sc-monthly">${fmtMoney(monthly)}<span class="u">/mo</span></div>
-        </div>
-      </div>
-      <div class="sc-foot">
-        <button class="sc-switch ${on?'is-on':''}" data-action="toggle-scenario" data-sid="${escapeHtml(s.scenario_id)}">
-          <span class="sc-switch-track"></span><span>${on?'Active':'Inactive'}</span>
-        </button>
-        <button class="sc-collapse ${evOpen?'is-open':''}" data-action="toggle-evidence" data-sid="${escapeHtml(s.scenario_id)}"><span class="caret">▸</span>Evidence</button>
-        <button class="sc-collapse ${cfoOpen?'is-open':''}" data-action="toggle-cfo" data-sid="${escapeHtml(s.scenario_id)}"><span class="caret">▸</span>CFO Objection</button>
-      </div>
-      ${evOpen  ? `<div class="sc-evidence"><div class="sc-sl">Typical baseline</div>${escapeHtml(s.typical_baseline_assumption || '—')}</div>` : ''}
-      ${cfoOpen ? `<div class="sc-cfo"><div class="sc-sl amber">CFO Challenge</div>${escapeHtml(s.cfo_challenge || '—')}</div>` : ''}
-    </div>`;
-}
-
-function renderShadowed(scenarios, shadowedPer){
-  const open = state.poolShadowOpen;
-  const ids = new Set(shadowedPer.map(p => p.scenario_id));
-  const ss = scenarios.filter(s => ids.has(s.scenario_id));
-  return `
-    <div class="shadow-section">
-      <button class="shadow-head ${open?'is-open':''}" data-action="toggle-shadow"><span class="caret">▸</span>Pool-shadowed (${ss.length}) — highest-value scenario per pool counts toward totals</button>
-      ${open ? `<div class="shadow-body">${ss.map(s => {
-        const pe = shadowedPer.find(p => p.scenario_id === s.scenario_id);
-        return `<div class="shadow-row"><span class="chip ${THEME_CHIP[(s.value_theme||'').toLowerCase()]||'chip-grey'}">${escapeHtml(s.value_theme||'other')}</span><span class="shadow-name">${escapeHtml(s.mechanism_label || s.scenario_id)}</span><span class="muted mono">${fmtMoney(pe?.arv)}</span></div>`;
-      }).join('')}</div>` : ''}
     </div>`;
 }
 
@@ -2706,8 +2625,6 @@ document.addEventListener('click', e => {
   if (a === 'export-snap')       return toast('PDF export — coming soon');
   if (a === 'generate-report')   return toast('Report export — stub');
   if (a === 'toggle-scenario')   return toggleScenarioActive(node.getAttribute('data-sid'));
-  if (a === 'toggle-evidence' || a === 'toggle-cfo'){ const bag = a === 'toggle-cfo' ? (state.cfoOpen = state.cfoOpen || {}) : (state.evOpen = state.evOpen || {}); const sid = node.getAttribute('data-sid'); bag[sid] = !bag[sid]; return render(); }
-  if (a === 'toggle-shadow')     return setState({ poolShadowOpen: !state.poolShadowOpen });
   if (a === 'input-preset')      return applyInputPreset(node.getAttribute('data-preset'));
   if (a === 'edit-input-val' || a === 'deal-edit'){
     if (node.getAttribute('contenteditable') === 'true') return;
