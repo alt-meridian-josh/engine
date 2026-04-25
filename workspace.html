@@ -15,6 +15,8 @@
   --green:#2d7d4f; --green-dim:#f0f7f3;
   --amber:#b45309; --amber-dim:#fef3e2;
   --blue:#1d4ed8; --blue-dim:#eff6ff;
+  --out-visibility:#1d4ed8; --out-throughput:#b45309; --out-compliance:#7c3aed;
+  --out-risk:#d63b2f; --out-intelligence:#0f766e; --out-performance:#15803d; --out-revenue:#065f46;
   --topbar-bg:#141210; --topbar-text:#e8e5e0;
   --display:'Syne',ui-sans-serif,system-ui,sans-serif;
   --mono:'DM Mono',ui-monospace,SFMono-Regular,monospace;
@@ -434,6 +436,20 @@ input,select,textarea{font:inherit;color:inherit}
 .vefa-focus-chip{padding:4px 10px;border-radius:var(--r-chip);font-family:var(--mono);font-size:11px;color:var(--ink2);border:1px solid var(--border2);background:#fff;transition:all .12s;cursor:pointer}
 .vefa-focus-chip:hover{border-color:var(--ink3);color:var(--ink)}
 .vefa-focus-chip.is-on{background:var(--red);color:#fff;border-color:var(--red)}
+.vefa-tile-section{margin-top:2px}
+.vefa-tile-q{font-family:var(--display);font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px}
+.vefa-tile-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.vefa-tile{padding:10px 12px;border:1px solid var(--border2);border-radius:var(--r);background:#fff;cursor:pointer;transition:all .12s;text-align:left;display:block;width:100%}
+.vefa-tile:hover{border-color:var(--ink3)}
+.vefa-tile.is-on{background:var(--red-dim);border-color:var(--red)}
+.vefa-tile-name{font-family:var(--display);font-weight:700;font-size:16px;color:var(--ink);line-height:1.2}
+.vefa-tile-desc{font-family:var(--mono);font-size:11px;color:var(--ink3);line-height:1.45;margin-top:4px}
+.vefa-tile-meta{display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap}
+.vefa-tile-tech{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.06em;padding:2px 6px;border-radius:var(--r-chip);background:#eceae6;color:var(--ink2)}
+.vefa-tile-count{font-family:var(--mono);font-size:10px;color:var(--ink3)}
+.vefa-tile-empty{padding:14px;font-family:var(--mono);font-size:11px;color:var(--ink3);font-style:italic;text-align:center;border:1px dashed var(--border2);border-radius:var(--r)}
+.vefa-tile-resolved{padding:10px 12px;border:1px solid var(--green);background:var(--green-dim);border-radius:var(--r);font-family:var(--mono);font-size:11px;color:var(--ink)}
+.vefa-tile-resolved strong{font-family:var(--display);font-weight:600;color:var(--ink)}
 .vefa-panel-r.vefa-panel-tinted{background:var(--red-dim);border-color:rgba(214,59,47,.2)}
 .vefa-interp-title{font-family:var(--display);font-size:13px;font-weight:600;color:var(--red);margin-bottom:10px}
 .vefa-interp-sub{font-family:var(--mono);font-size:10px;color:var(--ink2);line-height:1.5}
@@ -709,6 +725,7 @@ function makeVEFAssistState(){
     open:false, mode:'new', engagementId:null, step:0,
     importText:'', extractedClaims:[], extracting:false, extractError:null,
     analysisName:'', customer:'', vendor:'', domainId:'',
+    outcomeTiles:[], _domainScenarioCounts:null,
     stage:'Discovery', phase:'Pre-Sale',
     championEmail:'', economicBuyerEmail:'', nextFollowUp:'',
     whatToProve:'', valueFocus:[],
@@ -740,6 +757,7 @@ function vefAssistIsDirty(){
   const v = state.vefAssist; if (!v) return false;
   return Boolean(v.importText || (v.extractedClaims && v.extractedClaims.length) ||
     v.analysisName || v.customer || v.vendor || v.domainId ||
+    (v.outcomeTiles && v.outcomeTiles.length) ||
     v.championEmail || v.economicBuyerEmail || v.nextFollowUp ||
     v.whatToProve || (v.valueFocus && v.valueFocus.length) ||
     (v.selectedScenarioIds && v.selectedScenarioIds.size) ||
@@ -1020,6 +1038,17 @@ function vefaComputeVerdict(claim, match){
 }
 /* ---------- VEF ASSIST · STEP 1 (CONTEXT) ---------- */
 const VEFA_FOCI = ['Cost Reduction','Throughput','Compliance','Risk','Revenue','Experience','Strategic'];
+const OUTCOMES = [
+  { key:'Visibility',   desc:'Know where things are and what condition they\'re in' },
+  { key:'Throughput',   desc:'Move things faster through your operation' },
+  { key:'Compliance',   desc:'Prove what happened and when' },
+  { key:'Risk',         desc:'Predict and prevent financial exposure' },
+  { key:'Intelligence', desc:'Turn data into faster decisions' },
+  { key:'Performance',  desc:'Get more from equipment and assets' },
+  { key:'Revenue',      desc:'Capture value that\'s being lost' }
+];
+const OUTCOME_DESC = OUTCOMES.reduce((m,o) => (m[o.key]=o.desc, m), {});
+function cleanDomainName(name){ return (name || '').replace(/^[A-Z][A-Z0-9]+\s+—\s+/, ''); }
 function vefaReqTag(r){ return r ? ' <span class="req">*</span>' : ''; }
 function vefaInput(key, label, req, type, val){
   return `<div class="vefa-field"><label class="vefa-label">${escapeHtml(label)}${vefaReqTag(req)}</label>
@@ -1034,19 +1063,19 @@ function vefaTextareaField(key, label, placeholder, val){
   return `<div class="vefa-field"><label class="vefa-label">${escapeHtml(label)}</label>
     <textarea class="vefa-textarea" data-action="vefa-field" data-key="${key}" placeholder="${escapeHtml(placeholder)}" rows="3">${escapeHtml(val || '')}</textarea></div>`;
 }
-function renderVEFADomainSelect(v){
-  const byTech = {};
-  Object.values(state.domains || {}).forEach(d => {
-    const tech = d.technology || 'Other';
-    (byTech[tech] = byTech[tech] || []).push(d);
-  });
-  const groups = Object.keys(byTech).sort().map(tech => {
-    const rows = byTech[tech].slice().sort((a,b) => (a.domain_name||'').localeCompare(b.domain_name||''));
-    const opts = rows.map(d => `<option value="${escapeHtml(d.domain_id)}"${d.domain_id===v.domainId?' selected':''}>${escapeHtml(d.domain_name || d.domain_id)}</option>`).join('');
-    return `<optgroup label="${escapeHtml(tech)}">${opts}</optgroup>`;
-  }).join('');
-  return `<div class="vefa-field"><label class="vefa-label">Domain${vefaReqTag(true)}</label>
-    <select class="vefa-select" data-action="vefa-select" data-key="domainId"><option value="">— Select a domain —</option>${groups}</select></div>`;
+function renderVEFAOutcomeSection(v){
+  const set = new Set(v.outcomeTiles || []);
+  const tiles = OUTCOMES.map(o => `<button type="button" class="vefa-tile ${set.has(o.key)?'is-on':''}" data-action="vefa-outcome-toggle" data-outcome="${escapeHtml(o.key)}">
+    <div class="vefa-tile-name">${escapeHtml(o.key)}</div>
+    <div class="vefa-tile-desc">${escapeHtml(o.desc)}</div>
+  </button>`).join('');
+  return `<div class="vefa-tile-section"><div class="vefa-tile-q">What are we trying to improve?${vefaReqTag(true)}</div>
+    <div class="vefa-tile-grid" id="vefa-outcome-grid">${tiles}</div></div>`;
+}
+function renderVEFADomainTiles(v){
+  // Part B render lives in Chunk 2; this empty container reserves the DOM slot
+  // so the click handler can replace just this subtree without touching Part A.
+  return `<div class="vefa-tile-section" id="vefa-domain-tiles"></div>`;
 }
 function renderVEFAValueFocus(v){
   const set = new Set(v.valueFocus || []);
@@ -1059,7 +1088,8 @@ function renderVEFAssistStep1(v){
       ${vefaInput('analysisName','Analysis Name',true,'text',v.analysisName)}
       ${vefaInput('customer','Customer / Account',true,'text',v.customer)}
       ${vefaInput('vendor','Vendor / Solution',true,'text',v.vendor)}
-      ${renderVEFADomainSelect(v)}
+      ${renderVEFAOutcomeSection(v)}
+      ${renderVEFADomainTiles(v)}
       <div class="vefa-row-2">${vefaSelectField('stage','Sales Stage',true,STAGES,v.stage)}${vefaSelectField('phase','Delivery Phase',true,PHASES,v.phase)}</div>
       <div class="vefa-row-2">${vefaInput('championEmail','Champion Email',false,'email',v.championEmail)}${vefaInput('economicBuyerEmail','Economic Buyer Email',false,'email',v.economicBuyerEmail)}</div>
       ${vefaInput('nextFollowUp','Next Follow-Up Date',false,'date',v.nextFollowUp)}
