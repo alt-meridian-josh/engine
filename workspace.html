@@ -392,14 +392,14 @@ input,select,textarea{font:inherit;color:inherit}
 .vefa-close{color:var(--ink3);padding:2px 8px;border-radius:var(--r);font-size:20px;line-height:1}
 .vefa-close:hover{background:var(--bg);color:var(--ink)}
 .vefa-progress{display:flex;align-items:flex-start;padding:14px 22px;border-bottom:1px solid var(--border);background:var(--surface-2);gap:0}
-.vefa-node{display:flex;flex-direction:column;align-items:center;gap:5px;flex:0 0 auto;min-width:74px}
-.vefa-dot{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;font-weight:600;border:1.5px solid var(--border2);background:var(--surface);color:var(--ink3);transition:all .15s}
-.vefa-dot.is-current{border-color:var(--red);color:var(--red)}
+.vefa-node{display:flex;flex-direction:column;align-items:center;gap:6px;flex:0 0 auto;min-width:74px}
+.vefa-dot{width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;font-weight:600;border:1px solid var(--border2);background:transparent;color:var(--ink3);transition:all .15s}
+.vefa-dot.is-current{border:2px solid var(--red);color:var(--red);background:transparent}
 .vefa-dot.is-done{background:var(--red);border-color:var(--red);color:#fff}
-.vefa-step-label{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);text-align:center}
+.vefa-step-label{font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink3);text-align:center}
 .vefa-node.is-current .vefa-step-label{color:var(--red)}
-.vefa-node.is-done .vefa-step-label{color:var(--ink2)}
-.vefa-connector{flex:1 1 auto;height:1px;background:var(--border2);margin:11px 4px 0;align-self:flex-start}
+.vefa-node.is-done .vefa-step-label{color:var(--ink3)}
+.vefa-connector{flex:1 1 auto;height:1px;background:var(--border2);margin:10px 4px 0;align-self:flex-start}
 .vefa-connector.is-done{background:var(--red)}
 .vefa-body{flex:1;overflow-y:auto;padding:20px 22px;min-height:0}
 .vefa-layout{display:grid;grid-template-columns:60fr 40fr;gap:18px;min-height:420px}
@@ -464,37 +464,39 @@ input,select,textarea{font:inherit;color:inherit}
 .vefa-tile-section{margin-top:2px}
 .vefa-tile-q{font-family:var(--display);font-size:13px;font-weight:600;color:var(--ink);margin-bottom:8px}
 .vefa-tile-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.vefa-tile{padding:10px 12px;border:1px solid var(--border2);border-radius:var(--r);background:var(--surface);cursor:pointer;transition:all .12s;text-align:left;display:block;width:100%}
-.vefa-tile:hover{border-color:var(--ink3)}
-.vefa-tile.is-on{background:var(--red-dim);border-color:var(--red)}
-.vefa-tile-name{font-family:var(--display);font-weight:700;font-size:16px;color:var(--ink);line-height:1.2}
-.vefa-tile-desc{font-family:var(--mono);font-size:11px;color:var(--ink3);line-height:1.45;margin-top:4px}
+.vefa-tile{padding:12px 14px;border:1px solid var(--border);border-radius:3px;background:var(--surface-2);cursor:pointer;transition:border-color .15s,background .15s;text-align:left;display:block;width:100%}
+.vefa-tile:hover{border-color:var(--border2)}
+.vefa-tile.is-on{background:rgba(214,59,47,.08);border-color:var(--red)}
+.vefa-tile-name{font-family:var(--display);font-weight:700;font-size:13px;color:var(--ink);line-height:1.2}
+.vefa-tile-desc{font-family:var(--mono);font-size:9px;color:var(--ink3);line-height:1.5;margin-top:5px}
+#vefa-domain-tiles .vefa-tile-name{font-weight:600;font-size:12px}
 .vefa-tile-meta{display:flex;align-items:center;gap:6px;margin-top:6px;flex-wrap:wrap}
-.vefa-tile-tech{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.06em;padding:2px 6px;border-radius:var(--r-chip);background:var(--chip-bg);color:var(--ink2)}
-.vefa-tile-count{font-family:var(--mono);font-size:10px;color:var(--ink3)}
+.vefa-tile-tech{font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:.06em;padding:2px 6px;border-radius:var(--r-chip);background:var(--chip-bg);color:var(--ink3)}
+.vefa-tile-count{font-family:var(--mono);font-size:8px;color:var(--ink3)}
 .vefa-tile-empty{padding:14px;font-family:var(--mono);font-size:11px;color:var(--ink3);font-style:italic;text-align:center;border:1px dashed var(--border2);border-radius:var(--r)}
 .vefa-tile-resolved{padding:10px 12px;border:1px solid var(--green);background:var(--green-dim);border-radius:var(--r);font-family:var(--mono);font-size:11px;color:var(--ink)}
 .vefa-tile-resolved strong{font-family:var(--display);font-weight:600;color:var(--ink)}
-.vefa-panel-r.vefa-panel-tinted{background:var(--red-dim);border-color:rgba(214,59,47,.2)}
-.vefa-interp-title{font-family:var(--display);font-size:13px;font-weight:600;color:var(--red);margin-bottom:10px}
+.vefa-panel-r.vefa-panel-tinted{background:rgba(214,59,47,.05);border:1px solid rgba(214,59,47,.15);border-radius:3px}
+.vefa-interp-title{font-family:var(--mono);font-size:8px;font-weight:600;text-transform:uppercase;letter-spacing:.14em;color:var(--red);margin-bottom:10px}
 .vefa-interp-sub{font-family:var(--mono);font-size:10px;color:var(--ink2);line-height:1.5}
 .vefa-interp-block{margin-top:12px}
-.vefa-interp-label{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);margin-bottom:4px}
+.vefa-interp-label{font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink3);margin-bottom:5px}
 .vefa-interp-val{font-family:var(--mono);font-size:11px;color:var(--ink)}
 .vefa-interp-chips{display:flex;flex-wrap:wrap;gap:4px}
+.vefa-interp-chips .chip{background:rgba(214,59,47,.08);border:1px solid rgba(214,59,47,.2);color:var(--red);font-family:var(--mono);font-size:9px;padding:2px 7px;letter-spacing:.04em}
 .vefa-interp-empty{font-family:var(--mono);font-size:10px;color:var(--ink3);font-style:italic}
 .vefa-step2-meta{display:flex;align-items:center;gap:10px;padding-bottom:10px;margin-bottom:12px;border-bottom:1px solid var(--border);flex-wrap:wrap}
 .vefa-step2-dom{font-family:var(--display);font-size:14px;font-weight:600;color:var(--ink)}
 .vefa-step2-foci{display:flex;gap:4px;flex-wrap:wrap}
 .vefa-step2-foci .chip{padding:3px 8px;border-radius:var(--r-chip);background:var(--red-dim);color:var(--red);font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.06em}
-.vefa-scen-list{display:flex;flex-direction:column;gap:6px;max-height:440px;overflow-y:auto;padding-right:4px}
-.vefa-scen-row{display:grid;grid-template-columns:auto 1fr auto;gap:12px;padding:10px 12px;border:1px solid var(--border);border-radius:var(--r);background:var(--surface);cursor:pointer;transition:background .12s,border-color .12s;align-items:flex-start}
-.vefa-scen-row:hover{border-color:var(--ink3)}
-.vefa-scen-row.is-checked{background:var(--red-dim);border-color:var(--red)}
+.vefa-scen-list{display:flex;flex-direction:column;gap:0;max-height:440px;overflow-y:auto;padding-right:4px}
+.vefa-scen-row{display:grid;grid-template-columns:auto 1fr auto;gap:12px;padding:10px 12px;border:0;border-bottom:1px solid var(--border);border-radius:0;background:var(--surface);cursor:pointer;transition:background .12s;align-items:flex-start}
+.vefa-scen-row:hover{background:var(--surface-2)}
+.vefa-scen-row.is-checked{background:rgba(214,59,47,.05)}
 .vefa-scen-cb{margin:3px 0 0 0;width:16px;height:16px;accent-color:var(--red);cursor:pointer}
 .vefa-scen-main{min-width:0}
-.vefa-scen-name{font-family:var(--display);font-size:13px;font-weight:600;color:var(--ink);margin-top:4px;line-height:1.3}
-.vefa-scen-one{font-family:var(--mono);font-size:11px;color:var(--ink2);line-height:1.45;margin-top:2px}
+.vefa-scen-name{font-family:var(--display);font-size:12px;font-weight:600;color:var(--ink);margin-top:4px;line-height:1.3}
+.vefa-scen-one{font-family:var(--mono);font-size:10px;color:var(--ink3);line-height:1.45;margin-top:3px}
 .vefa-scen-mech{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-top:4px;letter-spacing:.02em}
 .vefa-scen-badges{display:flex;flex-direction:column;gap:4px;align-items:flex-end;white-space:nowrap}
 .vefa-ev-strong{background:var(--green-dim);color:var(--green)}
