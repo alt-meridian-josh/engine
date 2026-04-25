@@ -159,24 +159,26 @@ input,select,textarea{font:inherit;color:inherit}
 .ws-topbar{padding:0 14px;gap:10px}
 .ws-back{color:var(--ink3);font-size:11px;padding:5px 9px;border-radius:var(--r);transition:background .12s,color .12s;font-family:var(--mono)}
 .ws-back:hover{background:#1f1d1a;color:var(--topbar-text)}
-.ws-crumb{display:flex;flex-direction:column;line-height:1.15;min-width:0;margin-right:4px}
-.ws-crumb-name{font-family:var(--display);font-weight:600;color:#fff;font-size:13px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
-.ws-crumb-cust{font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em}
+.ws-crumb{display:flex;flex-direction:column;line-height:1.15;min-width:0;margin-right:4px;position:relative;padding-left:14px}
+.ws-crumb::before{content:'·';position:absolute;left:0;top:50%;transform:translateY(-50%);color:var(--ink3);font-size:14px;line-height:1}
+.ws-crumb-name{font-family:var(--display);font-weight:600;color:var(--ink);font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:260px}
+.ws-crumb-cust{font-family:var(--mono);font-size:10px;color:var(--ink3)}
 .ws-topbar-chips{display:flex;gap:4px}
-.ws-layout{display:grid;grid-template-columns:200px 1fr;min-height:calc(100vh - 44px)}
+.ws-topbar-chips .chip{font-size:8px;padding:2px 8px;letter-spacing:.08em}
+.ws-layout{display:grid;grid-template-columns:180px 1fr;min-height:calc(100vh - 44px)}
 .ws-sidebar{background:var(--surface);border-right:1px solid var(--border);padding:14px 0;display:flex;flex-direction:column;gap:12px;position:sticky;top:44px;align-self:start;height:calc(100vh - 44px);overflow-y:auto}
-.ws-meta{padding:0 14px 12px;display:flex;flex-direction:column;gap:8px;border-bottom:1px solid var(--border)}
-.ws-meta-row{display:flex;flex-direction:column;gap:1px}
-.ws-meta-label{font-size:9px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3)}
-.ws-meta-value{font-size:11px;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:var(--mono)}
-.ws-nav{display:flex;flex-direction:column;gap:1px}
-.ws-nav-item{display:flex;align-items:center;gap:9px;padding:8px 14px;font-family:var(--mono);font-size:12px;color:var(--ink2);text-align:left;border-left:3px solid transparent;transition:background .12s,color .12s,border-color .12s;width:100%}
-.ws-nav-item:hover{background:var(--bg);color:var(--ink)}
-.ws-nav-item.is-active{background:var(--red-dim);color:var(--red);border-left-color:var(--red);font-weight:500}
-.ws-nav-icon{width:14px;font-size:11px;text-align:center;opacity:.9}
-.fd-link{margin-top:auto;padding:10px 14px;border-top:1px solid var(--border);font-size:10px}
-.fd-link a{color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;transition:color .12s}
-.fd-link a:hover{color:var(--red)}
+.ws-meta{padding:0 14px 12px;display:flex;flex-direction:column;gap:6px;border-bottom:1px solid var(--border)}
+.ws-meta-row{display:flex;flex-direction:column;gap:1px;line-height:1.3}
+.ws-meta-label{font-family:var(--mono);font-size:7px;text-transform:uppercase;letter-spacing:.12em;color:var(--ink3)}
+.ws-meta-value{font-family:var(--mono);font-size:10px;color:var(--ink2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ws-nav{display:flex;flex-direction:column;gap:0}
+.ws-nav-item{display:flex;align-items:center;gap:9px;padding:0 14px;height:36px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);text-align:left;border-left:3px solid transparent;transition:background .12s,color .12s,border-color .12s;width:100%}
+.ws-nav-item:hover{background:rgba(214,59,47,.04);color:var(--ink2)}
+.ws-nav-item.is-active{background:rgba(214,59,47,.06);color:var(--red);border-left-color:var(--red);font-weight:500}
+.ws-nav-icon{width:14px;font-size:13px;text-align:center;opacity:.9}
+.fd-link{margin-top:auto;padding:10px 14px;border-top:1px solid var(--border);font-size:8px}
+.fd-link a{color:var(--ink4);text-transform:uppercase;letter-spacing:.08em;transition:color .12s;font-family:var(--mono)}
+.fd-link a:hover{color:var(--ink3)}
 .ws-main{padding:20px 24px;overflow-x:auto}
 .tab-placeholder{padding:40px 20px;text-align:center;color:var(--ink3);font-size:12px;background:var(--surface);border:1px dashed var(--border);border-radius:var(--r)}
 /* Value Case */
