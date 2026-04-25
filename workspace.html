@@ -825,7 +825,9 @@ function renderVEFAssistFooter(v){
     ? `<button class="btn btn-ghost btn-sm" data-action="vefa-back">← Back</button>`
     : `<span></span>`;
   let nextLabel = 'Next →', nextDisabled = '';
-  if (v.step === 2){
+  if (v.step === 1){
+    if (!(v.outcomeTiles && v.outcomeTiles.length)) nextDisabled = 'disabled';
+  } else if (v.step === 2){
     const n = v.selectedScenarioIds ? v.selectedScenarioIds.size : 0;
     nextLabel = `Next → ${n} selected`;
     if (n === 0) nextDisabled = 'disabled';
@@ -1073,9 +1075,70 @@ function renderVEFAOutcomeSection(v){
     <div class="vefa-tile-grid" id="vefa-outcome-grid">${tiles}</div></div>`;
 }
 function renderVEFADomainTiles(v){
-  // Part B render lives in Chunk 2; this empty container reserves the DOM slot
-  // so the click handler can replace just this subtree without touching Part A.
-  return `<div class="vefa-tile-section" id="vefa-domain-tiles"></div>`;
+  return `<div class="vefa-tile-section" id="vefa-domain-tiles">${renderVEFADomainTilesInner(v)}</div>`;
+}
+function renderVEFADomainTilesInner(v){
+  const picked = v.outcomeTiles || [];
+  if (!picked.length) return '';
+  const counts = v._domainScenarioCounts;
+  if (counts === 'loading') return `<div class="vefa-tile-q">Which vertical?</div><div class="vefa-tile-empty">Loading domains…</div>`;
+  const matches = Object.values(state.domains || {}).filter(d => {
+    const tiles = d.outcome_tiles || [];
+    return tiles.some(t => picked.includes(t)) && (counts ? (counts[d.domain_id] || 0) > 0 : true);
+  }).sort((a,b) => (a.domain_name||'').localeCompare(b.domain_name||''));
+  if (v.domainId){
+    const dom = state.domains[v.domainId];
+    if (!dom) return '';
+    return `<div class="vefa-tile-q">Vertical</div>
+      <div class="vefa-tile-resolved">Resolved engine: <strong>${escapeHtml(cleanDomainName(dom.domain_name) || dom.domain_id)}</strong> · ${escapeHtml(dom.technology || 'Other')}</div>`;
+  }
+  if (!matches.length) return `<div class="vefa-tile-q">Which vertical?</div><div class="vefa-tile-empty">No domains match the selected outcomes yet.</div>`;
+  const tiles = matches.map(d => {
+    const c = counts ? (counts[d.domain_id] || 0) : null;
+    return `<button type="button" class="vefa-tile" data-action="vefa-domain-tile" data-domain="${escapeHtml(d.domain_id)}">
+      <div class="vefa-tile-name">${escapeHtml(cleanDomainName(d.domain_name) || d.domain_id)}</div>
+      <div class="vefa-tile-meta"><span class="vefa-tile-tech">${escapeHtml(d.technology || 'Other')}</span>${c!=null?`<span class="vefa-tile-count">${c} scenario${c===1?'':'s'}</span>`:''}</div>
+    </button>`;
+  }).join('');
+  return `<div class="vefa-tile-q">Which vertical?</div><div class="vefa-tile-grid">${tiles}</div>`;
+}
+function paintVEFADomainTiles(){
+  const node = document.getElementById('vefa-domain-tiles');
+  if (node) node.innerHTML = renderVEFADomainTilesInner(state.vefAssist);
+}
+async function vefaLoadDomainScenarioCounts(){
+  const v = state.vefAssist;
+  if (v._domainScenarioCounts && v._domainScenarioCounts !== 'loading') return;
+  v._domainScenarioCounts = 'loading';
+  try {
+    const rows = await sbSelect('vef_value_scenarios');
+    const m = {}; (rows || []).forEach(s => { m[s.domain_id] = (m[s.domain_id] || 0) + 1; });
+    state.vefAssist._domainScenarioCounts = m;
+  } catch { state.vefAssist._domainScenarioCounts = {}; }
+  paintVEFADomainTiles();
+}
+function vefaToggleOutcome(key){
+  const v = state.vefAssist;
+  const arr = v.outcomeTiles || (v.outcomeTiles = []);
+  const i = arr.indexOf(key); if (i >= 0) arr.splice(i, 1); else arr.push(key);
+  // domainId must clear when outcome set changes — picked domain may no longer match.
+  if (v.domainId){
+    v.domainId = ''; v.domainSignals=[]; v.domainThemes=[]; v._domainScenarioCount=null;
+    paintVEFAInterp();
+  }
+  document.querySelectorAll('[data-action="vefa-outcome-toggle"]').forEach(btn => {
+    btn.classList.toggle('is-on', arr.includes(btn.getAttribute('data-outcome')));
+  });
+  if (arr.length && (!v._domainScenarioCounts || v._domainScenarioCounts === 'loading')) vefaLoadDomainScenarioCounts();
+  paintVEFADomainTiles();
+  vefaPaintNextButton();
+}
+async function vefaPickDomain(domainId){
+  const v = state.vefAssist;
+  v.domainId = domainId;
+  paintVEFADomainTiles();
+  vefaPaintNextButton();
+  await vefaOnDomainChange();
 }
 function renderVEFAValueFocus(v){
   const set = new Set(v.valueFocus || []);
@@ -1169,7 +1232,13 @@ function paintVEFAStep2(){
 function vefaPaintNextButton(){
   const v = state.vefAssist;
   const btn = document.querySelector('[data-action="vefa-next"]');
-  if (!btn || v.step !== 2) return;
+  if (!btn) return;
+  if (v.step === 1){
+    if (!(v.outcomeTiles && v.outcomeTiles.length)) btn.setAttribute('disabled','');
+    else btn.removeAttribute('disabled');
+    return;
+  }
+  if (v.step !== 2) return;
   const n = v.selectedScenarioIds ? v.selectedScenarioIds.size : 0;
   btn.textContent = `Next → ${n} selected`;
   if (n === 0) btn.setAttribute('disabled', ''); else btn.removeAttribute('disabled');
@@ -1438,6 +1507,8 @@ function vefaPrefillFromEngagement(va, engId){
   va.customer           = eng.prospect_name  || '';
   va.vendor             = eng.vendor_name    || '';
   va.domainId           = eng.domain_id      || '';
+  const dom = state.domains[va.domainId];
+  va.outcomeTiles = (dom && Array.isArray(dom.outcome_tiles)) ? dom.outcome_tiles.slice() : [];
   va.stage              = eng.deal_stage     || 'Discovery';
   va.phase              = eng.phase          || 'Pre-Sale';
   va.championEmail      = eng.champion_email        || '';
@@ -2593,6 +2664,12 @@ document.addEventListener('click', e => {
   if (a === 'vefa-back')         return vefaStep(-1);
   if (a === 'vefa-extract')      return vefaExtract();
   if (a === 'vefa-skip')         return vefaSkipImport();
+  if (a === 'vefa-outcome-toggle'){
+    return vefaToggleOutcome(node.getAttribute('data-outcome'));
+  }
+  if (a === 'vefa-domain-tile'){
+    return vefaPickDomain(node.getAttribute('data-domain'));
+  }
   if (a === 'vefa-focus-toggle'){
     // Toggle chip imperatively — no setState — so the form keeps its typed state.
     const f = node.getAttribute('data-focus');
