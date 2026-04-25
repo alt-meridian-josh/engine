@@ -410,7 +410,6 @@ input,select,textarea{font:inherit;color:inherit}
 .vefa-scen-mech{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-top:4px;letter-spacing:.02em}
 .vefa-scen-badges{display:flex;flex-direction:column;gap:4px;align-items:flex-end;white-space:nowrap}
 .vefa-ev-strong{background:var(--green-dim);color:var(--green)}
-.vefa-ev-mod{background:var(--amber-dim);color:var(--amber)}
 .vefa-ev-weak{background:#eceae6;color:var(--ink3)}
 .vefa-imp-high{background:var(--red-dim);color:var(--red)}
 .vefa-imp-med{background:var(--amber-dim);color:var(--amber)}
@@ -1175,7 +1174,7 @@ function renderVEFAScenRow(s, v){
   const theme = (s.value_theme || '').trim();
   const themeCls = theme ? 'theme-' + theme.replace(/\s+/g,'') : '';
   const ev = (s.evidence_strength || '').toLowerCase();
-  const evCls = ev === 'strong' ? 'vefa-ev-strong' : ev === 'moderate' ? 'vefa-ev-mod' : 'vefa-ev-weak';
+  const evCls = ev === 'strong' ? 'vefa-ev-strong' : ev === 'moderate' ? 'vefa-ev-moderate' : 'vefa-ev-weak';
   const p = s.print_priority || 99;
   const impLbl = p <= 3 ? 'High' : p <= 6 ? 'Medium' : 'Supporting';
   const impCls = p <= 3 ? 'vefa-imp-high' : p <= 6 ? 'vefa-imp-med' : 'vefa-imp-sup';
