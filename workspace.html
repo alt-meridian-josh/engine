@@ -162,15 +162,21 @@ input,select,textarea{font:inherit;color:inherit}
 .ws-main{padding:20px 24px;overflow-x:auto}
 .tab-placeholder{padding:40px 20px;text-align:center;color:var(--ink3);font-size:12px;background:#fff;border:1px dashed var(--border);border-radius:var(--r)}
 /* Value Case */
-.vc-narrative{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:14px 18px;margin-bottom:16px;font-family:var(--display);font-style:italic;font-size:14px;color:var(--ink2);line-height:1.5;box-shadow:var(--shadow)}
-.vc-narrative b{color:var(--ink);font-style:normal;font-weight:600}
-.vc-signals{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:20px}
-.vc-signal{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:14px 16px;box-shadow:var(--shadow)}
-.vc-signal-label{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--ink3);margin-bottom:6px}
-.vc-signal-value{font-family:var(--display);font-size:24px;font-weight:700;letter-spacing:-.01em;line-height:1.05}
-.vc-signal-value.red{color:var(--red)} .vc-signal-value.amber{color:var(--amber)} .vc-signal-value.ink{color:var(--ink)}
-.vc-signal-value .u{font-size:11px;opacity:.5;margin-left:2px;font-weight:500}
-.vc-signal-sub{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-top:4px}
+/* ---------- VALUE CASE TAB v3 — SECTION 1: HEADLINE ---------- */
+.vc-headline{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;padding:4px 4px 18px;border-bottom:1px solid var(--border2);margin-bottom:20px;flex-wrap:wrap}
+.vc-headline-left{min-width:0;flex:1 1 240px}
+.vc-customer{font-family:var(--display);font-weight:700;font-size:28px;color:var(--ink);letter-spacing:-.02em;line-height:1.1}
+.vc-domain{font-family:var(--mono);font-size:12px;color:var(--ink3);margin-top:6px;text-transform:uppercase;letter-spacing:.06em}
+.vc-metrics{display:flex;align-items:flex-end;gap:32px;flex-shrink:0;flex-wrap:wrap}
+.vc-metric{display:flex;flex-direction:column;gap:4px}
+.vc-metric-value{font-family:var(--display);font-weight:700;font-size:32px;line-height:1;letter-spacing:-.02em;color:var(--ink3)}
+.vc-metric-value.is-red{color:var(--red)}
+.vc-metric-value.is-amber{color:var(--amber);font-weight:600;font-size:22px}
+.vc-metric-label{font-family:var(--mono);font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em}
+.vc-conf-chip{font-family:var(--mono);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;padding:6px 12px;border-radius:var(--r-chip);white-space:nowrap}
+.vc-conf-governed{background:var(--green-dim);color:var(--green)}
+.vc-conf-exploratory{background:var(--amber-dim);color:var(--amber)}
+.vc-conf-default{background:#eceae6;color:var(--ink2)}
 .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px}
 .section-title{font-family:var(--display);font-size:15px;font-weight:600;color:var(--ink)}
 .section-count{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-left:8px;text-transform:uppercase;letter-spacing:.08em;font-weight:400}
@@ -1651,34 +1657,63 @@ function evidenceChip(s){
 function renderValueCaseTab(e){
   const scenarios = state.scenarios[e.engagement_id] || [];
   const defs = state.inputDefs[e.domain_id] || [];
-  const ivs = state.inputValues[e.engagement_id] || {};
+  const ivs  = state.inputValues[e.engagement_id] || {};
   const analysis = computeAnalysis(e, scenarios, ivs, defs);
-  const counted = analysis.perScenario.filter(p => p.active && !p.pool_shadow);
-  const shadowed = analysis.perScenario.filter(p => p.pool_shadow);
-  const dom = state.domains[e.domain_id]?.domain_name || 'this domain';
-  const top = counted.slice().sort((a,b) => b.arv - a.arv)[0];
-  const topTheme = top ? (scenarios.find(s => s.scenario_id === top.scenario_id)?.value_theme || 'no clear lead') : 'no active mechanism';
-  const consArv = analysis.arvFull * 0.75, aggArv = analysis.arvFull * 1.25;
-  const narrative = scenarios.length
-    ? `This analysis covers <b>${counted.length}</b> active mechanism${counted.length===1?'':'s'} for <b>${escapeHtml(e.prospect_name || 'the prospect')}</b> in <b>${escapeHtml(dom)}</b>. The current defensible range is <b>${fmtMoney(consArv)} — ${fmtMoney(aggArv)}</b>, led by <b>${escapeHtml(topTheme)}</b>.`
-    : `No scenarios have been loaded for this engagement yet. Check that the domain has scenarios seeded in vef_value_scenarios.`;
-  const shadowIds = new Set(shadowed.map(p => p.scenario_id));
-  const mainScenarios = scenarios.filter(s => !shadowIds.has(s.scenario_id));
+  const conf = vcConfidence(scenarios, ivs, analysis);
+  const customer = e.prospect_name || 'Untitled engagement';
+  const dom = state.domains[e.domain_id]?.domain_name || e.domain_id || '';
+  // Sections 2–5 land in subsequent chunks; Section 1 ships now.
+  return `${renderVCHeadline(customer, dom, analysis, conf)}`;
+}
+
+// Returns 'governed' | 'exploratory' | 'default' per spec:
+//   default     = no buyer inputs at all
+//   governed    = govInputs >= 3 OR every active non-shadowed scenario is grounded
+//   exploratory = otherwise
+function vcConfidence(scenarios, ivs, analysis){
+  const provided = Object.values(ivs || {}).filter(v => {
+    const x = v && v.provided_value;
+    return x != null && String(x).trim() !== '';
+  });
+  if (!provided.length) return 'default';
+  const govInputs = provided.length;
+  const activeIds = new Set((analysis.perScenario || []).filter(p => p.active && !p.pool_shadow).map(p => p.scenario_id));
+  const grounded = (scenarios || []).filter(s => {
+    if (!activeIds.has(s.scenario_id)) return false;
+    const req = s.inputs_required;
+    const arr = Array.isArray(req) ? req : typeof req === 'string' ? req.split(',').map(k => k.trim()).filter(Boolean) : [];
+    if (!arr.length) return true;
+    return arr.every(k => {
+      const v = ivs[k] && ivs[k].provided_value;
+      return v != null && String(v).trim() !== '';
+    });
+  });
+  const allGrounded = activeIds.size > 0 && grounded.length === activeIds.size;
+  return (govInputs >= 3 || allGrounded) ? 'governed' : 'exploratory';
+}
+
+function renderVCHeadline(customer, dom, A, conf){
+  const arv = A.arvFull || 0, delay = A.monthlyDelay || 0;
+  const arvCls = arv > 0 ? 'is-red' : '';
+  const labels = { governed:'GOVERNED', exploratory:'EXPLORATORY', default:'DEFAULT' };
   return `
-    <div class="vc-narrative">${narrative}</div>
-    <div class="vc-signals">
-      <div class="vc-signal"><div class="vc-signal-label">Value of Acting</div><div class="vc-signal-value red">${fmtMoney(analysis.arvFull)}</div><div class="vc-signal-sub">Annual · full adoption</div></div>
-      <div class="vc-signal"><div class="vc-signal-label">Cost of Delay</div><div class="vc-signal-value amber">${fmtMoney(analysis.monthlyDelay)}<span class="u">/mo</span></div><div class="vc-signal-sub">Per month of inaction</div></div>
-      <div class="vc-signal"><div class="vc-signal-label">Cost of Doing Nothing</div><div class="vc-signal-value ink">${fmtMoney(analysis.coi3yr)}</div><div class="vc-signal-sub">3-year cumulative</div></div>
-    </div>
-    <div class="section-head">
-      <h2 class="section-title">Economic Mechanisms<span class="section-count">${counted.length} active · ${scenarios.length} total · evidence: ${evidenceSummary(scenarios.filter(s => s.active))}</span></h2>
-    </div>
-    ${scenarios.length
-      ? mainScenarios.map(s => renderScenarioCard(s, analysis.perScenario.find(p => p.scenario_id === s.scenario_id))).join('')
-      : `<div class="tab-placeholder">No scenarios seeded for domain <b>${escapeHtml(e.domain_id)}</b>.</div>`}
-    ${shadowed.length ? renderShadowed(scenarios, shadowed) : ''}
-  `;
+    <div class="vc-headline">
+      <div class="vc-headline-left">
+        <div class="vc-customer">${escapeHtml(customer)}</div>
+        <div class="vc-domain">${escapeHtml(dom)}</div>
+      </div>
+      <div class="vc-metrics">
+        <div class="vc-metric">
+          <div class="vc-metric-value ${arvCls}">${fmtMoney(arv)}</div>
+          <div class="vc-metric-label">annual value</div>
+        </div>
+        <div class="vc-metric">
+          <div class="vc-metric-value is-amber">${fmtMoney(delay)}</div>
+          <div class="vc-metric-label">per month of inaction</div>
+        </div>
+        <span class="vc-conf-chip vc-conf-${conf}">${labels[conf]}</span>
+      </div>
+    </div>`;
 }
 
 function evidenceSummary(active){
