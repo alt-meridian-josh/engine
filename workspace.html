@@ -64,6 +64,15 @@ input,select,textarea{font:inherit;color:inherit}
 .chip-amber{background:var(--amber-dim);color:var(--amber)}
 .chip-green{background:var(--green-dim);color:var(--green)}
 .chip-red{background:var(--red-dim);color:var(--red)}
+.chip.out-visibility{background:var(--blue-dim);color:var(--out-visibility)}
+.chip.out-throughput{background:var(--amber-dim);color:var(--out-throughput)}
+.chip.out-compliance{background:#f5f3ff;color:var(--out-compliance)}
+.chip.out-risk{background:var(--red-dim);color:var(--out-risk)}
+.chip.out-intelligence{background:#f0fdfa;color:var(--out-intelligence)}
+.chip.out-performance{background:var(--green-dim);color:var(--out-performance)}
+.chip.out-revenue{background:#ecfdf5;color:var(--out-revenue)}
+.an-dom-stack{display:flex;flex-direction:column;gap:3px;align-items:flex-start}
+.an-dom-name{font-family:var(--mono);font-size:10px;color:var(--ink3);line-height:1.3}
 .chip-ink{background:#1f1d1a;color:var(--topbar-text)}
 .chip-outline{background:transparent;border:1px solid var(--border2)}
 /* Forms */
@@ -1696,12 +1705,19 @@ function renderAnalysisTable(rows){
   </table></div>`;
 }
 function renderAnalysisRow(e){
-  const dom = state.domains[e.domain_id]?.domain_name || '—';
+  const d = state.domains[e.domain_id];
+  const domName = cleanDomainName(d?.domain_name) || d?.domain_id || e.domain_id || '—';
+  const outcome = d?.primary_outcome || '';
+  const outKey = outcome.toLowerCase();
+  const outDesc = OUTCOME_DESC[outcome] || '';
+  const chipCls = outcome ? `chip out-${outKey}` : 'chip chip-grey';
+  const chipTitle = outDesc ? ` title="${escapeHtml(outDesc)}"` : '';
+  const chipLabel = outcome || 'Unmapped';
   const fu  = daysUntil(e.next_followup_date || e.next_action_date);
   const arv = latestArv(e);
   return `<tr data-action="open-engagement" data-id="${escapeHtml(e.engagement_id)}">
     <td class="an-cell"><div class="an-name">${escapeHtml(e.analysis_name || e.vendor_name || 'Untitled analysis')}</div><div class="an-cust">${escapeHtml(e.prospect_name || '—')}</div></td>
-    <td><span class="chip chip-grey">${escapeHtml(dom)}</span></td>
+    <td><div class="an-dom-stack"><span class="${chipCls}"${chipTitle}>${escapeHtml(chipLabel)}</span><span class="an-dom-name">${escapeHtml(domName)}</span></div></td>
     <td><span class="chip ${stageChip(e.deal_stage)}">${escapeHtml(e.deal_stage || '—')}</span></td>
     <td><span class="chip chip-grey">${escapeHtml(e.phase || '—')}</span></td>
     <td class="cell-mono">${escapeHtml(e.champion_email || '—')}</td>
