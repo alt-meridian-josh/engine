@@ -1227,8 +1227,14 @@ function renderVEFAssistStep3(v){
   </div>`;
 }
 function vefaSourcesCount(s){
-  if (!s.evidence_ids) return 0;
-  return String(s.evidence_ids).split(',').map(x => x.trim()).filter(Boolean).length;
+  if (s.evidence_ids){
+    return String(s.evidence_ids).split(',').map(x => x.trim()).filter(Boolean).length;
+  }
+  // Fallback to vef_evidence_registry loaded at onOpenEngagement (state.evidence[domain_id]).
+  // On the "new" VEF Assist path the registry isn't loaded yet → degrades to 0 (prior behavior).
+  const reg = state.evidence && state.evidence[s.domain_id];
+  if (!Array.isArray(reg)) return 0;
+  return reg.filter(r => r && r.scenario_id === s.scenario_id).length;
 }
 function vefaEvidenceStatus(s, sources){
   const ev = (s.evidence_strength || '').toLowerCase();
