@@ -210,6 +210,29 @@ input,select,textarea{font:inherit;color:inherit}
 .vc-next-body{flex:1 1 240px;color:var(--ink);font-size:13px;line-height:1.5}
 .vc-next-body b{font-weight:600;color:var(--ink)}
 .vc-next-btn{flex-shrink:0}
+/* ---------- VALUE CASE TAB v3 — SECTION 4: SCENARIO DETAIL ---------- */
+.vc-detail{margin-bottom:24px}
+.vc-detail-toggle{display:inline-flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;color:var(--ink2);background:none;border:0;cursor:pointer;padding:6px 0;letter-spacing:.04em}
+.vc-detail-toggle:hover{color:var(--ink)}
+.vc-detail-toggle .caret{transition:transform .12s;display:inline-block}
+.vc-detail-toggle.is-open .caret{transform:rotate(90deg)}
+.vc-detail-body{margin-top:10px;display:flex;flex-direction:column;gap:8px}
+.vc-scen-card{background:#fff;border:1px solid var(--border);border-radius:var(--r);padding:10px 14px;box-shadow:var(--shadow);transition:opacity .12s}
+.vc-scen-card.is-inactive{opacity:.6}
+.vc-scen-card-row{display:flex;align-items:center;gap:12px;cursor:pointer}
+.vc-scen-card-left{flex:1 1 auto;min-width:0;display:flex;align-items:center;gap:10px}
+.vc-scen-one{flex:1 1 auto;min-width:0;color:var(--ink);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vc-scen-card-right{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.vc-scen-card-arv{font-family:var(--mono);font-size:12px;color:var(--ink3);font-weight:500;min-width:80px;text-align:right}
+.vc-scen-card-arv.is-red{color:var(--red)}
+.vc-scen-card-detail{padding-top:10px;margin-top:10px;border-top:1px solid var(--border);font-size:12px;line-height:1.5;display:grid;grid-template-columns:120px 1fr;gap:6px 12px;font-family:var(--mono)}
+.vc-scen-card-detail dt{color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;font-size:10px;padding-top:1px}
+.vc-scen-card-detail dd{margin:0;color:var(--ink)}
+/* ---------- VALUE CASE TAB v3 — SECTION 5: HEALTH STRIP ---------- */
+.vc-health{display:flex;flex-wrap:wrap;gap:10px;padding:14px 0 4px;border-top:1px solid var(--border);margin-top:8px}
+.vc-health-chip{display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:11px}
+.vc-health-label{color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;font-size:10px}
+.vc-health-value{color:var(--ink)}
 .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px}
 .section-title{font-family:var(--display);font-size:15px;font-weight:600;color:var(--ink)}
 .section-count{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-left:8px;text-transform:uppercase;letter-spacing:.08em;font-weight:400}
@@ -506,7 +529,7 @@ const state = {
   scenarios:{}, inputDefs:{}, inputValues:{}, snapshots:{}, evidence:{},
   activeTab:'value-case', meridianOpen:false, meridianHistory:{}, meridianPreload:null,
   homeFilter:'all', homeSearch:'', homeSort:'updated',
-  modal:null, loading:false, poolShadowOpen:false,
+  modal:null, loading:false, poolShadowOpen:false, vcDetailOpen:false, vcCardOpen:{},
   vefAssist: makeVEFAssistState()
 };
 function setState(patch){ Object.assign(state, patch); if (typeof render === 'function') render(); }
@@ -1696,11 +1719,12 @@ function renderValueCaseTab(e){
   const customer = e.prospect_name || 'Untitled engagement';
   const dom = state.domains[e.domain_id]?.domain_name || e.domain_id || '';
   const next = vcNextAction(e, scenarios, defs, ivs, analysis, conf);
-  // Sections 4–5 land in subsequent chunks; Sections 1–3 ship now.
   return `
     ${renderVCHeadline(customer, dom, analysis, conf)}
     ${renderVCStatus(e, scenarios, analysis, defs, ivs)}
     ${renderVCNextAction(next)}
+    ${renderVCDetail(scenarios, analysis)}
+    ${renderVCHealthStrip(e, scenarios, analysis, defs, ivs)}
   `;
 }
 
@@ -1990,6 +2014,84 @@ function renderVCNextAction(na){
       <div class="vc-next-header">Next action</div>
       <div class="vc-next-body">${na.body}</div>
       <button class="btn btn-primary btn-sm vc-next-btn" data-action="${na.btnAction}" ${dataAttrs}>${escapeHtml(na.btnLabel)}</button>
+    </div>`;
+}
+
+function renderVCDetail(scenarios, analysis){
+  const peById = {};
+  (analysis.perScenario || []).forEach(p => { peById[p.scenario_id] = p; });
+  const activeScens = (scenarios || []).filter(s => {
+    const pe = peById[s.scenario_id];
+    return pe && pe.active && !pe.pool_shadow;
+  }).slice().sort((a, b) => (peById[b.scenario_id]?.arv || 0) - (peById[a.scenario_id]?.arv || 0));
+  const open = !!state.vcDetailOpen;
+  return `
+    <div class="vc-detail">
+      <button class="vc-detail-toggle ${open ? 'is-open' : ''}" data-action="vc-toggle-detail">
+        <span class="caret">▸</span>Scenario detail (${activeScens.length} active)
+      </button>
+      ${open ? `<div class="vc-detail-body">${activeScens.map(s => renderVCScenarioRow(s, peById[s.scenario_id])).join('')}</div>` : ''}
+    </div>`;
+}
+
+function renderVCScenarioRow(s, pe){
+  const open = !!(state.vcCardOpen && state.vcCardOpen[s.scenario_id]);
+  const arv = pe?.arv || 0;
+  const arvCls = arv > 0 ? 'is-red' : '';
+  const oneLiner = s.one_liner || s.mechanism_label || s.scenario_id || '';
+  const isActive = !!(pe && pe.active);
+  return `
+    <div class="vc-scen-card ${isActive ? '' : 'is-inactive'}">
+      <div class="vc-scen-card-row" data-action="vc-toggle-card" data-sid="${escapeHtml(s.scenario_id)}">
+        <div class="vc-scen-card-left">
+          <span class="chip ${THEME_CHIP[(s.value_theme || '').toLowerCase()] || 'chip-grey'}">${escapeHtml(s.value_theme || 'other')}</span>
+          <div class="vc-scen-one" title="${escapeHtml(oneLiner)}">${escapeHtml(oneLiner)}</div>
+        </div>
+        <div class="vc-scen-card-right">
+          ${vcEvBadge(s.evidence_strength)}
+          <span class="vc-scen-card-arv ${arvCls}">${fmtMoney(arv)}</span>
+          <button class="sc-switch ${isActive ? 'is-on' : ''}" data-action="toggle-scenario" data-sid="${escapeHtml(s.scenario_id)}">
+            <span class="sc-switch-track"></span><span>${isActive ? 'On' : 'Off'}</span>
+          </button>
+        </div>
+      </div>
+      ${open ? `<dl class="vc-scen-card-detail">
+        <dt>Mechanism</dt><dd>${escapeHtml(s.mechanism_label || '—')}</dd>
+        <dt>CFO challenge</dt><dd>${escapeHtml(s.cfo_challenge || '—')}</dd>
+        <dt>Evidence</dt><dd>${escapeHtml(s.evidence_strength || '—')}</dd>
+      </dl>` : ''}
+    </div>`;
+}
+
+function renderVCHealthStrip(e, scenarios, analysis, defs, ivs){
+  const peById = {};
+  (analysis.perScenario || []).forEach(p => { peById[p.scenario_id] = p; });
+  const activeScens = (scenarios || []).filter(s => peById[s.scenario_id]?.active && !peById[s.scenario_id]?.pool_shadow);
+  const shadowedCount = (scenarios || []).filter(s => peById[s.scenario_id]?.active && peById[s.scenario_id]?.pool_shadow).length;
+  const high = (defs || []).filter(d => (d.sensitivity || '').toLowerCase() === 'high');
+  const filledHigh = high.filter(d => {
+    const v = ivs && ivs[d.input_key] && ivs[d.input_key].provided_value;
+    return v != null && String(v).trim() !== '';
+  });
+  const completeStr = high.length ? Math.round(filledHigh.length / high.length * 100) + '%' : '—';
+  let strong = 0, moderate = 0, weak = 0;
+  activeScens.forEach(s => {
+    const v = (s.evidence_strength || '').toLowerCase();
+    if      (v.includes('strong')   || v.includes('1') || v.includes('customer'))  strong++;
+    else if (v.includes('moderate') || v.includes('2') || v.includes('benchmark')) moderate++;
+    else                                                                            weak++;
+  });
+  const snaps = state.snapshots[e.engagement_id] || [];
+  const last = snaps[0];
+  const lastStr = last
+    ? `${escapeHtml(last.snapshot_label || 'unlabeled')} · ${escapeHtml(relTime(last.created_at) || '')}`
+    : 'None saved';
+  return `
+    <div class="vc-health">
+      <div class="vc-health-chip"><span class="vc-health-label">Data completeness</span><span class="vc-health-value">${completeStr}</span></div>
+      <div class="vc-health-chip"><span class="vc-health-label">Evidence</span><span class="vc-health-value">${strong} strong · ${moderate} moderate · ${weak} weak</span></div>
+      <div class="vc-health-chip"><span class="vc-health-label">Scenarios</span><span class="vc-health-value">${activeScens.length} active · ${shadowedCount} shadowed</span></div>
+      <div class="vc-health-chip"><span class="vc-health-label">Last snapshot</span><span class="vc-health-value">${lastStr}</span></div>
     </div>`;
 }
 
@@ -2589,6 +2691,12 @@ document.addEventListener('click', e => {
       callMeridian(msg);
     }
     return;
+  }
+  if (a === 'vc-toggle-detail') return setState({ vcDetailOpen: !state.vcDetailOpen });
+  if (a === 'vc-toggle-card'){
+    const sid = node.getAttribute('data-sid'); if (!sid) return;
+    const cur = state.vcCardOpen || {};
+    return setState({ vcCardOpen: { ...cur, [sid]: !cur[sid] } });
   }
   if (a === 'mx-quick')          return callMeridian(node.getAttribute('data-prompt'));
   if (a === 'mx-reset-key')      { localStorage.removeItem('anthropic_api_key'); return toast('API key cleared — next send will prompt again'); }
