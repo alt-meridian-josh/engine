@@ -94,6 +94,20 @@
 **Rule going forward:** When an operation needs a global table and the user can retry that operation within the same UI session, cache on the session-scoped state object (not on module globals — those leak between sessions). Factory function that rebuilds on close handles lifecycle for free.
 **Applies to:** alt-meridian, any session-scoped search UI
 
+## 2026-04-25 — Read-only audit BEFORE editing pays for itself
+**Context:** Three known-issue cleanup chunks on workspace.html (class drift, orphaned modal, registry fallback). Pattern: user asked for the audit first, then approved fixes one-shot.
+**What happened:** The audit surfaced two facts that would have caused a regression if I'd jumped straight to deletion: (1) the "dead" `STAGES`/`PHASES`/`FU_TRIGGERS` constants inside the orphaned modal section are actually live — referenced by VEF Assist Step 1 and the Deal tab; (2) the existing `evidence_ids` CSV parsing was already correct — what was punted was specifically the *fallback* path, not the parser. Without the audit step I'd have either deleted live constants or rewritten correct code.
+**Root cause:** "Orphaned" and "punted" are easy to misread as "delete" and "rewrite." The actual scope is usually narrower.
+**Rule going forward:** When a task names "issues to fix," do a structured read-only audit first — for each issue, list (a) what's reachable, (b) what's actually unreachable, (c) shared dependencies. Report findings with line numbers and wait for go. The audit pass also gives you a free verification baseline for the fix.
+**Applies to:** all
+
+## 2026-04-25 — Verify branch state before merging — `git fetch` first
+**Context:** User asked to merge a feature branch to main. I checked `git branch -a` first and didn't see the named branch — concluded "doesn't exist." Then a later fetch revealed `origin/claude/vef-assist-Qb4q5` did exist on the remote and held exactly the work the user described. I'd also reported `origin/main` was at `62e0e04` when in fact the next fetch updated it to `41e25bf` mid-conversation.
+**What happened:** Two false-negative findings reported to the user before any destructive action — caught only because the user pushed back. If I'd just merged `chunk-f3-ZQCdv` (the only feature branch I "saw"), I'd have shipped the wrong work under the wrong commit message.
+**Root cause:** `git branch -a` only shows refs you've already fetched. It is not authoritative about what's on the remote. And remote refs change while you're working.
+**Rule going forward:** Before any merge / branch-existence claim: `git fetch origin` first, then check. Re-run `git fetch` if more than a few minutes have passed. State the fetch result in the report so the user can sanity-check the timestamp.
+**Applies to:** all
+
 ## 2026-04-24 — Fuzzy-match token filters: length + stopwords + 'strong' gating
 **Context:** Step 0 claim→scenario matcher. Naive token intersection scored every scenario that mentioned common words like "cost" or "time".
 **What happened:** Added three filters:
