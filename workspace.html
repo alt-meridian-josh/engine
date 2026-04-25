@@ -183,16 +183,17 @@ input,select,textarea{font:inherit;color:inherit}
 .tab-placeholder{padding:40px 20px;text-align:center;color:var(--ink3);font-size:12px;background:var(--surface);border:1px dashed var(--border);border-radius:var(--r)}
 /* Value Case */
 /* ---------- VALUE CASE TAB v3 — SECTION 1: HEADLINE ---------- */
-.vc-headline{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;padding:4px 4px 18px;border-bottom:1px solid var(--border2);margin-bottom:20px;flex-wrap:wrap}
+.vc-headline{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;padding:4px 4px 16px;margin-bottom:20px;flex-wrap:wrap}
 .vc-headline-left{min-width:0;flex:1 1 240px}
-.vc-customer{font-family:var(--display);font-weight:700;font-size:28px;color:var(--ink);letter-spacing:-.02em;line-height:1.1}
-.vc-domain{font-family:var(--mono);font-size:12px;color:var(--ink3);margin-top:6px;text-transform:uppercase;letter-spacing:.06em}
-.vc-metrics{display:flex;align-items:flex-end;gap:32px;flex-shrink:0;flex-wrap:wrap}
-.vc-metric{display:flex;flex-direction:column;gap:4px}
-.vc-metric-value{font-family:var(--display);font-weight:700;font-size:32px;line-height:1;letter-spacing:-.02em;color:var(--ink3)}
+.vc-customer{font-family:var(--display);font-weight:700;font-size:24px;color:var(--ink);letter-spacing:-.02em;line-height:1.1}
+.vc-domain{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-top:6px}
+.vc-metrics{display:flex;align-items:stretch;gap:0;flex-shrink:0;flex-wrap:wrap}
+.vc-metric{display:flex;flex-direction:column;gap:6px;padding:0 18px;justify-content:flex-end}
+.vc-metric+.vc-metric{border-left:1px solid var(--border)}
+.vc-metric-value{font-family:var(--display);font-weight:700;font-size:28px;line-height:1;letter-spacing:-.02em;color:var(--ink3)}
 .vc-metric-value.is-red{color:var(--red)}
-.vc-metric-value.is-amber{color:var(--amber);font-weight:600;font-size:22px}
-.vc-metric-label{font-family:var(--mono);font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em}
+.vc-metric-value.is-amber{color:var(--amber)}
+.vc-metric-label{font-family:var(--mono);font-size:8px;color:var(--ink3);text-transform:uppercase;letter-spacing:.14em}
 .vc-conf-chip{font-family:var(--mono);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;padding:6px 12px;border-radius:var(--r-chip);white-space:nowrap}
 .vc-conf-governed{background:var(--green-dim);color:var(--green)}
 .vc-conf-exploratory{background:var(--amber-dim);color:var(--amber)}
@@ -200,34 +201,38 @@ input,select,textarea{font:inherit;color:inherit}
 /* ---------- VALUE CASE TAB v3 — SECTION 2: STATUS BLOCK ---------- */
 .vc-status-grid{display:grid;grid-template-columns:55fr 45fr;gap:24px;margin-bottom:24px}
 .vc-status-left,.vc-status-right{min-width:0}
-.vc-status-right{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r);padding:16px}
-.vc-status-header{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink3);margin-bottom:10px}
-.vc-mech-row{display:flex;align-items:center;gap:10px;padding:7px 4px;border-bottom:1px solid var(--border);font-size:12px;line-height:1.4}
+.vc-status-right{background:var(--surface);border:1px solid var(--border);border-radius:3px;padding:14px}
+.vc-status-header{font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:.14em;color:var(--ink3);margin-bottom:10px}
+.vc-mech-row{display:flex;align-items:center;gap:10px;padding:0 4px;height:36px;border-bottom:1px solid var(--border);font-size:12px;line-height:1.4}
 .vc-mech-row:last-child{border-bottom:0}
-.vc-mech-icon{flex-shrink:0;width:14px;text-align:center;font-size:13px;line-height:1;font-weight:600}
-.vc-mech-active .vc-mech-icon{color:var(--green)}
-.vc-mech-shadowed .vc-mech-icon,.vc-mech-inactive .vc-mech-icon{color:var(--ink3)}
+.vc-mech-icon{flex-shrink:0;width:6px;height:6px;border-radius:50%;font-size:0;line-height:0;text-indent:-9999px;overflow:hidden}
+.vc-mech-active .vc-mech-icon{background:var(--green)}
+.vc-mech-shadowed .vc-mech-icon{background:var(--ink3)}
+.vc-mech-inactive .vc-mech-icon{background:var(--ink4)}
 .vc-mech-text{flex:1 1 auto;min-width:0;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.vc-mech-shadowed .vc-mech-text,.vc-mech-inactive .vc-mech-text{color:var(--ink3)}
-.vc-mech-tag{font-family:var(--mono);font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;flex-shrink:0}
+.vc-mech-shadowed .vc-mech-text{color:var(--ink3)}
+.vc-mech-inactive .vc-mech-text{color:var(--ink4)}
+.vc-mech-tag{font-family:var(--mono);font-size:7px;color:var(--ink3);text-transform:uppercase;letter-spacing:.1em;flex-shrink:0}
+.vc-mech-row .chip{font-size:7px;padding:1px 6px;letter-spacing:.1em}
 .vc-mech-arv{font-family:var(--mono);font-size:12px;font-weight:500;flex-shrink:0;text-align:right;min-width:80px;color:var(--ink3)}
 .vc-mech-arv.is-red{color:var(--red)}
+.vc-mech-inactive .vc-mech-arv{color:var(--ink4)}
 .vc-empty{padding:14px 4px;color:var(--ink3);font-size:12px;font-style:italic}
 .vc-link{color:var(--red);text-decoration:none;cursor:pointer;font-style:normal;background:none;border:0;padding:0;font-family:inherit;font-size:inherit}
 .vc-link:hover{text-decoration:underline}
-.vc-gap-row{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:12px;line-height:1.4;color:var(--ink)}
+.vc-gap-row{display:flex;align-items:center;gap:10px;height:32px;font-family:var(--mono);font-size:11px;line-height:1.4;color:var(--ink2)}
 .vc-gap-row+.vc-gap-row{border-top:1px solid var(--border)}
-.vc-gap-dot{flex-shrink:0;width:8px;height:8px;border-radius:50%;background:var(--ink3)}
+.vc-gap-dot{flex-shrink:0;width:6px;height:6px;border-radius:50%;background:var(--ink3)}
 .vc-gap-dot.is-amber{background:var(--amber)}
 .vc-gap-dot.is-red{background:var(--red)}
 .vc-gap-dot.is-grey{background:var(--ink3)}
 .vc-gap-label{flex:1 1 auto;min-width:0}
-.vc-gap-more{font-family:var(--mono);font-size:10px;color:var(--ink3);padding-top:8px;margin-top:8px;border-top:1px solid var(--border);text-transform:uppercase;letter-spacing:.06em}
+.vc-gap-more{font-family:var(--mono);font-size:9px;color:var(--ink3);padding-top:8px;margin-top:8px;border-top:1px solid var(--border);text-transform:uppercase;letter-spacing:.1em}
 .vc-empty-gaps{color:var(--ink3);font-size:12px;font-style:italic;padding:6px 0}
 /* ---------- VALUE CASE TAB v3 — SECTION 3: NEXT ACTION ---------- */
-.vc-next{background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--red);border-radius:var(--r);padding:14px 18px;margin-bottom:24px;box-shadow:var(--shadow);display:flex;align-items:center;gap:16px;flex-wrap:wrap}
-.vc-next-header{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--red);font-weight:600;flex-shrink:0}
-.vc-next-body{flex:1 1 240px;color:var(--ink);font-size:13px;line-height:1.5}
+.vc-next{background:var(--surface);border:1px solid var(--border2);border-left:3px solid var(--red);border-radius:0 3px 3px 0;padding:14px 16px;margin-bottom:24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.vc-next-header{font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:.14em;color:var(--red);font-weight:600;flex-shrink:0}
+.vc-next-body{flex:1 1 240px;color:var(--ink2);font-family:var(--mono);font-size:11px;line-height:1.55}
 .vc-next-body b{font-weight:600;color:var(--ink)}
 .vc-next-btn{flex-shrink:0}
 /* ---------- VALUE CASE TAB v3 — SECTION 4: SCENARIO DETAIL ---------- */
@@ -249,10 +254,12 @@ input,select,textarea{font:inherit;color:inherit}
 .vc-scen-card-detail dt{color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;font-size:10px;padding-top:1px}
 .vc-scen-card-detail dd{margin:0;color:var(--ink)}
 /* ---------- VALUE CASE TAB v3 — SECTION 5: HEALTH STRIP ---------- */
-.vc-health{display:flex;flex-wrap:wrap;gap:10px;padding:14px 0 4px;border-top:1px solid var(--border);margin-top:8px}
-.vc-health-chip{display:flex;align-items:center;gap:8px;padding:6px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--r);font-family:var(--mono);font-size:11px}
-.vc-health-label{color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;font-size:10px}
-.vc-health-value{color:var(--ink)}
+.vc-health{display:flex;flex-wrap:wrap;gap:0;padding:14px 0 4px;border-top:1px solid var(--border);margin-top:8px}
+.vc-health-chip{display:flex;align-items:center;gap:8px;padding:6px 16px;background:transparent;border:0;border-radius:0;font-family:var(--mono);font-size:9px;color:var(--ink3)}
+.vc-health-chip+.vc-health-chip{border-left:1px solid var(--border2)}
+.vc-health-chip:first-child{padding-left:0}
+.vc-health-label{color:var(--ink3);text-transform:uppercase;letter-spacing:.14em;font-size:9px}
+.vc-health-value{color:var(--ink3)}
 .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px}
 .section-title{font-family:var(--display);font-size:15px;font-weight:600;color:var(--ink)}
 .section-count{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-left:8px;text-transform:uppercase;letter-spacing:.08em;font-weight:400}
