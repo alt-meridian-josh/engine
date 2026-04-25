@@ -195,6 +195,15 @@ input,select,textarea{font:inherit;color:inherit}
 .vc-empty{padding:14px 4px;color:var(--ink3);font-size:12px;font-style:italic}
 .vc-link{color:var(--red);text-decoration:none;cursor:pointer;font-style:normal;background:none;border:0;padding:0;font-family:inherit;font-size:inherit}
 .vc-link:hover{text-decoration:underline}
+.vc-gap-row{display:flex;align-items:center;gap:10px;padding:6px 0;font-size:12px;line-height:1.4;color:var(--ink)}
+.vc-gap-row+.vc-gap-row{border-top:1px solid var(--border)}
+.vc-gap-dot{flex-shrink:0;width:8px;height:8px;border-radius:50%;background:#ccc}
+.vc-gap-dot.is-amber{background:var(--amber)}
+.vc-gap-dot.is-red{background:var(--red)}
+.vc-gap-dot.is-grey{background:var(--ink3)}
+.vc-gap-label{flex:1 1 auto;min-width:0}
+.vc-gap-more{font-family:var(--mono);font-size:10px;color:var(--ink3);padding-top:8px;margin-top:8px;border-top:1px solid var(--border);text-transform:uppercase;letter-spacing:.06em}
+.vc-empty-gaps{color:var(--ink3);font-size:12px;font-style:italic;padding:6px 0}
 .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px}
 .section-title{font-family:var(--display);font-size:15px;font-weight:600;color:var(--ink)}
 .section-count{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-left:8px;text-transform:uppercase;letter-spacing:.08em;font-weight:400}
@@ -1680,10 +1689,10 @@ function renderValueCaseTab(e){
   const conf = vcConfidence(scenarios, ivs, analysis);
   const customer = e.prospect_name || 'Untitled engagement';
   const dom = state.domains[e.domain_id]?.domain_name || e.domain_id || '';
-  // Sections 3–5 land in subsequent chunks; Sections 1–2 ship now.
+  // Sections 4–5 land in subsequent chunks; Sections 1–3 ship now.
   return `
     ${renderVCHeadline(customer, dom, analysis, conf)}
-    ${renderVCStatus(scenarios, analysis)}
+    ${renderVCStatus(e, scenarios, analysis, defs, ivs)}
   `;
 }
 
@@ -1737,7 +1746,7 @@ function renderVCHeadline(customer, dom, A, conf){
     </div>`;
 }
 
-function renderVCStatus(scenarios, analysis){
+function renderVCStatus(e, scenarios, analysis, defs, ivs){
   return `
     <div class="vc-status-grid">
       <div class="vc-status-left">
@@ -1746,6 +1755,7 @@ function renderVCStatus(scenarios, analysis){
       </div>
       <div class="vc-status-right">
         <div class="vc-status-header">Gaps &amp; next inputs</div>
+        ${renderVCGapsList(vcGaps(e, scenarios, defs, ivs, analysis))}
       </div>
     </div>`;
 }
@@ -1796,6 +1806,89 @@ function vcEvBadge(raw){
   else if (v.includes('moderate') || v.includes('2') || v.includes('benchmark')) { cls = 'vefa-ev-moderate'; label = 'moderate'; }
   else                                                                            { cls = 'vefa-ev-weak';     label = (raw && String(raw).trim()) || 'weak'; }
   return `<span class="chip ${cls}">${escapeHtml(label)}</span>`;
+}
+
+// Returns ordered gap list per spec — TYPE 4 first, then 1 (by parent ARV
+// desc), 2, 3 (by ARV desc), 5 last. Cap is applied at render time.
+function vcGaps(e, scenarios, defs, ivs, analysis){
+  const gaps = [];
+  const peById = {};
+  (analysis.perScenario || []).forEach(p => { peById[p.scenario_id] = p; });
+  const activeScens = (scenarios || []).filter(s => {
+    const pe = peById[s.scenario_id];
+    return pe && pe.active && !pe.pool_shadow;
+  });
+  const reqOf = s => {
+    const r = s.inputs_required;
+    return Array.isArray(r) ? r : typeof r === 'string' ? r.split(',').map(k => k.trim()).filter(Boolean) : [];
+  };
+  const filled = key => {
+    const v = ivs && ivs[key] && ivs[key].provided_value;
+    return v != null && String(v).trim() !== '';
+  };
+
+  // TYPE 4 — overdue follow-up (red).
+  if (e.next_followup_date){
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const fuStr = String(e.next_followup_date).slice(0, 10);
+    if (fuStr < todayStr){
+      const days = Math.floor((new Date(todayStr + 'T00:00:00') - new Date(fuStr + 'T00:00:00')) / 86400000);
+      gaps.push({ kind:'overdue', label:`Follow-up overdue by ${days} day${days === 1 ? '' : 's'}`, dot:'red', impact: Infinity });
+    }
+  }
+
+  // TYPE 1 — high-sensitivity inputs unconfirmed (amber).
+  (defs || []).filter(d => (d.sensitivity || '').toLowerCase() === 'high').forEach(d => {
+    if (filled(d.input_key)) return;
+    let parentArv = 0;
+    activeScens.forEach(s => {
+      if (reqOf(s).includes(d.input_key)){
+        const arv = peById[s.scenario_id]?.arv || 0;
+        if (arv > parentArv) parentArv = arv;
+      }
+    });
+    gaps.push({ kind:'high-input', label:`${d.label || d.input_key} — not confirmed`, dot:'amber', impact: parentArv });
+  });
+
+  // TYPE 2 — implementation cost missing (amber).
+  if (!filled('implementation_cost')){
+    gaps.push({ kind:'impl-cost', label:'Implementation cost — needed for payback + BCR', dot:'amber' });
+  }
+
+  // TYPE 3 — weak-evidence active scenarios (amber).
+  activeScens.forEach(s => {
+    const ev = (s.evidence_strength || '').toLowerCase().trim();
+    if (!ev || ev === 'weak'){
+      const arv = peById[s.scenario_id]?.arv || 0;
+      const oneLiner = s.one_liner || s.mechanism_label || s.scenario_id || '';
+      gaps.push({ kind:'weak-ev', label:`${oneLiner} — weak evidence`, dot:'amber', impact: arv });
+    }
+  });
+
+  // TYPE 5 — no snapshot saved (grey).
+  const snaps = state.snapshots[e.engagement_id] || [];
+  if (!snaps.length){
+    gaps.push({ kind:'no-snap', label:'No milestone snapshot saved yet', dot:'grey' });
+  }
+
+  const typeOrder = { 'overdue':0, 'high-input':1, 'impl-cost':2, 'weak-ev':3, 'no-snap':4 };
+  gaps.sort((a, b) => {
+    const t = typeOrder[a.kind] - typeOrder[b.kind];
+    if (t !== 0) return t;
+    return (b.impact || 0) - (a.impact || 0);
+  });
+  return gaps;
+}
+
+function renderVCGapsList(gaps){
+  if (!gaps.length) return `<div class="vc-empty-gaps">Nothing flagged.</div>`;
+  const cap = 5;
+  const visible = gaps.slice(0, cap);
+  const hidden = gaps.length - visible.length;
+  const rows = visible.map(g =>
+    `<div class="vc-gap-row"><span class="vc-gap-dot is-${g.dot}"></span><span class="vc-gap-label">${escapeHtml(g.label)}</span></div>`
+  ).join('');
+  return rows + (hidden > 0 ? `<div class="vc-gap-more">+${hidden} more not shown</div>` : '');
 }
 
 function evidenceSummary(active){
