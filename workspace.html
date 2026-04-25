@@ -177,6 +177,24 @@ input,select,textarea{font:inherit;color:inherit}
 .vc-conf-governed{background:var(--green-dim);color:var(--green)}
 .vc-conf-exploratory{background:var(--amber-dim);color:var(--amber)}
 .vc-conf-default{background:#eceae6;color:var(--ink2)}
+/* ---------- VALUE CASE TAB v3 — SECTION 2: STATUS BLOCK ---------- */
+.vc-status-grid{display:grid;grid-template-columns:55fr 45fr;gap:24px;margin-bottom:24px}
+.vc-status-left,.vc-status-right{min-width:0}
+.vc-status-right{background:#faf9f7;border:1px solid var(--border);border-radius:var(--r);padding:16px}
+.vc-status-header{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:var(--ink3);margin-bottom:10px}
+.vc-mech-row{display:flex;align-items:center;gap:10px;padding:7px 4px;border-bottom:1px solid var(--border);font-size:12px;line-height:1.4}
+.vc-mech-row:last-child{border-bottom:0}
+.vc-mech-icon{flex-shrink:0;width:14px;text-align:center;font-size:13px;line-height:1;font-weight:600}
+.vc-mech-active .vc-mech-icon{color:var(--green)}
+.vc-mech-shadowed .vc-mech-icon,.vc-mech-inactive .vc-mech-icon{color:var(--ink3)}
+.vc-mech-text{flex:1 1 auto;min-width:0;color:var(--ink);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vc-mech-shadowed .vc-mech-text,.vc-mech-inactive .vc-mech-text{color:var(--ink3)}
+.vc-mech-tag{font-family:var(--mono);font-size:10px;color:var(--ink3);text-transform:uppercase;letter-spacing:.06em;flex-shrink:0}
+.vc-mech-arv{font-family:var(--mono);font-size:12px;font-weight:500;flex-shrink:0;text-align:right;min-width:80px;color:var(--ink3)}
+.vc-mech-arv.is-red{color:var(--red)}
+.vc-empty{padding:14px 4px;color:var(--ink3);font-size:12px;font-style:italic}
+.vc-link{color:var(--red);text-decoration:none;cursor:pointer;font-style:normal;background:none;border:0;padding:0;font-family:inherit;font-size:inherit}
+.vc-link:hover{text-decoration:underline}
 .section-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:10px}
 .section-title{font-family:var(--display);font-size:15px;font-weight:600;color:var(--ink)}
 .section-count{font-family:var(--mono);font-size:10px;color:var(--ink3);margin-left:8px;text-transform:uppercase;letter-spacing:.08em;font-weight:400}
@@ -1662,8 +1680,11 @@ function renderValueCaseTab(e){
   const conf = vcConfidence(scenarios, ivs, analysis);
   const customer = e.prospect_name || 'Untitled engagement';
   const dom = state.domains[e.domain_id]?.domain_name || e.domain_id || '';
-  // Sections 2–5 land in subsequent chunks; Section 1 ships now.
-  return `${renderVCHeadline(customer, dom, analysis, conf)}`;
+  // Sections 3–5 land in subsequent chunks; Sections 1–2 ship now.
+  return `
+    ${renderVCHeadline(customer, dom, analysis, conf)}
+    ${renderVCStatus(scenarios, analysis)}
+  `;
 }
 
 // Returns 'governed' | 'exploratory' | 'default' per spec:
@@ -1714,6 +1735,67 @@ function renderVCHeadline(customer, dom, A, conf){
         <span class="vc-conf-chip vc-conf-${conf}">${labels[conf]}</span>
       </div>
     </div>`;
+}
+
+function renderVCStatus(scenarios, analysis){
+  return `
+    <div class="vc-status-grid">
+      <div class="vc-status-left">
+        <div class="vc-status-header">Active mechanisms</div>
+        ${renderVCMechanismsList(scenarios, analysis)}
+      </div>
+      <div class="vc-status-right">
+        <div class="vc-status-header">Gaps &amp; next inputs</div>
+      </div>
+    </div>`;
+}
+
+function renderVCMechanismsList(scenarios, analysis){
+  if (!scenarios.length){
+    return `<div class="vc-empty">No scenarios activated. <button class="vc-link" data-action="vefa-open-update">Open VEF Assist →</button> to select mechanisms.</div>`;
+  }
+  const peById = {};
+  (analysis.perScenario || []).forEach(p => { peById[p.scenario_id] = p; });
+  const active = [], shadowed = [], inactive = [];
+  scenarios.forEach(s => {
+    const pe = peById[s.scenario_id] || {};
+    if (pe.active && pe.pool_shadow) shadowed.push({ s, pe });
+    else if (pe.active)              active.push({ s, pe });
+    else                             inactive.push({ s, pe });
+  });
+  active.sort((a, b)   => (b.pe.arv || 0) - (a.pe.arv || 0));
+  shadowed.sort((a, b) => (b.pe.arv || 0) - (a.pe.arv || 0));
+  return [
+    ...active.map(x   => renderVCMechRow(x.s, x.pe, 'active')),
+    ...shadowed.map(x => renderVCMechRow(x.s, x.pe, 'shadowed')),
+    ...inactive.map(x => renderVCMechRow(x.s, x.pe, 'inactive'))
+  ].join('');
+}
+
+function renderVCMechRow(s, pe, kind){
+  const ICON = { active:'✓', shadowed:'◐', inactive:'○' };
+  const TAG  = { active:'',  shadowed:'pool-shadowed', inactive:'inactive' };
+  const oneLiner = s.one_liner || s.mechanism_label || s.scenario_id || '';
+  const arv = pe.arv || 0;
+  const arvCls = arv > 0 ? 'is-red' : '';
+  const showActiveExtras = kind === 'active';
+  return `
+    <div class="vc-mech-row vc-mech-${kind}">
+      <span class="vc-mech-icon">${ICON[kind]}</span>
+      <span class="vc-mech-text" title="${escapeHtml(oneLiner)}">${escapeHtml(oneLiner)}</span>
+      ${TAG[kind] ? `<span class="vc-mech-tag">${TAG[kind]}</span>` : ''}
+      ${showActiveExtras ? vcEvBadge(s.evidence_strength) : ''}
+      ${showActiveExtras ? `<span class="vc-mech-arv ${arvCls}">${fmtMoney(arv)}</span>` : ''}
+    </div>`;
+}
+
+function vcEvBadge(raw){
+  const v = (raw || '').toLowerCase();
+  let cls, label;
+  if      (v.includes('strong')   || v.includes('1') || v.includes('customer'))  { cls = 'vefa-ev-strong';   label = 'strong'; }
+  else if (v.includes('moderate') || v.includes('2') || v.includes('benchmark')) { cls = 'vefa-ev-moderate'; label = 'moderate'; }
+  else                                                                            { cls = 'vefa-ev-weak';     label = (raw && String(raw).trim()) || 'weak'; }
+  return `<span class="chip ${cls}">${escapeHtml(label)}</span>`;
 }
 
 function evidenceSummary(active){
