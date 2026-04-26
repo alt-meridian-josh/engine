@@ -179,6 +179,36 @@ input,select,textarea{font:inherit;color:inherit}
 .fd-link{margin-top:auto;padding:10px 14px;border-top:1px solid var(--border);font-size:8px}
 .fd-link a{color:var(--ink4);text-transform:uppercase;letter-spacing:.08em;transition:color .12s;font-family:var(--mono)}
 .fd-link a:hover{color:var(--ink3)}
+/* Live Assumptions Rail — scoped under .ws-sidebar so shared classes elsewhere are untouched */
+.ws-sidebar{padding:0;gap:0}
+.ws-sidebar .ws-nav-item{font-size:9px}
+.ws-rail-top{display:flex;flex-direction:column;gap:10px;padding:14px 0 12px;border-bottom:1px solid var(--border)}
+.ws-rail-top .ws-meta{border-bottom:0;padding-bottom:0}
+.ws-rail-bottom{display:flex;flex-direction:column;gap:14px;padding:14px}
+.ws-rail-section-label{font-family:var(--mono);font-size:8px;color:var(--red);text-transform:uppercase;letter-spacing:.14em;font-weight:600}
+.ws-asmp-empty{font-family:var(--mono);font-size:10px;color:var(--ink3);line-height:1.4}
+.ws-asmp{display:flex;flex-direction:column;gap:14px}
+.ws-asmp-row{display:flex;flex-direction:column;gap:5px}
+.ws-asmp-label{font-family:var(--mono);font-size:9px;color:var(--ink2);line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.ws-asmp-vrow{display:flex;align-items:baseline;justify-content:space-between;gap:6px}
+.ws-asmp-value{font-family:var(--mono);font-size:12px;color:var(--ink);cursor:text;border-bottom:1px dashed transparent;padding:0 1px;transition:border-color .12s,color .12s}
+.ws-asmp-value:hover{border-bottom-color:var(--ink3)}
+.ws-asmp-value[contenteditable="true"]{outline:none;border-bottom-color:var(--red);color:var(--red)}
+.ws-asmp-unit{font-family:var(--mono);font-size:9px;color:var(--ink3);text-align:right}
+.ws-asmp-slider{-webkit-appearance:none;appearance:none;width:100%;height:2px;background:var(--border);border-radius:1px;cursor:pointer;margin:2px 0}
+.ws-asmp-slider::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:10px;height:10px;border-radius:50%;background:var(--red);cursor:pointer;border:0}
+.ws-asmp-slider::-moz-range-thumb{width:10px;height:10px;border-radius:50%;background:var(--red);cursor:pointer;border:0}
+.ws-asmp-src{font-family:var(--mono);font-size:7px;text-transform:uppercase;letter-spacing:.1em;padding:1px 5px;border-radius:2px;align-self:flex-start;font-weight:600}
+.ws-asmp-src.is-buyer{background:var(--green-dim);color:var(--green)}
+.ws-asmp-src.is-default{background:var(--chip-bg);color:var(--ink3)}
+.ws-asmp-metrics{display:flex;align-items:center;gap:8px;padding-top:10px;border-top:1px solid var(--border)}
+.ws-asmp-arv{display:flex;flex-direction:column;gap:2px}
+.ws-asmp-arv-label{font-family:var(--mono);font-size:7px;color:var(--ink3);text-transform:uppercase;letter-spacing:.12em}
+.ws-asmp-arv-value{font-family:var(--mono);font-size:11px;color:var(--red);font-weight:600;line-height:1}
+.ws-asmp-conf{font-family:var(--mono);font-size:8px;text-transform:uppercase;letter-spacing:.1em;padding:2px 6px;border-radius:2px;font-weight:600;margin-left:auto}
+.ws-asmp-conf.is-governed{background:var(--green-dim);color:var(--green)}
+.ws-asmp-conf.is-exploratory{background:var(--amber-dim);color:var(--amber)}
+.ws-asmp-conf.is-default{background:var(--chip-bg);color:var(--ink2)}
 .ws-main{padding:20px 24px;overflow-x:auto}
 .tab-placeholder{padding:40px 20px;text-align:center;color:var(--ink3);font-size:12px;background:var(--surface);border:1px dashed var(--border);border-radius:var(--r)}
 /* Value Case */
@@ -1811,17 +1841,99 @@ function renderSidebar(e){
   const dom = state.domains[e.domain_id]?.domain_name || e.domain_id || '—';
   return `
     <aside class="ws-sidebar">
-      <div class="ws-meta">
-        <div class="ws-meta-row"><div class="ws-meta-label">Domain</div><div class="ws-meta-value">${escapeHtml(dom)}</div></div>
-        <div class="ws-meta-row"><div class="ws-meta-label">Owner</div><div class="ws-meta-value">${escapeHtml(e.owner || '—')}</div></div>
-        <div class="ws-meta-row"><div class="ws-meta-label">Updated</div><div class="ws-meta-value">${relTime(e.intake_date)}</div></div>
-        <div class="ws-meta-row"><div class="ws-meta-label">Engagement ID</div><div class="ws-meta-value">${escapeHtml(e.engagement_id)}</div></div>
+      <div class="ws-rail-top">
+        <div class="ws-meta">
+          <div class="ws-meta-row"><div class="ws-meta-label">Domain</div><div class="ws-meta-value">${escapeHtml(dom)}</div></div>
+          <div class="ws-meta-row"><div class="ws-meta-label">Updated</div><div class="ws-meta-value">${relTime(e.intake_date)}</div></div>
+        </div>
+        <nav class="ws-nav">
+          ${TABS.map(t => `<button class="ws-nav-item ${state.activeTab===t.id?'is-active':''}" data-action="ws-tab" data-tab="${t.id}"><span class="ws-nav-icon">${t.icon}</span>${t.label}</button>`).join('')}
+        </nav>
       </div>
-      <nav class="ws-nav">
-        ${TABS.map(t => `<button class="ws-nav-item ${state.activeTab===t.id?'is-active':''}" data-action="ws-tab" data-tab="${t.id}"><span class="ws-nav-icon">${t.icon}</span>${t.label}</button>`).join('')}
-      </nav>
+      <div class="ws-rail-bottom">${renderAssumptionsPanel(e)}</div>
       <div class="fd-link"><a href="fd-admin.html" target="_blank" rel="noopener">fd-admin →</a></div>
     </aside>`;
+}
+
+// Top-N high-sensitivity inputs ranked by total ARV of active scenarios that
+// require them. inputs_required may be array OR comma-separated string — same
+// duck-typing as vcConfidence.
+function topHighSensInputs(defs, scenarios, analysis, n){
+  const high = (defs || []).filter(d => (d.sensitivity || '').toLowerCase().includes('high'));
+  if (!high.length) return [];
+  const arvByKey = {};
+  (scenarios || []).forEach(s => {
+    const p = (analysis.perScenario || []).find(x => x.scenario_id === s.scenario_id);
+    if (!p || !p.active || p.pool_shadow) return;
+    const req = s.inputs_required;
+    const arr = Array.isArray(req) ? req : typeof req === 'string' ? req.split(',').map(k => k.trim()).filter(Boolean) : [];
+    arr.forEach(k => { arvByKey[k] = (arvByKey[k] || 0) + (p.arv || 0); });
+  });
+  return high
+    .map(d => ({ d, score: arvByKey[d.input_key] || 0 }))
+    .sort((a,b) => b.score - a.score)
+    .slice(0, n)
+    .map(x => x.d);
+}
+
+function renderAssumptionRow(d, iv){
+  const provided = iv?.provided_value;
+  const current = provided != null ? Number(provided) : Number(d.typical_value ?? d.default_value ?? 0);
+  const isBuyer = iv?.value_source === 'prospect';
+  const min = Number(d.min_value ?? 0);
+  const max = Number(d.max_value ?? Math.max(current * 2, 1000));
+  const step = max > 1000 ? Math.max(1, Math.round((max-min)/100)) : (max-min)/100;
+  return `<div class="ws-asmp-row">
+    <div class="ws-asmp-label">${escapeHtml(d.label || d.input_key)}</div>
+    <div class="ws-asmp-vrow">
+      <span class="ws-asmp-value" data-action="edit-input-val" data-key="${escapeHtml(d.input_key)}">${escapeHtml(current.toLocaleString('en-US'))}</span>
+      <span class="ws-asmp-unit">${escapeHtml(d.unit || '')}</span>
+    </div>
+    <input type="range" class="ws-asmp-slider" min="${min}" max="${max}" step="${step}" value="${current}" data-action="slider-input" data-key="${escapeHtml(d.input_key)}"/>
+    <span class="ws-asmp-src ${isBuyer ? 'is-buyer' : 'is-default'}">${isBuyer ? 'Buyer' : 'Default'}</span>
+  </div>`;
+}
+
+function renderAssumptionsPanel(e){
+  const defs = state.inputDefs[e.domain_id] || [];
+  const ivs = state.inputValues[e.engagement_id] || {};
+  const scenarios = state.scenarios[e.engagement_id] || [];
+  const analysis = computeAnalysis(e, scenarios, ivs, defs);
+  const conf = vcConfidence(scenarios, ivs, analysis);
+  const top = topHighSensInputs(defs, scenarios, analysis, 4);
+  const labels = { governed:'GOVERNED', exploratory:'EXPLORATORY', default:'DEFAULT' };
+  return `
+    <div class="ws-rail-section-label">Key Assumptions</div>
+    ${top.length
+      ? `<div class="ws-asmp">${top.map(d => renderAssumptionRow(d, ivs[d.input_key])).join('')}</div>`
+      : `<div class="ws-asmp-empty">Open an analysis to see live assumptions</div>`}
+    <div class="ws-asmp-metrics">
+      <div class="ws-asmp-arv">
+        <div class="ws-asmp-arv-label">ARV</div>
+        <div class="ws-asmp-arv-value" data-asmp-arv>${fmtMoney(analysis.arvFull || 0)}</div>
+      </div>
+      <span class="ws-asmp-conf is-${conf}" data-asmp-conf>${labels[conf]}</span>
+    </div>`;
+}
+
+// Imperative live paint — slider drag + inline-edit must NOT trigger full
+// re-render (focus/scroll loss per 2026-04-23, 2026-04-24 lessons). Updates
+// the rail's ARV and confidence chip from current state.
+function paintAssumptionsLive(){
+  const e = currentEng(); if (!e) return;
+  const defs = state.inputDefs[e.domain_id] || [];
+  const ivs = state.inputValues[e.engagement_id] || {};
+  const scenarios = state.scenarios[e.engagement_id] || [];
+  const analysis = computeAnalysis(e, scenarios, ivs, defs);
+  const conf = vcConfidence(scenarios, ivs, analysis);
+  const arvEl = document.querySelector('[data-asmp-arv]');
+  if (arvEl) arvEl.textContent = fmtMoney(analysis.arvFull || 0);
+  const confEl = document.querySelector('[data-asmp-conf]');
+  if (confEl){
+    confEl.classList.remove('is-governed','is-exploratory','is-default');
+    confEl.classList.add('is-' + conf);
+    confEl.textContent = ({governed:'GOVERNED', exploratory:'EXPLORATORY', default:'DEFAULT'})[conf];
+  }
 }
 
 function renderWorkspaceMain(e){
@@ -2305,8 +2417,9 @@ function onSliderInput(key, value){
   const eng = currentEng(); if (!eng) return;
   const ivs = state.inputValues[eng.engagement_id] = state.inputValues[eng.engagement_id] || {};
   ivs[key] = { engagement_id: eng.engagement_id, input_key: key, provided_value: Number(value), value_source: 'analyst' };
-  const el = document.querySelector(`.ig-value[data-key="${CSS.escape(key)}"]`);
-  if (el) el.textContent = Number(value).toLocaleString('en-US');
+  const formatted = Number(value).toLocaleString('en-US');
+  document.querySelectorAll(`.ig-value[data-key="${CSS.escape(key)}"], .ws-asmp-value[data-key="${CSS.escape(key)}"]`).forEach(el => { el.textContent = formatted; });
+  paintAssumptionsLive();
   debounce('inp:' + key, () => upsertInputValue(eng.engagement_id, key, Number(value), 'analyst'));
 }
 
