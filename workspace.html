@@ -219,7 +219,6 @@ input,select,textarea{font:inherit;color:inherit}
 .ws-ctx-chip.is-clickable:hover{border-color:var(--ink3);color:var(--ink)}
 .ws-ctx-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;display:inline-block;background:var(--ink3)}
 .ws-ctx-out-visibility{background:#93c5fd}.ws-ctx-out-throughput{background:#fbbf24}.ws-ctx-out-compliance{background:#c4b5fd}.ws-ctx-out-risk{background:#f87171}.ws-ctx-out-intelligence{background:#5eead4}.ws-ctx-out-performance{background:#86efac}.ws-ctx-out-revenue{background:#6ee7b7}
-.ws-ctx-tier-key{color:var(--ink3);margin-right:2px}
 .ws-ctx-comp.is-good{border-color:var(--green);color:var(--green)}
 .ws-ctx-comp.is-mid{border-color:var(--amber);color:var(--amber)}
 .ws-ctx-comp.is-bad{border-color:var(--red);color:var(--red)}
@@ -1658,7 +1657,7 @@ async function vefaSaveQuickSnapshot(engId){
   defs.forEach(d => { inputSnap[d.input_key] = ivs[d.input_key]?.provided_value ?? d.typical_value ?? d.default_value ?? null; });
   const row = {
     engagement_id: engId, domain_id: eng.domain_id,
-    snapshot_label: 'Pre-VEF-Assist Update', intent: 'Track', snapshot_version: ver,
+    snapshot_label: 'Pre-VEF-Assist Update', intent: 'track', snapshot_version: ver,
     annual_value: a.arvFull, payback_mo: a.payback, bcr: a.bcr, monthly_delay_cost: a.monthlyDelay,
     active_scenario_ids: scens.filter(s => s.active).map(s => s.scenario_id).join(','),
     input_snapshot: inputSnap, notes: 'Auto-snapshot before VEF Assist update'
@@ -1894,7 +1893,7 @@ function renderContextBar(e){
       <div class="ws-ctxbar-left">
         <span class="ws-ctx-chip" title="${escapeHtml(d?.domain_name || e.domain_id || '')}"><span class="ws-ctx-dot ws-ctx-out-${escapeHtml(outKey)}"></span>${escapeHtml(outcome.toUpperCase())} ${escapeHtml(e.domain_id || '')}</span>
         <span class="ws-ctx-chip is-clickable" data-action="ctx-jump-vc" title="Open Value Case">${escapeHtml(scenLabel)}</span>
-        <span class="ws-ctx-chip is-clickable" data-action="ctx-tier-cycle" title="Cycle assumption tier"><span class="ws-ctx-tier-key">TIER</span>${escapeHtml(tier)}</span>
+        <span class="ws-ctx-chip is-clickable" data-action="ctx-tier-cycle" title="Cycle assumption tier">${escapeHtml(tier)}</span>
         <span class="ws-ctx-chip ws-ctx-comp ${compCls}" title="High-sensitivity inputs confirmed by buyer">${pct}% governed</span>
       </div>
       <div class="ws-ctxbar-right" data-ctx-saved>${ctxSavedLabel()}</div>
@@ -2754,7 +2753,7 @@ async function onSaveSnapshotSubmit(e){
   defs.forEach(d => { inputSnap[d.input_key] = ivs[d.input_key]?.provided_value ?? d.typical_value ?? d.default_value ?? null; });
   const row = {
     engagement_id: eng.engagement_id, domain_id: eng.domain_id,
-    snapshot_label: f.label.value, intent: f.intent.value, snapshot_version: version,
+    snapshot_label: f.label.value, intent: f.intent.value.toLowerCase(), snapshot_version: version,
     annual_value: a.arvFull, payback_mo: a.payback, bcr: a.bcr, monthly_delay_cost: a.monthlyDelay,
     active_scenario_ids: scenarios.filter(s => s.active).map(s => s.scenario_id).join(','),
     input_snapshot: inputSnap, notes: f.notes.value.trim() || null

@@ -52,3 +52,21 @@
 **Prevention rule:** Before adding a new fetch for "missing data" cases, check whether the same data is already loaded into session state by an earlier flow. Cheaper to filter what's already in memory than to add a second source of truth and re-fetch.
 **Status:** RESOLVED
 **Project:** alt-meridian
+
+## BUG-004 2026-04-26 — Snapshot intent capitalization violates DB CHECK constraint
+**File(s):** workspace.html (line 1661 auto-snapshot, line 2757 modal handler)
+**Symptom:** Save Snapshot insert into `vef_output_snapshots` rejected by Postgres CHECK constraint when `intent` is sent capitalized ('Convince', 'Measure', 'Justify', 'Track'). The DB enum is lowercase ('convince', 'measure', 'justify', 'track').
+**Root cause:** The `SNAP_INTENTS` UI vocabulary is capitalized for display, but the same string was written through to the DB without normalization. Two emit sites: the modal form value (`f.intent.value`) and the auto-snapshot row built before VEF Assist update (hardcoded `'Track'`). `snapshot_label` does NOT have a similar constraint — its values include capitals + hyphens (e.g., '30-Day Follow-Up') and have been working in production, so it's free text or a different shape.
+**Fix applied:** `.toLowerCase()` on `f.intent.value` at line 2757; hardcoded `'Track'` → `'track'` at line 1661. Display labels in `SNAP_INTENTS` and the snapshot card meta line are unchanged — they continue to use the user-friendly capitalized form. Commit on main.
+**Prevention rule:** When a UI vocabulary maps to a DB enum, normalize at the WRITE site (not the SOURCE constant), so the user-visible label can stay readable while the DB value matches the constraint. Audit every emit site that writes to the same column — modal handlers AND any background/auto paths.
+**Status:** RESOLVED
+**Project:** alt-meridian
+
+## BUG-005 2026-04-26 — Context bar tier chip showed 'TIER' label prefix instead of just tier name
+**File(s):** workspace.html (renderContextBar — line 1897 pre-fix; orphan CSS line 222 pre-fix)
+**Symptom:** Tier chip rendered as "TIER TYPICAL" / "TIER 1" instead of the bare tier name. Spec for the chip listed values as `CONSERVATIVE / TYPICAL / AGGRESSIVE` with no prefix.
+**Root cause:** Chunk 2 added a `<span class="ws-ctx-tier-key">TIER</span>` prefix inside the chip thinking it improved readability. Spec didn't ask for it and the prefix made the chip noisier than the other context-bar chips. The user read the prefix + value as one unit ("TIER 1") and flagged it as wrong content.
+**Fix applied:** Removed the prefix span from the chip template; kept the chip's title attribute ("Cycle assumption tier") so the affordance is still discoverable on hover. Removed the now-orphan `.ws-ctx-tier-key` CSS rule.
+**Prevention rule:** When a spec lists chip content as a list of bare values, render exactly those values — don't add prefix labels for "context" unless the spec asks. The chip's `title` and surrounding bar provide context already.
+**Status:** RESOLVED
+**Project:** alt-meridian
