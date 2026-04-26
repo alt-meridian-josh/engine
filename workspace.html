@@ -651,6 +651,8 @@ async function loadEvidence(domainId){ return sbSelect('vef_evidence_registry', 
 /* ---------- FORMULA ENGINE ---------- */
 const RAMPS = [0.5, 1.0, 1.0];   // Y1 50% ramp, Y2/Y3 full adoption
 const DISCOUNT = 0.10;
+const MERIDIAN_MODEL       = 'claude-sonnet-4-20250514';
+const MERIDIAN_MODEL_LABEL = 'Sonnet 4';
 
 function evalFormula(formula, inputs){
   if (!formula || typeof formula !== 'string') return null;
@@ -978,7 +980,7 @@ async function vefaExtract(){
       method:'POST',
       headers:{ 'content-type':'application/json', 'x-api-key':key, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: MERIDIAN_MODEL,
         max_tokens: 1000,
         system: VEFA_EXTRACT_SYSTEM,
         messages: [{ role:'user', content: state.vefAssist.importText.trim() }]
@@ -2579,7 +2581,7 @@ async function callMeridian(userMsg){
       method: 'POST',
       headers: { 'content-type':'application/json', 'x-api-key':key, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: MERIDIAN_MODEL,
         max_tokens: 1000,
         system: buildMeridianSystem(eng),
         messages: history.slice(0,-1).filter(m => m.content !== '__thinking__').map(m => ({ role: m.role === 'error' ? 'assistant' : m.role, content: m.content }))
@@ -2602,7 +2604,7 @@ function renderMeridianDrawer(){
     <aside class="mx-drawer ${state.meridianOpen?'is-open':''}">
       <div class="mx-head">
         <div class="mx-title"><span class="dot">◆</span>Meridian</div>
-        <div class="mx-model">Sonnet 4</div>
+        <div class="mx-model">${MERIDIAN_MODEL_LABEL}</div>
         <div class="mx-head-actions">
           <button class="mx-icon-btn" data-action="mx-reset-key" title="Change API key">Key</button>
           <button class="mx-icon-btn" data-action="mx-clear" title="Clear chat">Clear</button>
