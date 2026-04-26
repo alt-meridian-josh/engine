@@ -368,6 +368,43 @@ input,select,textarea{font:inherit;color:inherit}
 .fin-tbl td:last-child{text-align:right;font-family:var(--mono);color:var(--ink);font-weight:500}
 .fin-tbl tr:last-child td{border-bottom:0}
 .fin-tbl tr.emph td{background:var(--surface-2);font-weight:600} .fin-tbl tr.emph td:last-child{color:var(--red)}
+/* Three Questions visuals */
+.tq-bars{display:flex;align-items:flex-end;gap:6px;height:48px;margin-top:8px}
+.tq-ramp{width:28px;background:var(--red);border-radius:2px 2px 0 0;flex-shrink:0}
+.tq-ramp-y1{height:50%;opacity:.5}
+.tq-ramp-y2{height:100%}
+.tq-ramp-y3{height:100%;opacity:.8}
+.tq-bars-labels{display:flex;gap:6px;margin-top:4px}
+.tq-bars-labels>span{width:28px;text-align:center;font-family:var(--mono);font-size:8px;color:var(--ink3);text-transform:uppercase;letter-spacing:.1em}
+.tq-escal{display:flex;align-items:flex-end;gap:1px;height:24px;margin-top:8px;width:100%}
+.tq-escal-seg{flex:1;background:var(--amber);border-radius:1px 1px 0 0}
+.tq-vlabel{font-family:var(--mono);font-size:8px;color:var(--ink3);text-transform:uppercase;letter-spacing:.1em;margin-top:4px}
+.tq-risk-track{position:relative;height:6px;background:var(--surface-2);border-radius:3px;margin-top:10px;overflow:hidden}
+.tq-risk-fill{position:absolute;left:0;top:0;bottom:0;background:var(--red);border-radius:3px;transition:width .3s}
+/* Scenario Waterfall v2 */
+.wf2-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px 18px;box-shadow:var(--shadow);margin-bottom:16px}
+.wf2-head{font-family:var(--mono);font-size:8px;color:var(--ink3);text-transform:uppercase;letter-spacing:.14em;margin-bottom:10px;font-weight:600}
+.wf2-row{display:grid;grid-template-columns:280px 1fr 90px 70px;gap:12px;align-items:center;padding:7px 0;border-bottom:1px solid var(--border)}
+.wf2-row:last-of-type{border-bottom:0}
+.wf2-name{font-family:var(--mono);font-size:10px;color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wf2-bar-wrap{height:20px;background:var(--surface-2);border-radius:2px;overflow:hidden}
+.wf2-bar{height:100%;border-radius:2px;min-width:2px;transition:width .3s;background:var(--red)}
+.wf2-th-labor{background:#b45309}
+.wf2-th-ops{background:#15803d}
+.wf2-th-cost{background:#1d4ed8}
+.wf2-th-revenue{background:#065f46}
+.wf2-th-risk{background:#7c3aed}
+.wf2-th-strategic{background:var(--ink3)}
+.wf2-bar.is-shadow{background:var(--ink4)}
+.wf2-val{font-family:var(--mono);font-size:11px;text-align:right;color:var(--ink);font-weight:500}
+.wf2-ev{font-family:var(--mono);font-size:8px;text-align:right;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;padding:2px 6px;background:var(--surface-2);border-radius:2px;justify-self:end;white-space:nowrap}
+.wf2-row.is-shadow .wf2-name{color:var(--ink3);text-decoration:line-through}
+.wf2-tag{display:inline-block;font-family:var(--mono);font-size:7px;color:var(--ink3);text-transform:uppercase;letter-spacing:.1em;margin-left:6px;text-decoration:none;font-weight:600}
+.wf2-total{display:grid;grid-template-columns:280px 1fr 90px 70px;gap:12px;align-items:center;padding:10px 0 4px;border-top:1px solid var(--border2);margin-top:6px}
+.wf2-total-label{font-family:var(--mono);font-size:9px;color:var(--ink);text-transform:uppercase;letter-spacing:.14em;font-weight:600}
+.wf2-total-bar-wrap{height:12px;background:var(--surface-2);border-radius:2px;overflow:hidden}
+.wf2-total-bar{height:100%;background:var(--red);width:100%}
+.wf2-total-val{font-family:var(--mono);font-size:12px;text-align:right;color:var(--red);font-weight:600}
 .fin-note{padding:10px 16px;background:var(--amber-dim);color:var(--amber);font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-family:var(--mono);border-top:1px solid var(--border)}
 /* Snapshots */
 .snap-timeline{position:relative;padding-left:20px}
@@ -2506,47 +2543,79 @@ async function applyInputPreset(preset){
     toast('Applied ' + preset + ' preset');
   } catch (err) { toast('Save failed: ' + (err.message || err), true); }
 }
+// Theme palette per UPGRADE 3 spec — substring match against value_theme.
+function wfThemeClass(theme){
+  const t = String(theme || '').toLowerCase();
+  if (t.includes('labor') || t.includes('human capacity'))   return 'wf2-th-labor';
+  if (t.includes('operational') || t.includes('efficiency')) return 'wf2-th-ops';
+  if (t.includes('direct') || t.includes('cost'))            return 'wf2-th-cost';
+  if (t.includes('revenue') || t.includes('margin'))         return 'wf2-th-revenue';
+  if (t.includes('risk') || t.includes('compliance'))        return 'wf2-th-risk';
+  if (t.includes('strategic'))                               return 'wf2-th-strategic';
+  return '';
+}
+function truncMid(s, n){ s = String(s || ''); return s.length <= n ? s : s.slice(0, n - 1).trimEnd() + '…'; }
+
 function renderOutputsTab(e){
   const scenarios = state.scenarios[e.engagement_id] || [];
   const defs = state.inputDefs[e.domain_id] || [];
   const ivs = state.inputValues[e.engagement_id] || {};
   const a = computeAnalysis(e, scenarios, ivs, defs);
-  const tier = state.preset || 'typical';
   const total = a.arvFull;
+  const riskPct = (a.coi3yr + (a.impl || 0)) > 0 ? Math.round(a.coi3yr / (a.coi3yr + (a.impl || 0)) * 100) : (a.coi3yr > 0 ? 100 : 0);
+  const escalSegs = Array.from({length:12}, (_,i) => {
+    const t = i / 11;
+    return `<div class="tq-escal-seg" style="height:${Math.round((0.2 + t*0.8)*100)}%;opacity:${(0.2 + t*0.8).toFixed(2)}"></div>`;
+  }).join('');
+  const actives = (a.perScenario || []).filter(p => p.active);
   return `
     <div class="section-head"><h2 class="section-title">The Three Questions</h2></div>
     <div class="three-q">
       <div class="tq-card acting">
         <div class="tq-label">Value of Acting</div>
         <div class="tq-value red">${fmtMoney(a.arvY1)}</div>
+        <div class="tq-bars"><div class="tq-ramp tq-ramp-y1"></div><div class="tq-ramp tq-ramp-y2"></div><div class="tq-ramp tq-ramp-y3"></div></div>
+        <div class="tq-bars-labels"><span>Y1</span><span>Y2</span><span>Y3</span></div>
         <div class="tq-sub">Year 1 realized · after activation ramp (50%)</div>
-        <div class="tq-tier">Tier · ${tier}</div>
       </div>
       <div class="tq-card delay">
         <div class="tq-label">Cost of Delay</div>
         <div class="tq-value amber">${fmtMoney(a.monthlyDelay)}<span class="u">/mo</span></div>
+        <div class="tq-escal">${escalSegs}</div>
+        <div class="tq-vlabel">12-month accumulation</div>
         <div class="tq-sub">Per month of inaction</div>
       </div>
       <div class="tq-card nothing">
         <div class="tq-label">Cost of Doing Nothing</div>
         <div class="tq-value ink">${fmtMoney(a.coi3yr)}</div>
+        <div class="tq-risk-track"><div class="tq-risk-fill" style="width:${riskPct}%"></div></div>
+        <div class="tq-vlabel">Value at risk</div>
         <div class="tq-sub">3-year cumulative · ramped</div>
       </div>
     </div>
-    <div class="section-head"><h2 class="section-title">Scenario Breakdown</h2></div>
-    ${scenarios.length ? `<div class="wf-card">${a.perScenario.map(p => {
-      const s = scenarios.find(x => x.scenario_id === p.scenario_id);
-      const pct = total > 0 ? Math.round(p.arv / total * 100) : 0;
+    <div class="wf2-head">Scenario Breakdown</div>
+    ${actives.length ? `<div class="wf2-card">${actives.map(p => {
+      const s = scenarios.find(x => x.scenario_id === p.scenario_id) || {};
+      const pct = total > 0 ? (p.arv / total * 100) : 0;
+      const widthPx = `max(2px, ${pct.toFixed(1)}%)`;
       const shadow = p.pool_shadow;
-      const statusText = shadow ? 'Pool-shadowed' : p.active ? 'Active' : 'Inactive';
-      return `<div class="wf-row ${shadow?'shadow':''}">
-        <div class="wf-name">${escapeHtml(s?.mechanism_label || p.scenario_id)}</div>
-        <div class="wf-bar-wrap"><div class="wf-bar ${shadow?'shadow':''}" style="width:${p.active?Math.max(3,pct):3}%"></div></div>
-        <div class="wf-val">${fmtMoney(p.arv)}</div>
-        <div class="wf-pct">${p.active && !shadow ? pct+'%' : '—'}</div>
-        <div class="wf-status">${statusText}</div>
+      const themeCls = shadow ? '' : wfThemeClass(s.value_theme);
+      const sources = (typeof vefaSourcesCount === 'function') ? vefaSourcesCount(s) : 0;
+      const evBadge = sources > 0 ? `${sources} src${sources===1?'':'s'}` : 'Assumption';
+      const name = truncMid(s.one_liner || s.mechanism_label || p.scenario_id, 40);
+      return `<div class="wf2-row ${shadow?'is-shadow':''}">
+        <div class="wf2-name">${escapeHtml(name)}${shadow ? '<span class="wf2-tag">pool-shadowed</span>' : ''}</div>
+        <div class="wf2-bar-wrap"><div class="wf2-bar ${themeCls} ${shadow?'is-shadow':''}" style="width:${widthPx}"></div></div>
+        <div class="wf2-val">${fmtMoney(p.arv)}</div>
+        <span class="wf2-ev">${escapeHtml(evBadge)}</span>
       </div>`;
-    }).join('')}</div>` : `<div class="tab-placeholder">No scenarios to chart.</div>`}
+    }).join('')}
+    <div class="wf2-total">
+      <div class="wf2-total-label">Total</div>
+      <div class="wf2-total-bar-wrap"><div class="wf2-total-bar"></div></div>
+      <div class="wf2-total-val">${fmtMoney(total)}</div>
+      <span></span>
+    </div></div>` : `<div class="tab-placeholder">No active scenarios to chart.</div>`}
     <div class="section-head"><h2 class="section-title">Financial Summary</h2></div>
     <div class="fin-wrap">
       <table class="fin-tbl"><tbody>
