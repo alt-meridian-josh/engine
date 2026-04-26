@@ -351,16 +351,6 @@ input,select,textarea{font:inherit;color:inherit}
 .tq-value.red{color:var(--red)} .tq-value.amber{color:var(--amber)} .tq-value.ink{color:var(--ink)}
 .tq-value .u{font-size:13px;opacity:.5;margin-left:2px;font-weight:500}
 .tq-sub{font-family:var(--mono);font-size:10px;color:var(--ink2)}
-.tq-tier{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);margin-top:2px}
-.wf-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px 20px;box-shadow:var(--shadow);margin-bottom:16px}
-.wf-row{display:grid;grid-template-columns:220px 1fr 80px 60px 90px;gap:10px;align-items:center;padding:6px 0;font-size:11px}
-.wf-row.shadow{opacity:.55}
-.wf-name{color:var(--ink2);font-family:var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.wf-bar-wrap{background:var(--surface-2);border-radius:2px;height:18px;overflow:hidden}
-.wf-bar{height:100%;background:var(--red);border-radius:2px;transition:width .3s} .wf-bar.shadow{background:var(--border2)}
-.wf-val{font-family:var(--mono);text-align:right;color:var(--ink);font-weight:500}
-.wf-pct{font-family:var(--mono);text-align:right;color:var(--ink3)}
-.wf-status{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink3);text-align:right}
 .fin-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;box-shadow:var(--shadow)}
 .fin-tbl{width:100%;border-collapse:collapse;font-size:12px}
 .fin-tbl td{padding:10px 16px;border-bottom:1px solid var(--border)}
@@ -405,6 +395,19 @@ input,select,textarea{font:inherit;color:inherit}
 .wf2-total-bar-wrap{height:12px;background:var(--surface-2);border-radius:2px;overflow:hidden}
 .wf2-total-bar{height:100%;background:var(--red);width:100%}
 .wf2-total-val{font-family:var(--mono);font-size:12px;text-align:right;color:var(--red);font-weight:600}
+/* Outputs tier toggle (relocated from per-card .tq-tier) */
+.out-tier{display:flex;gap:8px;margin-bottom:18px}
+.out-tier-btn{padding:8px 18px;border-radius:3px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.1em;border:1px solid var(--border2);background:var(--surface-2);color:var(--ink3);cursor:pointer;transition:all .12s;font-weight:500}
+.out-tier-btn:hover{color:var(--ink2)}
+.out-tier-btn.is-active{background:var(--red);color:#fff;border-color:var(--red)}
+/* DCF cumulative cash flow curve (above Financial Summary) */
+.dcf-wrap{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:14px 18px;margin-bottom:16px;box-shadow:var(--shadow)}
+.dcf-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:8px}
+.dcf-title{font-family:var(--mono);font-size:8px;color:var(--ink3);text-transform:uppercase;letter-spacing:.14em;font-weight:600}
+.dcf-pb-label{font-family:var(--mono);font-size:9px;color:var(--red);font-weight:600;text-transform:uppercase;letter-spacing:.08em}
+.dcf-svg{display:block;width:100%;height:80px;background:var(--surface-2);border-radius:2px}
+.dcf-x-axis{display:flex;justify-content:space-between;margin-top:6px;font-family:var(--mono);font-size:8px;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em}
+.dcf-empty{font-family:var(--mono);font-size:9px;color:var(--ink3);font-style:italic;text-align:center;margin-top:6px}
 .fin-note{padding:10px 16px;background:var(--amber-dim);color:var(--amber);font-size:10px;text-transform:uppercase;letter-spacing:.06em;font-family:var(--mono);border-top:1px solid var(--border)}
 /* Snapshots */
 .snap-timeline{position:relative;padding-left:20px}
@@ -2543,6 +2546,46 @@ async function applyInputPreset(preset){
     toast('Applied ' + preset + ' preset');
   } catch (err) { toast('Save failed: ' + (err.message || err), true); }
 }
+// DCF curve — 80px sparkline showing cumulative cash flow over 36 months as a
+// straight line from -impl to (Y1+Y2+Y3 - impl). When impl is missing, drops
+// to a flat positive line and prompts the user to fill it in (spec v1).
+function renderDcfCurve(a){
+  const W = 360, H = 80;
+  const total = (a.arvY1 || 0) + (a.arvY2 || 0) + (a.arvY3 || 0);
+  const impl = Number(a.impl) || 0;
+  const grid = `<line x1="0" x2="${W}" y1="20" y2="20" stroke="var(--border)" opacity=".5" vector-effect="non-scaling-stroke"/><line x1="0" x2="${W}" y1="40" y2="40" stroke="var(--border)" opacity=".5" vector-effect="non-scaling-stroke"/><line x1="0" x2="${W}" y1="60" y2="60" stroke="var(--border)" opacity=".5" vector-effect="non-scaling-stroke"/>`;
+  const xAxis = `<div class="dcf-x-axis"><span>0</span><span>12mo</span><span>24mo</span><span>36mo</span></div>`;
+  if (impl <= 0){
+    const flatY = 20;
+    return `<div class="dcf-wrap">
+      <div class="dcf-head"><div class="dcf-title">Cumulative Cash Flow</div></div>
+      <svg class="dcf-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">${grid}<path d="M 0,${flatY} L ${W},${flatY} L ${W},${H} L 0,${H} Z" fill="var(--red)" opacity=".08"/><line x1="0" y1="${flatY}" x2="${W}" y2="${flatY}" stroke="var(--red)" stroke-width="2" vector-effect="non-scaling-stroke"/></svg>
+      ${xAxis}
+      <div class="dcf-empty">Enter implementation cost in Deal tab to see payback</div>
+    </div>`;
+  }
+  const dataMin = Math.min(-impl, 0);
+  const dataMax = Math.max(total - impl, 0);
+  const range = (dataMax - dataMin) || 1;
+  const Y = v => H - H * (v - dataMin) / range;
+  const startY = Y(-impl), endY = Y(total - impl), zeroY = Y(0);
+  const pbm = total > 0 ? (impl / (total / 36)) : 36;
+  const pbX = Math.max(0, Math.min(W, (pbm / 36) * W));
+  const pbLabel = a.payback != null ? a.payback.toFixed(1) + 'mo' : pbm.toFixed(1) + 'mo';
+  return `<div class="dcf-wrap">
+    <div class="dcf-head"><div class="dcf-title">Cumulative Cash Flow</div><div class="dcf-pb-label">Payback ${escapeHtml(pbLabel)}</div></div>
+    <svg class="dcf-svg" viewBox="0 0 ${W} ${H}" preserveAspectRatio="none">
+      ${grid}
+      <path d="M 0,${zeroY} L 0,${startY} L ${pbX.toFixed(1)},${zeroY} Z" fill="var(--red)" opacity=".04"/>
+      <path d="M ${pbX.toFixed(1)},${zeroY} L ${W},${endY} L ${W},${zeroY} Z" fill="var(--red)" opacity=".08"/>
+      <line x1="0" x2="${W}" y1="${zeroY}" y2="${zeroY}" stroke="var(--ink3)" opacity=".4" vector-effect="non-scaling-stroke"/>
+      <line x1="0" y1="${startY}" x2="${W}" y2="${endY}" stroke="var(--red)" stroke-width="2" vector-effect="non-scaling-stroke"/>
+      <line x1="${pbX.toFixed(1)}" x2="${pbX.toFixed(1)}" y1="0" y2="${H}" stroke="var(--red)" stroke-width="1" stroke-dasharray="3 3" opacity=".7" vector-effect="non-scaling-stroke"/>
+    </svg>
+    ${xAxis}
+  </div>`;
+}
+
 // Theme palette per UPGRADE 3 spec — substring match against value_theme.
 function wfThemeClass(theme){
   const t = String(theme || '').toLowerCase();
@@ -2568,7 +2611,10 @@ function renderOutputsTab(e){
     return `<div class="tq-escal-seg" style="height:${Math.round((0.2 + t*0.8)*100)}%;opacity:${(0.2 + t*0.8).toFixed(2)}"></div>`;
   }).join('');
   const actives = (a.perScenario || []).filter(p => p.active);
+  const preset = state.preset || 'typical';
+  const tierBtn = p => `<button class="out-tier-btn ${preset===p?'is-active':''}" data-action="input-preset" data-preset="${p}">${p[0].toUpperCase()+p.slice(1)}</button>`;
   return `
+    <div class="out-tier">${tierBtn('conservative')}${tierBtn('typical')}${tierBtn('aggressive')}</div>
     <div class="section-head"><h2 class="section-title">The Three Questions</h2></div>
     <div class="three-q">
       <div class="tq-card acting">
@@ -2617,6 +2663,7 @@ function renderOutputsTab(e){
       <span></span>
     </div></div>` : `<div class="tab-placeholder">No active scenarios to chart.</div>`}
     <div class="section-head"><h2 class="section-title">Financial Summary</h2></div>
+    ${renderDcfCurve(a)}
     <div class="fin-wrap">
       <table class="fin-tbl"><tbody>
         <tr><td>Y1 Realized Value</td><td>${fmtMoney(a.arvY1)}</td></tr>
