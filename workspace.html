@@ -209,6 +209,21 @@ input,select,textarea{font:inherit;color:inherit}
 .ws-asmp-conf.is-governed{background:var(--green-dim);color:var(--green)}
 .ws-asmp-conf.is-exploratory{background:var(--amber-dim);color:var(--amber)}
 .ws-asmp-conf.is-default{background:var(--chip-bg);color:var(--ink2)}
+/* Active Context Bar — sticky below 44px topbar; pushes sidebar offset to 76px */
+.ws-ctxbar{position:sticky;top:44px;z-index:45;height:32px;background:var(--surface-2);border-bottom:1px solid var(--border);padding:0 20px;display:flex;align-items:center;gap:12px}
+.ws-ctxbar-left{display:flex;align-items:center;gap:8px;flex:1;min-width:0;overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none}
+.ws-ctxbar-left::-webkit-scrollbar{display:none}
+.ws-ctxbar-right{font-family:var(--mono);font-size:8px;color:var(--ink3);text-transform:uppercase;letter-spacing:.08em;white-space:nowrap}
+.ws-ctx-chip{display:inline-flex;align-items:center;gap:6px;height:22px;padding:0 8px;font-family:var(--mono);font-size:9px;font-weight:500;text-transform:uppercase;letter-spacing:.08em;color:var(--ink2);background:var(--surface);border:1px solid var(--border);border-radius:2px;white-space:nowrap}
+.ws-ctx-chip.is-clickable{cursor:pointer;transition:border-color .12s,color .12s}
+.ws-ctx-chip.is-clickable:hover{border-color:var(--ink3);color:var(--ink)}
+.ws-ctx-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0;display:inline-block;background:var(--ink3)}
+.ws-ctx-out-visibility{background:#93c5fd}.ws-ctx-out-throughput{background:#fbbf24}.ws-ctx-out-compliance{background:#c4b5fd}.ws-ctx-out-risk{background:#f87171}.ws-ctx-out-intelligence{background:#5eead4}.ws-ctx-out-performance{background:#86efac}.ws-ctx-out-revenue{background:#6ee7b7}
+.ws-ctx-tier-key{color:var(--ink3);margin-right:2px}
+.ws-ctx-comp.is-good{border-color:var(--green);color:var(--green)}
+.ws-ctx-comp.is-mid{border-color:var(--amber);color:var(--amber)}
+.ws-ctx-comp.is-bad{border-color:var(--red);color:var(--red)}
+.ws-sidebar{top:76px;height:calc(100vh - 76px)}
 .ws-main{padding:20px 24px;overflow-x:auto}
 .tab-placeholder{padding:40px 20px;text-align:center;color:var(--ink3);font-size:12px;background:var(--surface);border:1px dashed var(--border);border-radius:var(--r)}
 /* Value Case */
@@ -597,6 +612,7 @@ const state = {
   activeTab:'value-case', meridianOpen:false, meridianHistory:{}, meridianPreload:null,
   homeFilter:'all', homeSearch:'', homeSort:'updated',
   modal:null, loading:false, vcDetailOpen:false, vcCardOpen:{},
+  lastSavedAt:null,
   vefAssist: makeVEFAssistState()
 };
 function setState(patch){ Object.assign(state, patch); if (typeof render === 'function') render(); }
@@ -1813,7 +1829,52 @@ const currentEng = () => state.engagements.find(e => e.engagement_id === state.a
 function renderWorkspace(){
   const e = currentEng();
   if (!e) return `<div class="boot">Engagement not loaded</div>`;
-  return `${renderWorkspaceTopbar(e)}<div class="ws-layout">${renderSidebar(e)}<main class="ws-main">${renderWorkspaceMain(e)}</main></div>${renderMeridianDrawer()}`;
+  return `${renderWorkspaceTopbar(e)}${renderContextBar(e)}<div class="ws-layout">${renderSidebar(e)}<main class="ws-main">${renderWorkspaceMain(e)}</main></div>${renderMeridianDrawer()}`;
+}
+
+function renderContextBar(e){
+  if (!e) return '';
+  const d = state.domains[e.domain_id];
+  const outcome = d?.primary_outcome || 'Unmapped';
+  const outKey = outcome.toLowerCase();
+  const scenarios = state.scenarios[e.engagement_id] || [];
+  const ivs = state.inputValues[e.engagement_id] || {};
+  const defs = state.inputDefs[e.domain_id] || [];
+  const analysis = computeAnalysis(e, scenarios, ivs, defs);
+  const active = (analysis.perScenario || []).filter(p => p.active && !p.pool_shadow).length;
+  const shadowed = (analysis.perScenario || []).filter(p => p.active && p.pool_shadow).length;
+  const tier = (state.preset || 'typical').toUpperCase();
+  const high = defs.filter(x => (x.sensitivity || '').toLowerCase().includes('high'));
+  const confirmed = high.filter(x => ivs[x.input_key]?.value_source === 'prospect').length;
+  const pct = high.length ? Math.round((confirmed / high.length) * 100) : 0;
+  const compCls = pct > 80 ? 'is-good' : pct >= 40 ? 'is-mid' : 'is-bad';
+  const scenLabel = `${active} active${shadowed ? ' · ' + shadowed + ' shadowed' : ''}`;
+  return `
+    <div class="ws-ctxbar">
+      <div class="ws-ctxbar-left">
+        <span class="ws-ctx-chip" title="${escapeHtml(d?.domain_name || e.domain_id || '')}"><span class="ws-ctx-dot ws-ctx-out-${escapeHtml(outKey)}"></span>${escapeHtml(outcome.toUpperCase())} ${escapeHtml(e.domain_id || '')}</span>
+        <span class="ws-ctx-chip is-clickable" data-action="ctx-jump-vc" title="Open Value Case">${escapeHtml(scenLabel)}</span>
+        <span class="ws-ctx-chip is-clickable" data-action="ctx-tier-cycle" title="Cycle assumption tier"><span class="ws-ctx-tier-key">TIER</span>${escapeHtml(tier)}</span>
+        <span class="ws-ctx-chip ws-ctx-comp ${compCls}" title="High-sensitivity inputs confirmed by buyer">${pct}% governed</span>
+      </div>
+      <div class="ws-ctxbar-right" data-ctx-saved>${ctxSavedLabel()}</div>
+    </div>`;
+}
+
+function ctxSavedLabel(){
+  const t = state.lastSavedAt; if (!t) return '';
+  const sec = Math.max(0, Math.floor((Date.now() - t) / 1000));
+  if (sec < 5)  return 'SAVED JUST NOW';
+  if (sec < 60) return `SAVED ${sec}s AGO`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `SAVED ${min}m AGO`;
+  const hr = Math.floor(min / 60);
+  return `SAVED ${hr}h AGO`;
+}
+
+function paintCtxSaved(){
+  const el = document.querySelector('[data-ctx-saved]');
+  if (el) el.textContent = ctxSavedLabel();
 }
 
 function renderWorkspaceTopbar(e){
@@ -2409,8 +2470,10 @@ function renderInputRow(d, iv, scenarios){
 async function upsertInputValue(engId, key, val, source='analyst'){
   const ivs = state.inputValues[engId] = state.inputValues[engId] || {};
   ivs[key] = { engagement_id: engId, input_key: key, provided_value: val, value_source: source };
-  try { await sbUpsert('vef_input_values', ivs[key], 'engagement_id,input_key'); }
-  catch (err) { toast('Save failed: ' + (err.message || err), true); }
+  try {
+    await sbUpsert('vef_input_values', ivs[key], 'engagement_id,input_key');
+    state.lastSavedAt = Date.now(); paintCtxSaved();
+  } catch (err) { toast('Save failed: ' + (err.message || err), true); }
 }
 
 function onSliderInput(key, value){
@@ -2437,8 +2500,11 @@ async function applyInputPreset(preset){
     ivs[d.input_key] = row; rows.push(row);
   });
   render();
-  try { for (const r of rows) await sbUpsert('vef_input_values', r, 'engagement_id,input_key'); toast('Applied ' + preset + ' preset'); }
-  catch (err) { toast('Save failed: ' + (err.message || err), true); }
+  try {
+    for (const r of rows) await sbUpsert('vef_input_values', r, 'engagement_id,input_key');
+    state.lastSavedAt = Date.now(); paintCtxSaved();
+    toast('Applied ' + preset + ' preset');
+  } catch (err) { toast('Save failed: ' + (err.message || err), true); }
 }
 function renderOutputsTab(e){
   const scenarios = state.scenarios[e.engagement_id] || [];
@@ -2858,6 +2924,12 @@ document.addEventListener('click', e => {
   }
   if (a === 'back-to-home')      return setState({ screen:'home', activeEngagementId:null, activeTab:'value-case' });
   if (a === 'ws-tab')            return setState({ activeTab: node.getAttribute('data-tab') });
+  if (a === 'ctx-jump-vc')       return setState({ activeTab: 'value-case' });
+  if (a === 'ctx-tier-cycle'){
+    const order = ['conservative','typical','aggressive'];
+    const i = order.indexOf(state.preset || 'typical');
+    return applyInputPreset(order[(i + 1) % order.length]);
+  }
   if (a === 'toggle-meridian'){
     const opening = !state.meridianOpen;
     setState({ meridianOpen: opening });
