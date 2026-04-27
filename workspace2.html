@@ -501,7 +501,9 @@
       return Math.round((provided / defs.length) * 100);
     }
 
-    function Topbar({ engagement, domain, analysis, onBack, onToggleMeridian, drawerOpen }) {
+    function Topbar({ engagement, onBack, onToggleMeridian, drawerOpen, onSaveSnapshot }) {
+      const [busy, setBusy] = useState(false);
+      const save = async () => { setBusy(true); try { await onSaveSnapshot(); } finally { setBusy(false); } };
       return (
         <header className="h-11 px-4 border-b border-border1 bg-surface flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-4">
@@ -517,7 +519,7 @@
           <div className="flex items-center gap-3">
             <StageChip stage={engagement.deal_stage} />
             <button onClick={onToggleMeridian} className={`px-2.5 py-1 text-[11px] font-mono uppercase tracking-wider border ${drawerOpen ? 'border-red text-red' : 'border-border2 text-ink2 hover:text-ink'}`}>Meridian ◆</button>
-            <button className="px-2.5 py-1 text-[11px] font-mono uppercase tracking-wider border border-border2 text-ink2 hover:text-ink" data-action="snapshot">Save Snapshot</button>
+            <button onClick={save} disabled={busy} className="px-2.5 py-1 text-[11px] font-mono uppercase tracking-wider border border-border2 text-ink2 hover:text-ink disabled:opacity-50">{busy ? 'Saving…' : 'Save Snapshot'}</button>
             <button className="bg-red hover:bg-red/90 text-white px-3 py-1 text-[11px] font-mono uppercase tracking-wider">Generate Report</button>
           </div>
         </header>
@@ -665,6 +667,85 @@
         </div>
       );
     }
+    /* ---------- SNAPSHOTS TAB ---------- */
+    const SNAP_INTENTS = [
+      { key: 'convince', label: 'Convince' },
+      { key: 'measure',  label: 'Measure' },
+      { key: 'justify',  label: 'Justify' },
+      { key: 'track',    label: 'Track' }
+    ];
+    function buildSnapshotRow({ engagementId, label, intent, analysis, defs, values, scenarios, engagement }) {
+      const inputSnap = {};
+      (defs || []).forEach(d => { inputSnap[d.input_key] = values?.[d.input_key]?.provided_value ?? d.typical_value ?? d.default_value ?? null; });
+      // Stash auxiliary fields in JSON sidecar (lesson 2026-04-24): stage/phase at time of snapshot
+      // aren't guaranteed columns; tuck them into input_snapshot._meta to survive any tenant schema.
+      inputSnap._meta = {
+        stage_at_snapshot: engagement?.deal_stage || null,
+        phase_at_snapshot: engagement?.phase || null,
+        active_scenario_count: scenarios.filter(s => s.active).length,
+        arv_full: analysis?.arvFull || 0,
+        npv: analysis?.npv ?? null
+      };
+      return {
+        engagement_id: engagementId,
+        snapshot_label: label,
+        intent: (intent || 'track').toLowerCase(),  // CHECK constraint requires lowercase per BUG-004
+        annual_value: analysis?.arvY1 || 0,
+        input_snapshot: inputSnap,
+        notes: ''
+      };
+    }
+    function SnapshotCard({ snapshot }) {
+      const meta = snapshot.input_snapshot?._meta || {};
+      return (
+        <div className="bg-surface border border-border1 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <div className="font-display text-sm text-ink">{snapshot.snapshot_label || '(unlabeled)'}</div>
+            <span className="text-[10px] font-mono uppercase tracking-widest px-1.5 py-0.5 bg-surface2 text-ink2">{snapshot.intent || 'track'}</span>
+          </div>
+          <div className="text-[11px] font-mono text-ink2 mb-3">{fmtDate(snapshot.created_at)} · {fmtRelative(snapshot.created_at)}</div>
+          <div className="grid grid-cols-3 gap-3 pt-3 border-t border-border1">
+            <div><div className="text-[9px] font-mono uppercase tracking-widest text-ink3">Y1 ARV</div><div className="text-sm font-display text-red mt-0.5">{fmtMoney(snapshot.annual_value)}</div></div>
+            <div><div className="text-[9px] font-mono uppercase tracking-widest text-ink3">Full ARV</div><div className="text-sm font-mono text-ink mt-0.5">{fmtMoney(meta.arv_full)}</div></div>
+            <div><div className="text-[9px] font-mono uppercase tracking-widest text-ink3">Stage</div><div className="text-sm font-mono text-ink mt-0.5">{meta.stage_at_snapshot || '—'}</div></div>
+          </div>
+        </div>
+      );
+    }
+    function SnapshotsTab({ snapshots, onSave }) {
+      const [busy, setBusy] = useState(false);
+      const save = async () => {
+        setBusy(true);
+        try { await onSave(); } finally { setBusy(false); }
+      };
+      return (
+        <main className="flex-1 overflow-auto">
+          <div className="max-w-[720px] mx-auto px-8 py-8">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <div className="font-display text-xl text-ink">Snapshots</div>
+                <div className="text-[11px] font-mono text-ink2 mt-1">{snapshots.length} captured</div>
+              </div>
+              <button onClick={save} disabled={busy} className="bg-red hover:bg-red/90 disabled:opacity-50 text-white px-4 py-2 text-xs font-display tracking-wide">{busy ? 'Saving…' : '+ Save Snapshot'}</button>
+            </div>
+            {snapshots.length === 0 ? (
+              <div className="py-16 text-center text-ink3 font-mono text-xs">No snapshots yet. Save the first one to capture this baseline.</div>
+            ) : (
+              <div className="relative pl-6 space-y-4">
+                <div className="absolute left-2 top-1 bottom-1 w-px bg-border1" />
+                {snapshots.map(s => (
+                  <div key={s.snapshot_id || s.created_at} className="relative">
+                    <span className="absolute -left-[20px] top-3 w-2 h-2 rounded-full bg-red" />
+                    <SnapshotCard snapshot={s} />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </main>
+      );
+    }
+
     /* ---------- OUTPUTS TAB (bottom: waterfall + DCF + table) ---------- */
     function ScenarioWaterfall({ scenarios, analysis }) {
       const active = scenarios.filter(s => s.active).map(s => {
@@ -1025,16 +1106,13 @@
       );
     }
 
-    function CenterSurface({ tab, bundle, scenarios, analysis, governed, tier, values, onToggleScenario, onSlide, onCommit, onPreset }) {
+    function CenterSurface({ tab, bundle, scenarios, analysis, governed, tier, values, onToggleScenario, onSlide, onCommit, onPreset, onSaveSnapshot }) {
       if (tab === 'overview')  return <OverviewTab bundle={bundle} scenarios={scenarios} analysis={analysis} governed={governed} />;
       if (tab === 'scenarios') return <ScenariosTab scenarios={scenarios} analysis={analysis} onToggle={onToggleScenario} />;
       if (tab === 'inputs')    return <InputsTab scenarios={scenarios} defs={bundle.defs} values={values} tier={tier} onSlide={onSlide} onCommit={onCommit} onPreset={onPreset} />;
       if (tab === 'outputs')   return <OutputsTab scenarios={scenarios} analysis={analysis} tier={tier} onPreset={onPreset} />;
-      return (
-        <main className="flex-1 overflow-auto">
-          <div className="p-8 font-mono text-xs text-ink2">[ {tab.toUpperCase()} TAB — chunk W12 ]</div>
-        </main>
-      );
+      if (tab === 'snapshots') return <SnapshotsTab snapshots={bundle.snapshots || []} onSave={onSaveSnapshot} />;
+      return null;
     }
 
     function RightDrawer({ open, onClose, tab }) {
@@ -1084,6 +1162,19 @@
         try { await sbUpsert('vef_scenario_selections', { engagement_id: engagementId, scenario_id: scenarioId, is_active: isActive }, 'engagement_id,scenario_id'); }
         catch (e) { console.error('scenario toggle persist failed', e); }
       };
+      const refreshSnapshots = async () => {
+        const snaps = await loadSnapshots(engagementId).catch(() => []);
+        setBundle(b => b ? { ...b, snapshots: snaps } : b);
+      };
+      const saveSnapshot = async (label, intent) => {
+        const today = new Date().toISOString().slice(0, 10);
+        const row = buildSnapshotRow({
+          engagementId, label: label || `Snapshot ${today}`, intent: intent || 'track',
+          analysis, defs: bundle.defs, values, scenarios, engagement: bundle.engagement
+        });
+        await sbInsert('vef_output_snapshots', row);
+        await refreshSnapshots();
+      };
       const applyPreset = async (newTier) => {
         if (!bundle?.defs) return;
         setTier(newTier);
@@ -1102,11 +1193,11 @@
       if (!bundle) return <div className="min-h-full grid place-items-center text-ink2 font-mono text-xs">Loading engagement…</div>;
       return (
         <div className="h-full flex flex-col bg-bg">
-          <Topbar engagement={bundle.engagement} domain={bundle.domain} analysis={analysis} onBack={onBack} onToggleMeridian={() => setDrawerOpen(o => !o)} drawerOpen={drawerOpen} />
+          <Topbar engagement={bundle.engagement} onBack={onBack} onToggleMeridian={() => setDrawerOpen(o => !o)} drawerOpen={drawerOpen} onSaveSnapshot={saveSnapshot} />
           <ContextBar engagement={bundle.engagement} domain={bundle.domain} scenarios={scenarios} tier={tier} onTierCycle={cycleTier} governed={governed} savedAgo={savedAgo} />
           <div className="flex-1 flex min-h-0">
             <LeftRail tab={tab} onTab={setTab} scenarios={scenarios} defs={bundle.defs} values={values} analysis={analysis} onSlide={slideInput} onCommit={commitInput} />
-            <CenterSurface tab={tab} bundle={bundle} scenarios={scenarios} analysis={analysis} governed={governed} tier={tier} values={values} onToggleScenario={toggleScenario} onSlide={slideInput} onCommit={commitInput} onPreset={applyPreset} />
+            <CenterSurface tab={tab} bundle={bundle} scenarios={scenarios} analysis={analysis} governed={governed} tier={tier} values={values} onToggleScenario={toggleScenario} onSlide={slideInput} onCommit={commitInput} onPreset={applyPreset} onSaveSnapshot={saveSnapshot} />
             <RightDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} tab={tab} />
           </div>
         </div>
