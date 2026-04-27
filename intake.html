@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Value-case intake</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: {
+      colors: {
+        bg:'#0e0e0e', surface:'#141414', surface2:'#1a1a1a',
+        border:'#222222', border2:'#2d2d2d',
+        ink:'#e8e8e8', ink2:'#888888', ink3:'#444444',
+        red:'#d63b2f', 'red-dim':'rgba(214,59,47,0.10)',
+        green:'#2d7d4f', amber:'#b45309'
+      },
+      fontFamily: { display:['Syne','sans-serif'], mono:['"DM Mono"','monospace'], sans:['Syne','system-ui','sans-serif'] }
+    } } };
+  </script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    html, body, #root { height: 100%; }
+    body { background:#0e0e0e; color:#e8e8e8; font-family:'Syne', system-ui, sans-serif; }
+    input, textarea, button, select { font-family: inherit; }
+  </style>
+</head>
+<body class="bg-bg text-ink">
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useMemo } = React;
+
+    /* ---------- SUPABASE ---------- */
+    const SUPABASE_URL = 'https://kpecdezcolcycgpuqbgs.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwZWNkZXpjb2xjeWNncHVxYmdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2ODIyMDYsImV4cCI6MjA5MTI1ODIwNn0.rKHzdjjkYToEZWdS0ngg3Kgigh_gDWt5cRbLBCE44rg';
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    /* ---------- INTAKE HELPERS (mirror of workspace2.html) ---------- */
+    function parseIntakeSession(notes) {
+      const m = String(notes || '').match(/^INTAKE_SESSION:(\{[\s\S]*?\})\s*(?:\n|$)/m);
+      if (!m) return null;
+      try { return JSON.parse(m[1]); } catch { return null; }
+    }
+    async function writeIntakeSession(engagementId, currentNotes, sessionObj) {
+      const stripped = String(currentNotes || '').replace(/^INTAKE_SESSION:\{[\s\S]*?\}\s*\n?/m, '').trim();
+      const line = 'INTAKE_SESSION:' + JSON.stringify(sessionObj);
+      const next = stripped ? stripped + '\n\n' + line : line;
+      const { error } = await sb.from('vef_engagements').update({ notes: next }).eq('engagement_id', engagementId);
+      if (error) throw error;
+      return next;
+    }
+    async function loadEngagementByToken(token) {
+      const { data, error } = await sb.from('vef_engagements').select('*').ilike('notes', '%' + token + '%').limit(1);
+      if (error) throw error;
+      return data?.[0] || null;
+    }
+    async function loadCuratedInputDefs(domainId, keys) {
+      if (!keys?.length) return [];
+      const { data, error } = await sb.from('vef_input_definitions').select('*').eq('domain_id', domainId).in('input_key', keys);
+      if (error) throw error;
+      const seen = new Set();
+      return (data || []).filter(r => seen.has(r.input_key) ? false : (seen.add(r.input_key), true));
+    }
+
+    /* ---------- LAYOUT PRIMITIVES ---------- */
+    function Centered({ children }) {
+      return <div className="min-h-full grid place-items-center px-6 py-8">{children}</div>;
+    }
+
+    /* ---------- APP ---------- */
+    function App() {
+      const token = useMemo(() => new URLSearchParams(location.search).get('s'), []);
+      const [engagement, setEngagement] = useState(null);
+      const [session, setSession] = useState(null);
+      const [defs, setDefs] = useState([]);
+      const [stage, setStage] = useState('loading');
+      const [err, setErr] = useState('');
+      useEffect(() => {
+        if (!token) { setErr('This intake link is missing its session token.'); setStage('error'); return; }
+        (async () => {
+          try {
+            const eng = await loadEngagementByToken(token);
+            if (!eng) { setErr('This intake link is invalid or has been replaced. Ask your account team for a fresh link.'); setStage('error'); return; }
+            const sess = parseIntakeSession(eng.notes);
+            if (!sess || sess.share_token !== token) { setErr('This intake link is invalid or has been replaced. Ask your account team for a fresh link.'); setStage('error'); return; }
+            const inputDefs = await loadCuratedInputDefs(eng.domain_id, sess.curated_input_keys);
+            setEngagement(eng); setSession(sess); setDefs(inputDefs);
+            if (sess.status === 'submitted' || sess.status === 'applied') setStage('submitted');
+            else setStage('welcome');
+          } catch (e) { setErr(e.message || 'Failed to load intake.'); setStage('error'); }
+        })();
+      }, [token]);
+      if (stage === 'loading') return <Centered><div className="text-ink2 font-mono text-xs">Loading…</div></Centered>;
+      if (stage === 'error') return <Centered><div className="max-w-[420px] text-center"><div className="text-red font-mono text-sm leading-relaxed">{err}</div></div></Centered>;
+      if (stage === 'welcome') return <Welcome engagement={engagement} session={session} defs={defs} onBegin={() => setStage('question')} />;
+      if (stage === 'question') return <div className="p-6 font-mono text-xs text-ink3 italic">[ QUESTION stage — chunk I3b ]</div>;
+      if (stage === 'review') return <div className="p-6 font-mono text-xs text-ink3 italic">[ REVIEW stage — chunk I3b ]</div>;
+      if (stage === 'submitted') return <Submitted engagement={engagement} />;
+      return null;
+    }
+
+    function Welcome({ engagement, session, defs, onBegin }) {
+      const customer = engagement.prospect_name || 'your team';
+      const analysis = engagement.analysis_name || '';
+      const count = defs.length || session?.curated_input_keys?.length || 5;
+      return (
+        <Centered>
+          <div className="max-w-[480px] py-8 sm:py-12">
+            <div className="text-[11px] font-mono uppercase tracking-widest text-ink3 mb-3">Hi from your account team.</div>
+            <div className="font-display text-2xl sm:text-3xl text-ink leading-tight mb-6">We're modeling the value case for <span className="text-red">{customer}</span>.</div>
+            <div className="text-[14px] text-ink2 leading-relaxed mb-8">
+              {count} quick questions about how things actually work today on your side. Confirm our industry benchmarks where you don't have a real number, or share yours if you do. About 5 minutes. You can save and come back anytime.
+            </div>
+            <button onClick={onBegin} className="bg-red hover:bg-red/90 text-white px-6 py-3 text-[12px] font-display tracking-wide">Begin →</button>
+            {analysis && <div className="text-[10px] font-mono uppercase tracking-widest text-ink3 mt-12 pt-6 border-t border-border">{analysis}</div>}
+          </div>
+        </Centered>
+      );
+    }
+
+    function Submitted({ engagement }) {
+      return (
+        <Centered>
+          <div className="max-w-[480px] py-8 sm:py-12">
+            <div className="text-[11px] font-mono uppercase tracking-widest text-green mb-3">✓ Sent</div>
+            <div className="font-display text-2xl sm:text-3xl text-ink leading-tight mb-6">Thanks — got it.</div>
+            <div className="text-[14px] text-ink2 leading-relaxed mb-8">
+              Your account team has been notified. They'll use these answers to build the value case and walk you through the result.
+            </div>
+            <div className="text-[10px] font-mono uppercase tracking-widest text-ink3 pt-6 border-t border-border">Alt Meridian{engagement?.analysis_name ? ' · ' + engagement.analysis_name : ''}</div>
+          </div>
+        </Centered>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
