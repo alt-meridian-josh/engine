@@ -1079,6 +1079,30 @@
         finally { setBusy(false); }
       };
       const stepValid = (i) => i === 0 ? /\S+@\S+\.\S+/.test(email) : i === 1 ? selectedKeys.size > 0 : true;
+      // Build a blank-template JSON for offline filling. Same shape as intake.html
+      // round-trip bundle so a returned file can be re-imported in I5.
+      const downloadBrief = () => {
+        const selectedDefs = curated.filter(d => selectedKeys.has(d.input_key));
+        const payload = {
+          schema: 'altmeridian.intake.v1',
+          customer: engagement.prospect_name || null,
+          analysis: engagement.analysis_name || null,
+          share_token: null,
+          exported_at: new Date().toISOString(),
+          questions: selectedDefs.map(d => ({
+            input_key: d.input_key,
+            question: d.discovery_prompt || d.input_label || d.input_key,
+            unit: d.input_unit || null,
+            benchmark: d.typical_value ?? d.default_value ?? null,
+            response: null
+          }))
+        };
+        const slug = ((engagement.prospect_name || engagement.analysis_name || 'analysis').toLowerCase().replace(/\W+/g, '-').replace(/^-|-$/g, '') || 'analysis');
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'intake-brief-' + slug + '.json';
+        document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      };
       return (
         <div className="fixed inset-0 z-30 bg-bg/85 grid place-items-center p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
           <div className="w-full max-w-[560px] bg-surface border border-border max-h-[90vh] overflow-auto">
@@ -1140,7 +1164,7 @@
                 <div className="space-y-2">
                   <button onClick={sendViaMail} disabled={busy || !email} className="w-full bg-red hover:bg-red/90 disabled:opacity-40 text-white py-2.5 text-[12px] font-display tracking-wide">{busy ? 'Working…' : 'Open in mail client →'}</button>
                   <button onClick={copyLink} disabled={busy} className="w-full border border-border2 hover:border-red/60 text-ink py-2 text-[11px] font-mono uppercase tracking-widest">{copied ? '✓ Copied' : 'Copy share link'}</button>
-                  <button disabled className="w-full border border-border text-ink3 py-2 text-[11px] font-mono uppercase tracking-widest opacity-40 cursor-not-allowed">Download brief · chunk I4</button>
+                  <button onClick={downloadBrief} className="w-full border border-border2 hover:border-red/60 text-ink py-2 text-[11px] font-mono uppercase tracking-widest">↓ Download brief (.json)</button>
                 </div>
               </div>
             )}
