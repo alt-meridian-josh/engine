@@ -261,13 +261,137 @@
       );
     }
 
-    /* ---------- ROUTE STUBS (filled in later chunks) ---------- */
-    function HomeScreen({ onOpen, signOut }) {
+    /* ---------- VOCABULARY ---------- */
+    const OUTCOMES = [
+      { key: 'Visibility',   color: '#93c5fd', desc: "Know where things are and what condition they're in" },
+      { key: 'Throughput',   color: '#fbbf24', desc: 'Move things faster through your operation' },
+      { key: 'Compliance',   color: '#c4b5fd', desc: 'Prove what happened and when' },
+      { key: 'Risk',         color: '#f87171', desc: 'Predict and prevent financial exposure' },
+      { key: 'Intelligence', color: '#5eead4', desc: 'Turn data into faster decisions' },
+      { key: 'Performance',  color: '#86efac', desc: 'Get more from equipment and assets' },
+      { key: 'Revenue',      color: '#6ee7b7', desc: "Capture value that's being lost" }
+    ];
+    const OUTCOME_BY = OUTCOMES.reduce((m, o) => (m[o.key] = o, m), {});
+    const cleanDomainName = (n) => (n || '').replace(/^[A-Z][A-Z0-9]+\s+—\s+/, '');
+    const isActive = (e) => !(e.deal_stage || '').toLowerCase().includes('closed') && !(e.engagement_status || '').toLowerCase().includes('completed');
+    const isPilot = (e) => (e.phase || '').toLowerCase().includes('pilot');
+    const isCompleted = (e) => (e.engagement_status || '').toLowerCase().includes('completed');
+    const STAGE_TONE = { 'discovery':'blue', 'validation':'blue', 'proposal':'amber', 'finance review':'amber', 'closed won':'green', 'closed lost':'ink' };
+    const TONE_CLASS = { blue:'bg-blue-900/40 text-blue-300', amber:'bg-amber-900/40 text-amber-300', green:'bg-green-900/40 text-green-300', ink:'bg-surface2 text-ink2', grey:'bg-surface2 text-ink2' };
+    const stageTone = (s) => STAGE_TONE[(s || '').toLowerCase()] || 'grey';
+
+    /* ---------- HOME SCREEN ---------- */
+    function OutcomeChip({ outcome }) {
+      const o = OUTCOME_BY[outcome];
+      if (!o) return <span className="text-[10px] font-mono uppercase tracking-wider text-ink3">Unmapped</span>;
       return (
-        <div className="p-12">
-          <div className="font-display text-2xl mb-2"><span className="text-red">ALT</span> MERIDIAN</div>
-          <div className="font-mono text-xs text-ink2 mb-8">[ HOME — chunk W4 ]</div>
-          <button onClick={signOut} className="text-xs font-mono text-ink2 hover:text-red">Sign out</button>
+        <span title={o.desc} className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider" style={{ color: o.color }}>
+          <span className="w-1.5 h-1.5 rounded-full" style={{ background: o.color }} />{o.key}
+        </span>
+      );
+    }
+    function StageChip({ stage }) {
+      return <span className={`px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider ${TONE_CLASS[stageTone(stage)]}`}>{stage || '—'}</span>;
+    }
+    function HomeScreen({ onOpen, onNew, signOut, userEmail }) {
+      const [engagements, setEngagements] = useState([]);
+      const [domains, setDomains] = useState({});
+      const [arvByEng, setArvByEng] = useState({});
+      const [filter, setFilter] = useState('all');
+      const [loading, setLoading] = useState(true);
+      useEffect(() => {
+        (async () => {
+          try {
+            const [engs, doms, snaps] = await Promise.all([
+              loadEngagements(),
+              loadDomains(),
+              sbSelect('vef_output_snapshots', { order: ['created_at', false] }).catch(() => [])
+            ]);
+            setEngagements(engs); setDomains(doms);
+            const by = {};
+            snaps.forEach(s => { if (!by[s.engagement_id]) by[s.engagement_id] = Number(s.annual_value) || 0; });
+            setArvByEng(by);
+          } finally { setLoading(false); }
+        })();
+      }, []);
+      const stats = useMemo(() => ({
+        totalArv: engagements.reduce((s, e) => s + (arvByEng[e.engagement_id] || 0), 0),
+        total: engagements.length,
+        active: engagements.filter(isActive).length,
+        pilot: engagements.filter(isPilot).length
+      }), [engagements, arvByEng]);
+      const rows = useMemo(() => {
+        const filtered = engagements.filter(e =>
+          filter === 'all' ? true : filter === 'active' ? isActive(e) : filter === 'pilot' ? isPilot(e) : isCompleted(e)
+        );
+        return filtered.slice().sort((a, b) => (arvByEng[b.engagement_id] || 0) - (arvByEng[a.engagement_id] || 0));
+      }, [engagements, filter, arvByEng]);
+      const counts = { all: engagements.length, active: engagements.filter(isActive).length, pilot: engagements.filter(isPilot).length, completed: engagements.filter(isCompleted).length };
+      return (
+        <div className="min-h-full bg-bg">
+          <header className="h-11 px-6 border-b border-border1 flex items-center justify-between bg-surface">
+            <div className="font-display text-lg tracking-wide"><span className="text-red">ALT</span> <span className="text-ink">MERIDIAN</span></div>
+            <div className="flex items-center gap-4">
+              <span className="text-[11px] font-mono text-ink2">{userEmail || ''}</span>
+              <button onClick={onNew} className="bg-red hover:bg-red/90 text-white px-3 py-1.5 text-xs font-display tracking-wide">+ New Analysis</button>
+              <button onClick={signOut} className="text-[11px] font-mono text-ink2 hover:text-red">Sign out</button>
+            </div>
+          </header>
+          <main className="max-w-[1200px] mx-auto px-6 py-8">
+            <div className="grid grid-cols-4 gap-4 mb-8">
+              {[
+                { label: 'Total ARV', value: fmtMoney(stats.totalArv), accent: true },
+                { label: 'Analyses', value: stats.total },
+                { label: 'Active', value: stats.active },
+                { label: 'In Pilot', value: stats.pilot }
+              ].map(s => (
+                <div key={s.label} className="bg-surface border border-border1 p-4">
+                  <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-2">{s.label}</div>
+                  <div className={`font-display text-2xl ${s.accent ? 'text-red' : 'text-ink'}`}>{s.value}</div>
+                </div>
+              ))}
+            </div>
+            <div className="flex items-center gap-6 border-b border-border1 mb-1">
+              {['all','active','pilot','completed'].map(t => (
+                <button key={t} onClick={() => setFilter(t)}
+                  className={`pb-2 text-[11px] font-mono uppercase tracking-widest transition-colors border-b-2 -mb-px ${filter === t ? 'text-red border-red' : 'text-ink2 border-transparent hover:text-ink'}`}>
+                  {t} <span className="text-ink3 ml-1">{counts[t]}</span>
+                </button>
+              ))}
+            </div>
+            {loading ? (
+              <div className="py-16 text-center text-ink2 font-mono text-xs">Loading analyses…</div>
+            ) : rows.length === 0 ? (
+              <div className="py-16 text-center text-ink2 font-mono text-xs">No analyses match the current filter.</div>
+            ) : (
+              <div>
+                {rows.map((e, i) => {
+                  const d = domains[e.domain_id];
+                  const arv = arvByEng[e.engagement_id] || 0;
+                  const hero = i === 0;
+                  return (
+                    <button key={e.engagement_id} onClick={() => onOpen(e.engagement_id)}
+                      className={`w-full text-left grid grid-cols-12 gap-4 items-center px-4 ${hero ? 'py-5 border-t-2 border-t-red bg-surface/40' : 'py-3'} border-b border-border1 hover:bg-red/5 transition-colors`}>
+                      <div className="col-span-3">
+                        <OutcomeChip outcome={d?.primary_outcome} />
+                        <div className="text-xs text-ink2 mt-1.5">{cleanDomainName(d?.domain_name) || e.domain_id || '—'}</div>
+                      </div>
+                      <div className="col-span-4">
+                        <div className={`font-display ${hero ? 'text-lg' : 'text-sm'} text-ink`}>{e.analysis_name || e.vendor_name || 'Untitled analysis'}</div>
+                        <div className="text-[11px] font-mono text-ink2 mt-0.5">{e.prospect_name || '—'}</div>
+                      </div>
+                      <div className="col-span-2 flex flex-col gap-1">
+                        <StageChip stage={e.deal_stage} />
+                        <span className="text-[10px] font-mono uppercase tracking-wider text-ink2">{e.phase || '—'}</span>
+                      </div>
+                      <div className={`col-span-2 text-right font-display ${hero ? 'text-2xl' : 'text-base'} ${arv > 0 ? 'text-red' : 'text-ink3'}`}>{arv > 0 ? fmtMoney(arv) : '—'}</div>
+                      <div className="col-span-1 text-right text-[11px] font-mono text-ink2">{fmtRelative(e.intake_date)}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </main>
         </div>
       );
     }
@@ -293,7 +417,7 @@
       }
       if (!user) return <LoginScreen onSignIn={signIn} />;
       if (activeId) return <EngagementShell engagementId={activeId} onBack={() => setActiveId(null)} signOut={signOut} />;
-      return <HomeScreen onOpen={setActiveId} signOut={signOut} />;
+      return <HomeScreen onOpen={setActiveId} onNew={() => { location.href = 'vef2.html'; }} signOut={signOut} userEmail={user.email} />;
     }
 
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
