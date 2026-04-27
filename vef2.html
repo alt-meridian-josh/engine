@@ -132,6 +132,13 @@
       }
       return null;
     }
+    // Rank score: outcome overlap = 3 each, tag overlap = 2 each. 0 = no overlap.
+    function patternScore(pattern, outcomes, tags) {
+      let s = 0;
+      pattern.outcomes.forEach(o => { if (outcomes.includes(o)) s += 3; });
+      pattern.tags.forEach(t => { if (tags.has(t)) s += 2; });
+      return s;
+    }
 
     /* ---------- TAG BEHAVIOR ENGINE (kept in sync with workspace2.html) ---------- */
     // Tag → behavior config. Precedence Buyer lens > Motion > Environment.
@@ -364,12 +371,15 @@
         </div>
       );
     }
-    function SolutionPatternTile({ pattern, resolvable, selected, onSelect }) {
+    function SolutionPatternTile({ pattern, resolvable, selected, recommended, onSelect }) {
       const disabled = !resolvable;
       return (
         <button onClick={() => !disabled && onSelect(pattern.key)} disabled={disabled}
-          className={`text-left p-3 border transition-colors ${disabled ? 'border-border bg-bg opacity-40 cursor-not-allowed' : selected ? 'border-red bg-red/10' : 'border-border bg-surface hover:border-border2'}`}>
-          <div className="font-display text-sm text-ink">{pattern.label}</div>
+          className={`text-left p-3 border transition-colors relative ${disabled ? 'border-border bg-bg opacity-40 cursor-not-allowed' : selected ? 'border-red bg-red/10' : 'border-border bg-surface hover:border-border2'}`}>
+          {recommended && !disabled && (
+            <span className="absolute top-2 right-2 text-[8px] font-mono uppercase tracking-widest px-1.5 py-0.5 bg-red/20 text-red border border-red/40">Recommended</span>
+          )}
+          <div className="font-display text-sm text-ink pr-20">{pattern.label}</div>
           <div className="text-[11px] text-ink2 mt-1 leading-relaxed">{pattern.desc}</div>
           {disabled && <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mt-1.5">No matching engine in library</div>}
         </button>
@@ -391,13 +401,19 @@
         );
         update({ dealTags: next, ...(stillValid ? {} : { pattern: null, domain: null }) });
       };
-      const visiblePatterns = useMemo(() => {
+      const rankedPatterns = useMemo(() => {
         if (s.outcomes.length === 0 && s.dealTags.size === 0) return [];
-        return SOLUTION_PATTERNS.filter(p =>
-          (s.outcomes.length > 0 && p.outcomes.some(o => s.outcomes.includes(o))) ||
-          (s.dealTags.size > 0 && p.tags.some(t => s.dealTags.has(t)))
-        );
+        const ctxSize = s.outcomes.length + s.dealTags.size;
+        const scored = SOLUTION_PATTERNS
+          .map(p => ({ pattern: p, score: patternScore(p, s.outcomes, s.dealTags) }))
+          .filter(x => x.score > 0)
+          .sort((a, b) => b.score - a.score);
+        // Visibility floor: at rich context (>=3 picks), drop weakest single-tag matches
+        // so the recommended set stays 4-8 tight.
+        const floor = ctxSize >= 3 ? Math.max(scored[0]?.score - 4, 2) : 0;
+        return scored.filter(x => x.score >= floor).slice(0, 8);
       }, [s.outcomes, s.dealTags]);
+      const topScore = rankedPatterns[0]?.score || 0;
       const pickPattern = (key) => {
         const p = SOLUTION_PATTERNS.find(x => x.key === key);
         const did = p ? resolvePatternDomain(p, domains) : null;
@@ -426,14 +442,15 @@
               <div className="text-[11px] font-mono text-red mt-3 border-l-2 border-red bg-red/5 px-3 py-2">Pick at least one outcome or tag so we can narrow the right engines.</div>
             )}
           </div>
-          {visiblePatterns.length > 0 && (
+          {rankedPatterns.length > 0 && (
             <div className="mb-8">
               <div className="text-[10px] font-mono uppercase tracking-widest text-red mb-3">Solution pattern</div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {visiblePatterns.map(p => (
-                  <SolutionPatternTile key={p.key} pattern={p}
-                    resolvable={!!resolvePatternDomain(p, domains)}
-                    selected={s.pattern === p.key}
+                {rankedPatterns.map(({ pattern, score }) => (
+                  <SolutionPatternTile key={pattern.key} pattern={pattern}
+                    resolvable={!!resolvePatternDomain(pattern, domains)}
+                    selected={s.pattern === pattern.key}
+                    recommended={score === topScore && score > 0}
                     onSelect={pickPattern} />
                 ))}
               </div>
