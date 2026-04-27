@@ -29,6 +29,84 @@
   <script type="text/babel" data-presets="react">
     const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
+    /* ---------- SUPABASE ---------- */
+    const SUPABASE_URL = 'https://kpecdezcolcycgpuqbgs.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwZWNkZXpjb2xjeWNncHVxYmdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2ODIyMDYsImV4cCI6MjA5MTI1ODIwNn0.rKHzdjjkYToEZWdS0ngg3Kgigh_gDWt5cRbLBCE44rg';
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    async function sbSelect(table, q) {
+      let b = sb.from(table).select('*');
+      if (q?.eq) Object.entries(q.eq).forEach(([k, v]) => b = b.eq(k, v));
+      if (q?.in) Object.entries(q.in).forEach(([k, vs]) => b = b.in(k, vs));
+      if (q?.limit) b = b.limit(q.limit);
+      const { data, error } = await b;
+      if (error) throw error;
+      return data || [];
+    }
+    async function sbInsert(table, row) {
+      const { data, error } = await sb.from(table).insert(row).select();
+      if (error) throw error;
+      return data?.[0] || null;
+    }
+    async function sbUpsert(table, row, onConflict) {
+      const { data, error } = await sb.from(table).upsert(row, onConflict ? { onConflict } : {}).select();
+      if (error) throw error;
+      return data?.[0] || null;
+    }
+
+    /* ---------- LOADERS ---------- */
+    const cleanDomainName = (n) => (n || '').replace(/^[A-Z][A-Z0-9]+\s+—\s+/, '');
+    async function loadDomains() {
+      const arr = await sbSelect('vef_domains');
+      const m = {}; arr.forEach(d => m[d.domain_id] = d); return m;
+    }
+    const loadAllScenarios = () => sbSelect('vef_value_scenarios').catch(() => []);
+    const loadValueSignals = (domainId) => sbSelect('vef_value_signals', { eq: { domain_id: domainId } }).catch(() => []);
+    async function loadInputDefinitions(domainId, domain) {
+      let rows = await sbSelect('vef_input_definitions', { eq: { domain_id: domainId } }).catch(() => []);
+      if (!rows.length && domain?.technology === 'RFID' && domainId !== 'RFD') {
+        rows = await sbSelect('vef_input_definitions', { eq: { domain_id: 'RFD' } }).catch(() => []);
+      }
+      const seen = new Set();
+      return rows.filter(r => seen.has(r.input_key) ? false : (seen.add(r.input_key), true));
+    }
+
+    /* ---------- VOCAB + FORMAT ---------- */
+    const OUTCOMES = [
+      { key: 'Visibility',   color: '#93c5fd', desc: "Know where things are and what condition they're in" },
+      { key: 'Throughput',   color: '#fbbf24', desc: 'Move things faster through your operation' },
+      { key: 'Compliance',   color: '#c4b5fd', desc: 'Prove what happened and when' },
+      { key: 'Risk',         color: '#f87171', desc: 'Predict and prevent financial exposure' },
+      { key: 'Intelligence', color: '#5eead4', desc: 'Turn data into faster decisions' },
+      { key: 'Performance',  color: '#86efac', desc: 'Get more from equipment and assets' },
+      { key: 'Revenue',      color: '#6ee7b7', desc: "Capture value that's being lost" }
+    ];
+    const OUTCOME_BY = OUTCOMES.reduce((m, o) => (m[o.key] = o, m), {});
+    const THEME_COLORS = {
+      'Operational Efficiency':'#fbbf24', 'Compliance & Risk':'#c4b5fd', 'Asset Performance':'#86efac',
+      'Inventory Accuracy':'#93c5fd', 'Throughput':'#f59e0b', 'Visibility':'#60a5fa',
+      'Revenue':'#6ee7b7', 'Labor Productivity':'#5eead4'
+    };
+    const themeColor = (t) => THEME_COLORS[t] || '#888';
+    function fmtMoney(n) {
+      if (n == null || !isFinite(n)) return '—';
+      const a = Math.abs(n);
+      if (a >= 1e9) return '$' + (n / 1e9).toFixed(1) + 'B';
+      if (a >= 1e6) return '$' + (n / 1e6).toFixed(1) + 'M';
+      if (a >= 1e3) return '$' + (n / 1e3).toFixed(0) + 'K';
+      return '$' + Math.round(n).toLocaleString();
+    }
+
+    /* ---------- FUZZY TOKENIZER (lesson 2026-04-24) ---------- */
+    // length >= 3, stopwords filtered, secondary 'strong' bucket gated at length >= 6
+    // for categorical fields (mechanism_label + value_theme).
+    const STOPWORDS = new Set('the and for with from this that have been into were when what your you are our about over more some most all any can will would could should there their these those'.split(' '));
+    function tokensFor(text) {
+      return new Set(String(text || '').toLowerCase().match(/[a-z][a-z0-9_-]{2,}/g)?.filter(w => !STOPWORDS.has(w)) || []);
+    }
+    function strongTokens(text) {
+      return new Set([...tokensFor(text)].filter(w => w.length >= 6));
+    }
+
     /* ---------- STEPS ---------- */
     const STEPS = [
       { key: 0, label: 'Import',    title: 'Paste a vendor claim' },
