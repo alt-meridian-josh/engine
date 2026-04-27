@@ -395,11 +395,144 @@
         </div>
       );
     }
-    function EngagementShell({ engagementId, onBack }) {
+    /* ---------- ENGAGEMENT SHELL ---------- */
+    const TABS = [
+      { key: 'overview',  label: 'Overview' },
+      { key: 'scenarios', label: 'Scenarios' },
+      { key: 'inputs',    label: 'Inputs' },
+      { key: 'outputs',   label: 'Outputs' },
+      { key: 'snapshots', label: 'Snapshots' }
+    ];
+
+    function mergeScenarios(scenarios, selections) {
+      return (scenarios || []).map(s => {
+        const sel = (selections || []).find(x => x.scenario_id === s.scenario_id);
+        return { ...s, active: sel ? sel.is_active !== false : !!s.active_by_default };
+      });
+    }
+    function governedPct(values, defs) {
+      if (!defs?.length) return 0;
+      const provided = defs.filter(d => values?.[d.input_key]?.provided_value != null).length;
+      return Math.round((provided / defs.length) * 100);
+    }
+
+    function Topbar({ engagement, domain, analysis, onBack, onToggleMeridian, drawerOpen }) {
       return (
-        <div className="p-12 font-mono text-xs text-ink2">
-          <div className="mb-4">engagement_id: {engagementId} · [ chunk W5+ ]</div>
-          <button onClick={onBack} className="hover:text-red">← Back</button>
+        <header className="h-11 px-4 border-b border-border1 bg-surface flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-4">
+            <button onClick={onBack} className="text-ink2 hover:text-red text-xs font-mono">←</button>
+            <div className="font-display text-sm tracking-wide"><span className="text-red">ALT</span> <span className="text-ink">MERIDIAN</span></div>
+            <div className="h-5 w-px bg-border1" />
+            <div className="flex items-center gap-2">
+              <span className="font-display text-sm text-ink">{engagement.analysis_name || engagement.vendor_name || 'Untitled'}</span>
+              <span className="text-ink3">/</span>
+              <span className="font-mono text-[11px] text-ink2">{engagement.prospect_name || '—'}</span>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <StageChip stage={engagement.deal_stage} />
+            <button onClick={onToggleMeridian} className={`px-2.5 py-1 text-[11px] font-mono uppercase tracking-wider border ${drawerOpen ? 'border-red text-red' : 'border-border2 text-ink2 hover:text-ink'}`}>Meridian ◆</button>
+            <button className="px-2.5 py-1 text-[11px] font-mono uppercase tracking-wider border border-border2 text-ink2 hover:text-ink" data-action="snapshot">Save Snapshot</button>
+            <button className="bg-red hover:bg-red/90 text-white px-3 py-1 text-[11px] font-mono uppercase tracking-wider">Generate Report</button>
+          </div>
+        </header>
+      );
+    }
+
+    function ContextBar({ engagement, domain, scenarios, tier, onTierCycle, governed, savedAgo }) {
+      const o = OUTCOME_BY[domain?.primary_outcome];
+      const activeCount = scenarios.filter(s => s.active).length;
+      return (
+        <div className="h-8 px-4 bg-surface border-b border-border1 flex items-center gap-3 text-[10px] font-mono uppercase tracking-wider flex-shrink-0">
+          <span className="inline-flex items-center gap-1.5" style={{ color: o?.color || '#888' }}>
+            <span className="w-1.5 h-1.5 rounded-full" style={{ background: o?.color || '#444' }} />
+            {cleanDomainName(domain?.domain_name) || engagement.domain_id || '—'}
+          </span>
+          <span className="text-ink3">·</span>
+          <span className="text-ink2">{activeCount} <span className="text-ink3">scenarios</span></span>
+          <span className="text-ink3">·</span>
+          <button onClick={onTierCycle} title="Cycle assumption tier" className="text-ink hover:text-red">{tier}</button>
+          <span className="text-ink3">·</span>
+          <span className="text-ink2">{governed}% <span className="text-ink3">governed</span></span>
+          <span className="text-ink3">·</span>
+          <span className="text-ink2">{savedAgo}</span>
+        </div>
+      );
+    }
+
+    function LeftRail({ tab, onTab, bundle, analysis }) {
+      return (
+        <aside className="w-[200px] bg-surface border-r border-border1 flex flex-col flex-shrink-0">
+          <nav className="py-3">
+            {TABS.map(t => (
+              <button key={t.key} onClick={() => onTab(t.key)}
+                className={`w-full text-left px-4 py-2 text-[11px] font-mono uppercase tracking-widest border-l-2 transition-colors ${tab === t.key ? 'border-red text-red bg-red/5' : 'border-transparent text-ink2 hover:text-ink'}`}>
+                {t.label}
+              </button>
+            ))}
+          </nav>
+          <div className="mt-auto px-4 py-4 border-t border-border1">
+            <div className="text-[10px] font-mono uppercase tracking-widest text-ink3 mb-2">Live Assumptions</div>
+            <div className="text-[11px] font-mono text-ink3 italic">[ chunk W6 ]</div>
+          </div>
+        </aside>
+      );
+    }
+
+    function CenterSurface({ tab, bundle, scenarios, analysis }) {
+      return (
+        <main className="flex-1 overflow-auto">
+          <div className="p-8 font-mono text-xs text-ink2">[ {tab.toUpperCase()} TAB — chunk W{tab === 'overview' ? 7 : tab === 'scenarios' ? 8 : tab === 'inputs' ? 9 : tab === 'outputs' ? 10 : 12} ]</div>
+        </main>
+      );
+    }
+
+    function RightDrawer({ open, onClose, tab }) {
+      if (!open) return null;
+      return (
+        <aside className="w-[300px] bg-surface border-l border-border1 flex flex-col flex-shrink-0">
+          <div className="h-11 px-4 border-b border-border1 flex items-center justify-between flex-shrink-0">
+            <div className="font-mono text-[10px] uppercase tracking-widest text-ink2">Meridian · claude-sonnet-4</div>
+            <button onClick={onClose} className="text-ink3 hover:text-red text-sm">×</button>
+          </div>
+          <div className="p-4 text-[11px] font-mono text-ink3 italic">[ chunk W12 ]</div>
+        </aside>
+      );
+    }
+
+    function EngagementShell({ engagementId, onBack }) {
+      const [bundle, setBundle] = useState(null);
+      const [tab, setTab] = useState('overview');
+      const [tier, setTier] = useState('typical');
+      const [drawerOpen, setDrawerOpen] = useState(false);
+      const [err, setErr] = useState('');
+      useEffect(() => {
+        setBundle(null); setErr('');
+        loadEngagementBundle(engagementId).then(b => {
+          if (!b) setErr('Engagement not found');
+          else setBundle(b);
+        }).catch(e => setErr(e.message || 'Failed to load engagement'));
+      }, [engagementId]);
+      const scenarios = useMemo(() => bundle ? mergeScenarios(bundle.scenarios, bundle.selections) : [], [bundle]);
+      const analysis = useMemo(() => bundle ? computeAnalysis(scenarios, bundle.values, bundle.defs) : null, [bundle, scenarios]);
+      const governed = useMemo(() => bundle ? governedPct(bundle.values, bundle.defs) : 0, [bundle]);
+      const savedAgo = useMemo(() => {
+        if (!bundle) return '';
+        const last = bundle.snapshots?.[0]?.created_at || bundle.engagement?.intake_date;
+        return 'saved ' + fmtRelative(last);
+      }, [bundle]);
+      const cycleTier = () => setTier(t => t === 'conservative' ? 'typical' : t === 'typical' ? 'aggressive' : 'conservative');
+      if (err) return <div className="p-12 font-mono text-xs text-red">{err} <button onClick={onBack} className="ml-4 text-ink2 hover:text-red">← Back</button></div>;
+      if (!bundle) return <div className="min-h-full grid place-items-center text-ink2 font-mono text-xs">Loading engagement…</div>;
+      return (
+        <div className="h-full flex flex-col bg-bg">
+          <Topbar engagement={bundle.engagement} domain={bundle.domain} analysis={analysis} onBack={onBack} onToggleMeridian={() => setDrawerOpen(o => !o)} drawerOpen={drawerOpen} />
+          <ContextBar engagement={bundle.engagement} domain={bundle.domain} scenarios={scenarios} tier={tier} onTierCycle={cycleTier} governed={governed} savedAgo={savedAgo} />
+          <div className="flex-1 flex min-h-0">
+            <LeftRail tab={tab} onTab={setTab} bundle={bundle} analysis={analysis} />
+            <CenterSurface tab={tab} bundle={bundle} scenarios={scenarios} analysis={analysis} />
+            <RightDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} tab={tab} />
+          </div>
         </div>
       );
     }
