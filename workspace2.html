@@ -578,14 +578,55 @@
     }
 
     /* ---------- OVERVIEW TAB ---------- */
-    function priorityAction({ governed, scenarios, snapshots, conf }) {
-      const active = scenarios.filter(s => s.active);
-      if (governed < 40) return { headline: 'Gather buyer inputs', body: `Only ${governed}% of assumptions are buyer-confirmed. The analysis is mostly running on defaults.`, cta: 'Open Inputs', target: 'inputs' };
-      if (!active.length) return { headline: 'Activate a mechanism', body: 'No mechanisms are active — ARV is $0 by definition. Pick at least one scenario that fits this customer.', cta: 'Open Scenarios', target: 'scenarios' };
-      const weak = active.filter(s => (s.evidence_strength || '') === 'Weak').length;
-      if (weak > 0) return { headline: 'Strengthen weak evidence', body: `${weak} active scenario${weak > 1 ? 's are' : ' is'} resting on weak proof. Pull case studies or proof points before the CFO sees this.`, cta: 'Open Scenarios', target: 'scenarios' };
-      if (!snapshots?.length) return { headline: 'Save the baseline snapshot', body: 'Capture this state so changes from here have a reference point.', cta: 'Save Snapshot', target: 'snapshots' };
-      return { headline: 'Schedule customer review', body: `Analysis is at ${conf.tier} confidence. Time to walk it through with the customer.`, cta: 'Open Outputs', target: 'outputs' };
+    /* ---------- NEXT ACTION RULES (A6) ---------- */
+    // Each rule may produce 0-1 actions; pickNextActions returns top N by priority,
+    // deduped by target tab so we never stack two "Open Outputs" cards back to back.
+    const NEXT_ACTION_RULES = [
+      // Tag-driven (highest)
+      { id: 'rescue-quantify-delay', priority: 100,
+        when: ({ tags }) => tags.has('rescue'),
+        build: ({ analysis }) => ({ headline: 'Quantify cost of delay this quarter', body: `Every month costs ${fmtMoney(analysis?.monthlyDelay || 0)}.`, cta: 'Open Outputs', target: 'outputs' })
+      },
+      { id: 'finance-validating-npv', priority: 90,
+        when: ({ tags, stage }) => tags.has('finance_led') && stage === 'validation',
+        build: ({ analysis, engagement }) => ({ headline: 'Send NPV sensitivity', body: engagement.champion_email ? `Walk ${engagement.champion_email} through the ${fmtMoney(analysis?.npv)} NPV.` : `Surface NPV swing under each tier.`, cta: 'Open Outputs', target: 'outputs' })
+      },
+      { id: 'risk-proposing-objections', priority: 88,
+        when: ({ tags, stage }) => tags.has('risk_led') && stage === 'proposal',
+        build: () => ({ headline: 'Add objection responses', body: 'CFO hits on the weakest scenarios first.', cta: 'Open Scenarios', target: 'scenarios' })
+      },
+      { id: 'compliance-confirm-scope', priority: 85,
+        when: ({ tags }) => tags.has('compliance_driven'),
+        build: () => ({ headline: 'Confirm regulatory scope', body: 'Lock the rule set before pricing the engine.', cta: 'Open Inputs', target: 'inputs' })
+      },
+      // ARV-banded
+      { id: 'arv-exec-sponsor', priority: 78,
+        when: ({ analysis }) => (analysis?.arvY1 || 0) > 5_000_000,
+        build: () => ({ headline: 'Recommend exec sponsor', body: '>$5M Y1 ARV — exec sign-off shortens the path.', cta: 'Open Outputs', target: 'outputs' })
+      },
+      { id: 'arv-confirm-scope', priority: 75,
+        when: ({ analysis }) => { const v = analysis?.arvY1 || 0; return v > 0 && v < 250_000; },
+        build: () => ({ headline: 'Confirm scope', body: 'Y1 ARV under $250K — small ARV may not warrant the full engine.', cta: 'Open Scenarios', target: 'scenarios' })
+      },
+      // Stage defaults
+      { id: 'stage-discovery',  priority: 60, when: ({ stage }) => stage === 'discovery',     build: () => ({ headline: 'Gather buyer inputs',       body: 'Discovery — capture buyer assumptions before they go stale.', cta: 'Open Inputs',    target: 'inputs' }) },
+      { id: 'stage-validating', priority: 60, when: ({ stage }) => stage === 'validation',    build: () => ({ headline: 'Strengthen assumptions',    body: 'Validating — pressure-test the inputs that move ARV most.',  cta: 'Open Inputs',    target: 'inputs' }) },
+      { id: 'stage-proposing',  priority: 60, when: ({ stage }) => stage === 'proposal',      build: () => ({ headline: 'Prepare the value story',   body: 'Proposing — shortlist the strongest 3 mechanisms.',          cta: 'Open Scenarios', target: 'scenarios' }) },
+      { id: 'stage-review',     priority: 60, when: ({ stage }) => stage === 'finance review',build: () => ({ headline: 'Defend the financial case', body: 'In review — line up objection responses + NPV.',             cta: 'Open Outputs',   target: 'outputs' }) },
+      { id: 'stage-won',        priority: 60, when: ({ stage }) => stage === 'closed won',    build: () => ({ headline: 'Save baseline snapshot',     body: 'Won — capture the as-sold state for renewals.',              cta: 'Save Snapshot',  target: 'snapshots' }) },
+      { id: 'stage-lost',       priority: 60, when: ({ stage }) => stage === 'closed lost',   build: () => ({ headline: 'Capture the loss reason',   body: 'Lost — archive what to do differently next time.',           cta: 'Save Snapshot',  target: 'snapshots' }) },
+      // Existing fallbacks
+      { id: 'low-completeness', priority: 50, when: ({ governed }) => governed < 40,                          build: ({ governed }) => ({ headline: 'Gather buyer inputs', body: `Only ${governed}% buyer-confirmed.`,                                            cta: 'Open Inputs',    target: 'inputs' }) },
+      { id: 'no-active',        priority: 48, when: ({ scenarios }) => !scenarios.some(s => s.active),         build: () => ({ headline: 'Activate a mechanism', body: 'No mechanisms active — ARV is $0.',                                                       cta: 'Open Scenarios', target: 'scenarios' }) },
+      { id: 'weak-evidence',    priority: 45, when: ({ scenarios }) => scenarios.some(s => s.active && (s.evidence_strength || '') === 'Weak'),
+                                              build: ({ scenarios }) => ({ headline: 'Strengthen weak evidence', body: `${scenarios.filter(s => s.active && s.evidence_strength === 'Weak').length} active on weak proof.`, cta: 'Open Scenarios', target: 'scenarios' }) },
+      { id: 'no-snapshots',     priority: 40, when: ({ snapshots }) => !snapshots?.length,                    build: () => ({ headline: 'Save the baseline snapshot', body: 'Capture this state as a reference point.',                                          cta: 'Save Snapshot',  target: 'snapshots' }) }
+    ];
+    function pickNextActions(ctx, n = 3) {
+      const fired = NEXT_ACTION_RULES.filter(r => r.when(ctx));
+      const sorted = fired.sort((a, b) => b.priority - a.priority).map(r => ({ id: r.id, ...r.build(ctx) }));
+      const seenTarget = new Set();
+      return sorted.filter(a => seenTarget.has(a.target) ? false : (seenTarget.add(a.target), true)).slice(0, n);
     }
     function MechanismRow({ scenario, perScenario }) {
       const glyph = !scenario.active ? { icon: '○', color: '#444' } : perScenario?.pool_shadow ? { icon: '◐', color: '#888' } : { icon: '✓', color: '#86efac' };
@@ -630,9 +671,29 @@
         </div>
       );
     }
-    function OverviewTab({ bundle, scenarios, analysis, governed, onTab }) {
+    // Signal slot definitions; reordered per behavior.signalEmphasis.
+    const OVERVIEW_SIGNALS = {
+      'CoD':    (a) => ({ label: 'Cost of delay', value: fmtMoney(a?.monthlyDelay || 0), unit: '/mo' }),
+      'NPV':    (a) => ({ label: 'NPV (10% discount)', value: a?.npv != null ? fmtMoney(a.npv) : '—', unit: '' }),
+      'BCR':    (a) => ({ label: 'BCR', value: fmtMultiple(a?.bcr), unit: '' }),
+      'Y1 ARV': (a) => ({ label: 'Y1 realized', value: fmtMoney(a?.arvY1 || 0), unit: '' }),
+      'CoI':    (a) => ({ label: 'Cost of doing nothing (3yr)', value: fmtMoney(a?.coi3yr || 0), unit: '' }),
+      'Payback':    (a) => ({ label: 'Payback', value: fmtMonths(a?.payback), unit: '' }),
+      'Throughput': (a) => ({ label: 'BCR', value: fmtMultiple(a?.bcr), unit: '' }),  // throughput-as-secondary uses BCR proxy until throughput field exists
+      'Evidence':   (a) => ({ label: 'BCR', value: fmtMultiple(a?.bcr), unit: '' })
+    };
+    function orderedSignals(behavior) {
+      const seen = new Set();
+      const seq = [behavior.signalEmphasis, behavior.signalSecondary, 'Payback', 'BCR', 'CoD']
+        .filter(k => k && OVERVIEW_SIGNALS[k] && !seen.has(k) && (seen.add(k), true));
+      return seq.slice(0, 3);
+    }
+    function OverviewTab({ bundle, scenarios, analysis, governed, onTab, tags, behavior, tone }) {
       const conf = useMemo(() => confidenceTier(scenarios), [scenarios]);
-      const next = useMemo(() => priorityAction({ governed, scenarios, snapshots: bundle.snapshots, conf }), [governed, scenarios, bundle.snapshots, conf]);
+      const stage = (bundle.engagement?.deal_stage || '').toLowerCase();
+      const actions = useMemo(() => pickNextActions({ governed, scenarios, snapshots: bundle.snapshots, conf, analysis, engagement: bundle.engagement, tags, stage }, 3),
+                              [governed, scenarios, bundle.snapshots, bundle.engagement, conf, analysis, tags, stage]);
+      const top = actions[0], rest = actions.slice(1);
       const evMix = useMemo(() => {
         const t = { Strong: 0, Moderate: 0, Weak: 0 };
         scenarios.filter(s => s.active).forEach(s => { const k = s.evidence_strength || 'Moderate'; if (t[k] != null) t[k]++; });
@@ -640,28 +701,28 @@
       }, [scenarios]);
       const arv = analysis?.arvY1 || 0;
       const outcome = bundle.domain?.primary_outcome;
-      // Rule 6 — language adapts to selected outcome.
-      const heroSub = outcome ? `${outcome.toLowerCase()} value at stake annually` : 'annual value at stake';
+      const heroSub = TONE_COPY[tone].heroSubtitle(outcome);
+      const confLine = TONE_COPY[tone].confidenceVerb;
+      const signalKeys = orderedSignals(behavior);
       return (
         <div className="max-w-[920px] mx-auto px-6 sm:px-10 py-10">
           <div className="text-center mb-10">
             <div className={`font-display font-bold leading-none ${arv > 0 ? 'text-red' : 'text-ink3'}`} style={{ fontSize: '64px' }}>{fmtMoney(arv)}</div>
             <div className="text-[11px] font-mono uppercase tracking-widest text-ink2 mt-3">{heroSub}</div>
             <div className="mt-4 inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest" style={{ color: conf.color }}>
-              <span className="w-1.5 h-1.5 rounded-full" style={{ background: conf.color }} />{conf.tier} confidence
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: conf.color }} />{confLine} — {conf.tier}
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3 sm:gap-6 mb-10">
-            {[
-              { label: 'Cost of delay', value: fmtMoney(analysis?.monthlyDelay || 0), unit: '/mo' },
-              { label: 'Payback',       value: fmtMonths(analysis?.payback),         unit: '' },
-              { label: 'BCR',           value: fmtMultiple(analysis?.bcr),            unit: '' }
-            ].map(s => (
-              <div key={s.label} className="text-center">
-                <div className="font-display text-xl sm:text-2xl text-ink">{s.value}<span className="text-ink3 text-sm font-mono">{s.unit}</span></div>
-                <div className="text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-ink2 mt-1">{s.label}</div>
-              </div>
-            ))}
+            {signalKeys.map(k => {
+              const s = OVERVIEW_SIGNALS[k](analysis);
+              return (
+                <div key={k} className="text-center">
+                  <div className="font-display text-xl sm:text-2xl text-ink">{s.value}<span className="text-ink3 text-sm font-mono">{s.unit}</span></div>
+                  <div className="text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-ink2 mt-1">{s.label}</div>
+                </div>
+              );
+            })}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
             <div>
@@ -671,11 +732,26 @@
             </div>
             <div>
               <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mb-3">What to do next</div>
-              <div className="border-l-2 border-red bg-surface p-4">
-                <div className="font-display text-base text-ink mb-1.5">{next.headline}</div>
-                <div className="text-[12px] text-ink2 mb-3 leading-relaxed">{next.body}</div>
-                <button onClick={() => onTab(next.target)} className="bg-red hover:bg-red/90 text-white px-3 py-1.5 text-[11px] font-mono uppercase tracking-wider">{next.cta}</button>
-              </div>
+              {top ? (
+                <>
+                  <div className="border-l-2 border-red bg-surface p-4">
+                    <div className="font-display text-base text-ink mb-1.5">{top.headline}</div>
+                    <div className="text-[12px] text-ink2 mb-3 leading-relaxed">{top.body}</div>
+                    <button onClick={() => onTab(top.target)} className="bg-red hover:bg-red/90 text-white px-3 py-1.5 text-[11px] font-mono uppercase tracking-wider">{top.cta}</button>
+                  </div>
+                  {rest.length > 0 && (
+                    <div className="mt-3 space-y-1">
+                      {rest.map(a => (
+                        <button key={a.id} onClick={() => onTab(a.target)} className="w-full flex items-center gap-2 text-left px-3 py-2 border border-border bg-surface/50 hover:border-red/40 hover:bg-red-dim transition-colors">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red flex-shrink-0" />
+                          <span className="text-[12px] text-ink truncate flex-1">{a.headline}</span>
+                          <span className="text-ink3 text-xs flex-shrink-0">›</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : <div className="text-[11px] font-mono text-ink3 italic">No actions surfaced.</div>}
             </div>
           </div>
           <HealthBar governed={governed} evMix={evMix} snapshots={bundle.snapshots} scenarios={scenarios} />
@@ -1366,7 +1442,7 @@
               <LiveAssumptions scenarios={scenarios} defs={bundle.defs} values={values} analysis={analysis} onSlide={slideInput} onCommit={commitInput} />
             </aside>
             <main className="flex-1 overflow-auto">
-              {tab === 'overview' ? <OverviewTab bundle={bundle} scenarios={scenarios} analysis={analysis} governed={governed} onTab={setTab} />
+              {tab === 'overview' ? <OverviewTab bundle={bundle} scenarios={scenarios} analysis={analysis} governed={governed} onTab={setTab} tags={tags} behavior={behavior} tone={tone} />
                 : tab === 'scenarios' ? <ScenariosTab scenarios={scenarios} analysis={analysis} onToggle={toggleScenario} />
                 : tab === 'inputs' ? <InputsTab scenarios={scenarios} defs={bundle.defs} values={values} tier={tier} onSlide={slideInput} onCommit={commitInput} onPreset={applyPreset} />
                 : tab === 'outputs' ? <OutputsTab scenarios={scenarios} analysis={analysis} tier={tier} onPreset={applyPreset} />
