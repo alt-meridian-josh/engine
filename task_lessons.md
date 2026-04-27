@@ -154,6 +154,20 @@
 **Rule going forward:** Before inventing a `data-action` for a new control, grep existing arms for one whose handler already does the work. If the only difference is the payload (which value, in which direction), reuse the existing arm with a different `data-` attr instead of duplicating logic. Two controls writing the same state field MUST share a code path or they will drift.
 **Applies to:** alt-meridian, any single-file SPA with multiple controls bound to the same state
 
+## 2026-04-27 — React+CDN+Babel-standalone is a real production target for single-file SPAs
+**Context:** workspace2.html / vef2.html — full rebuild of the analyst surface as React-via-CDN with no build step. Tailwind config inline, Babel-standalone transpiles JSX, Supabase JS v2 loaded as a module, all components in one `<script type="text/babel">` block.
+**What happened:** Two ~1300-line files came together cleanly. React's reconciliation eliminates an entire class of bugs vanilla-JS hit in v1: focus loss on text input (lesson 2026-04-23), scroll-to-bottom in chat drawer (lesson 2026-04-24), inline-strip vs re-render (lesson 2026-04-24). useState/useMemo/useEffect handle the imperative state cleanly. The cost: first paint is slow (Babel transpiles the whole script) and there's no type-checking. For an internal demo surface where the file ships as static HTML, this is the right tradeoff.
+**Root cause:** N/A — design decision validated.
+**Rule going forward:** For single-file SPAs that need rich interaction (live recompute, drag sliders, chat surfaces), React+CDN is now the default approach. Vanilla JS only for static or near-static surfaces where the Babel-standalone payload (~1.5MB) isn't acceptable. Keep using inlined Tailwind config — JIT mode handles arbitrary classes, no PostCSS needed.
+**Applies to:** alt-meridian, any single-file SPA
+
+## 2026-04-27 — Per-chunk diff cap (150 lines) is for the diff, not the file
+**Context:** New-file chunks (W1, V1) initially budgeted to "150 lines of file" but the actual cap is "150 lines of diff." For new files those collapse to the same number; for edits they don't. Several mid-build chunks landed at 130-141 lines of diff with the file growing to 600+ lines.
+**What happened:** Stayed disciplined per-chunk. When a chunk projected over the cap (W1 at 163, W12 combined Snapshots+Meridian at ~210), bisected on the natural fracture: W1 trimmed scrollbar styling polish to a deferred chunk; W12 split at the DB-shape boundary (Snapshots = INSERT vef_output_snapshots; Meridian = fetch api.anthropic.com) per lesson 2026-04-24 — different verbs/systems are the natural split, not "what's polish."
+**Root cause:** "Chunk size" is a commit-discipline concept, not a file-size concept. The 150-line ceiling is about cognitive load per review unit and per blast radius; total file size is independent.
+**Rule going forward:** Project diff lines, not file lines, when checking against the 150 cap. If a single feature/module cleanly spans 150-200 added lines and won't bisect at a natural fracture (DB shape, polish vs structure, distinct sub-feature), it's still better to stay at 150 by deferring — but accept that the "deferred" lines need to land in a tracked follow-up chunk, not be silently dropped.
+**Applies to:** all
+
 ## 2026-04-26 — `vector-effect="non-scaling-stroke"` keeps SVG sparklines crisp under non-uniform scaling
 **Context:** Outputs tab Chunk 4 — DCF cumulative cash flow curve, 80px tall, full-width, viewBox 360×80 with `preserveAspectRatio="none"` so the path fills the container at any width.
 **What happened:** Naive viewBox + non-uniform scale made stroke widths balloon horizontally — a 2px stroke at 360px viewBox becomes 4-6px at 800px container width because the X scale dominates. Fix: add `vector-effect="non-scaling-stroke"` on every `<line>` and stroke-bearing element. The browser keeps the visual stroke width literal (in CSS pixels) regardless of the SVG's coordinate transform.
