@@ -502,6 +502,111 @@
       );
     }
 
+    /* ---------- OVERVIEW TAB ---------- */
+    function priorityAction({ governed, scenarios, snapshots, conf }) {
+      const active = scenarios.filter(s => s.active);
+      if (governed < 40) return { headline: 'Gather buyer inputs', body: `Only ${governed}% of assumptions are buyer-confirmed. The analysis is mostly running on defaults.`, cta: 'Open Inputs', target: 'inputs' };
+      if (!active.length) return { headline: 'Activate a mechanism', body: 'No mechanisms are active — ARV is $0 by definition. Pick at least one scenario that fits this customer.', cta: 'Open Scenarios', target: 'scenarios' };
+      const weak = active.filter(s => (s.evidence_strength || '') === 'Weak').length;
+      if (weak > 0) return { headline: 'Strengthen weak evidence', body: `${weak} active scenario${weak > 1 ? 's are' : ' is'} resting on weak proof. Pull case studies or proof points before the CFO sees this.`, cta: 'Open Scenarios', target: 'scenarios' };
+      if (!snapshots?.length) return { headline: 'Save the baseline snapshot', body: 'Capture this state so changes from here have a reference point.', cta: 'Save Snapshot', target: 'snapshots' };
+      return { headline: 'Schedule customer review', body: `Analysis is at ${conf.tier} confidence. Time to walk it through with the customer.`, cta: 'Open Outputs', target: 'outputs' };
+    }
+    function MechanismRow({ scenario, perScenario }) {
+      const glyph = !scenario.active ? { icon: '○', color: '#444' } : perScenario?.pool_shadow ? { icon: '◐', color: '#888' } : { icon: '✓', color: '#86efac' };
+      return (
+        <div className="flex items-center justify-between py-1.5 text-sm">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-mono flex-shrink-0" style={{ color: glyph.color }}>{glyph.icon}</span>
+            <span className={`truncate ${scenario.active ? 'text-ink' : 'text-ink3'}`}>{scenario.mechanism_label || scenario.scenario_label || scenario.scenario_id}</span>
+          </div>
+          <span className={`font-mono text-xs flex-shrink-0 ml-3 ${scenario.active && !perScenario?.pool_shadow ? 'text-red' : 'text-ink3'}`}>{fmtMoney(perScenario?.arv || 0)}</span>
+        </div>
+      );
+    }
+    function HealthBar({ governed, evMix, snapshots, scenarios }) {
+      const total = evMix.Strong + evMix.Moderate + evMix.Weak;
+      return (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 pt-6 border-t border-border">
+          <div>
+            <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mb-2">Completeness</div>
+            <div className="font-display text-base text-ink mb-1">{governed}%</div>
+            <div className="h-1 bg-surface2 relative"><div className="absolute inset-y-0 left-0 bg-red" style={{ width: governed + '%' }} /></div>
+          </div>
+          <div>
+            <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mb-2">Evidence mix</div>
+            <div className="font-display text-base text-ink mb-1">{evMix.Strong}<span className="text-ink3">/</span>{evMix.Moderate}<span className="text-ink3">/</span>{evMix.Weak}</div>
+            {total > 0 && (
+              <div className="flex h-1 w-full">
+                <div style={{ width: ((evMix.Strong / total) * 100) + '%', background: '#86efac' }} />
+                <div style={{ width: ((evMix.Moderate / total) * 100) + '%', background: '#fbbf24' }} />
+                <div style={{ width: ((evMix.Weak / total) * 100) + '%', background: '#f87171' }} />
+              </div>
+            )}
+          </div>
+          <div>
+            <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mb-2">Last snapshot</div>
+            <div className="font-display text-base text-ink">{snapshots?.[0] ? fmtRelative(snapshots[0].created_at) : 'never'}</div>
+          </div>
+          <div>
+            <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mb-2">Mechanisms</div>
+            <div className="font-display text-base text-ink">{scenarios.filter(s => s.active).length}<span className="text-ink3">/{scenarios.length}</span></div>
+          </div>
+        </div>
+      );
+    }
+    function OverviewTab({ bundle, scenarios, analysis, governed, onTab }) {
+      const conf = useMemo(() => confidenceTier(scenarios), [scenarios]);
+      const next = useMemo(() => priorityAction({ governed, scenarios, snapshots: bundle.snapshots, conf }), [governed, scenarios, bundle.snapshots, conf]);
+      const evMix = useMemo(() => {
+        const t = { Strong: 0, Moderate: 0, Weak: 0 };
+        scenarios.filter(s => s.active).forEach(s => { const k = s.evidence_strength || 'Moderate'; if (t[k] != null) t[k]++; });
+        return t;
+      }, [scenarios]);
+      const arv = analysis?.arvY1 || 0;
+      const outcome = bundle.domain?.primary_outcome;
+      // Rule 6 — language adapts to selected outcome.
+      const heroSub = outcome ? `${outcome.toLowerCase()} value at stake annually` : 'annual value at stake';
+      return (
+        <div className="max-w-[920px] mx-auto px-6 sm:px-10 py-10">
+          <div className="text-center mb-10">
+            <div className={`font-display font-bold leading-none ${arv > 0 ? 'text-red' : 'text-ink3'}`} style={{ fontSize: '64px' }}>{fmtMoney(arv)}</div>
+            <div className="text-[11px] font-mono uppercase tracking-widest text-ink2 mt-3">{heroSub}</div>
+            <div className="mt-4 inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest" style={{ color: conf.color }}>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: conf.color }} />{conf.tier} confidence
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3 sm:gap-6 mb-10">
+            {[
+              { label: 'Cost of delay', value: fmtMoney(analysis?.monthlyDelay || 0), unit: '/mo' },
+              { label: 'Payback',       value: fmtMonths(analysis?.payback),         unit: '' },
+              { label: 'BCR',           value: fmtMultiple(analysis?.bcr),            unit: '' }
+            ].map(s => (
+              <div key={s.label} className="text-center">
+                <div className="font-display text-xl sm:text-2xl text-ink">{s.value}<span className="text-ink3 text-sm font-mono">{s.unit}</span></div>
+                <div className="text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-ink2 mt-1">{s.label}</div>
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+            <div>
+              <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mb-3">Active mechanisms</div>
+              {scenarios.length === 0 ? <div className="text-[11px] font-mono text-ink3 italic">No mechanisms loaded.</div> :
+                scenarios.map(s => <MechanismRow key={s.scenario_id} scenario={s} perScenario={analysis?.perScenario?.find(p => p.scenario_id === s.scenario_id)} />)}
+            </div>
+            <div>
+              <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mb-3">What to do next</div>
+              <div className="border-l-2 border-red bg-surface p-4">
+                <div className="font-display text-base text-ink mb-1.5">{next.headline}</div>
+                <div className="text-[12px] text-ink2 mb-3 leading-relaxed">{next.body}</div>
+                <button onClick={() => onTab(next.target)} className="bg-red hover:bg-red/90 text-white px-3 py-1.5 text-[11px] font-mono uppercase tracking-wider">{next.cta}</button>
+              </div>
+            </div>
+          </div>
+          <HealthBar governed={governed} evMix={evMix} snapshots={bundle.snapshots} scenarios={scenarios} />
+        </div>
+      );
+    }
     /* ---------- ANALYSIS SHELL ---------- */
     const NAV = [
       { key: 'overview',  label: 'Overview' },
@@ -530,6 +635,7 @@
       const analysis = useMemo(() => bundle ? computeAnalysis(scenarios, values, bundle.defs) : null, [bundle, scenarios, values]);
       const slideInput = (key, val) => setOverrides(p => ({ ...p, [key]: { ...(p[key] || bundle.values?.[key] || {}), engagement_id: engagementId, input_key: key, provided_value: val, value_source: 'buyer' } }));
       const commitInput = (key, val) => sbUpsert('vef_input_values', { engagement_id: engagementId, input_key: key, provided_value: val, value_source: 'buyer' }, 'engagement_id,input_key').catch(() => {});
+      const governed = useMemo(() => bundle ? governedPct(values, bundle.defs) : 0, [bundle, values]);
       if (err) return <div className="p-12 font-mono text-xs text-red">{err} <button onClick={onBack} className="ml-4 text-ink2 hover:text-red">← Back</button></div>;
       if (!bundle) return <div className="min-h-full grid place-items-center text-ink2 font-mono text-xs">Loading…</div>;
       const stage = friendlyStage(bundle.engagement.deal_stage);
@@ -563,7 +669,8 @@
               <LiveAssumptions scenarios={scenarios} defs={bundle.defs} values={values} analysis={analysis} onSlide={slideInput} onCommit={commitInput} />
             </aside>
             <main className="flex-1 overflow-auto">
-              <div className="p-8 font-mono text-xs text-ink3 italic">[ {tab.toUpperCase()} TAB — chunk W{tab === 'overview' ? 6 : tab === 'scenarios' ? 7 : tab === 'inputs' ? 8 : tab === 'outputs' ? 9 : 11} ]</div>
+              {tab === 'overview' ? <OverviewTab bundle={bundle} scenarios={scenarios} analysis={analysis} governed={governed} onTab={setTab} />
+                : <div className="p-8 font-mono text-xs text-ink3 italic">[ {tab.toUpperCase()} TAB — chunk W{tab === 'scenarios' ? 7 : tab === 'inputs' ? 8 : tab === 'outputs' ? 9 : 11} ]</div>}
             </main>
           </div>
         </div>
