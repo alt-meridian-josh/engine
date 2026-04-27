@@ -319,6 +319,63 @@
       return set;
     }
 
+    /* ---------- INTAKE SESSION HELPERS (kept in sync with intake.html) ---------- */
+    // Session lives as one labeled JSON line in vef_engagements.notes — same sidecar
+    // pattern as TAGS / outcomes / vendor claims (lesson 2026-04-24, no schema change).
+    function parseIntakeSession(notes) {
+      const m = String(notes || '').match(/^INTAKE_SESSION:(\{[\s\S]*?\})\s*(?:\n|$)/m);
+      if (!m) return null;
+      try { return JSON.parse(m[1]); } catch { return null; }
+    }
+    // Replace (or insert) the INTAKE_SESSION line; preserves all other notes content.
+    async function writeIntakeSession(engagementId, currentNotes, sessionObj) {
+      const stripped = String(currentNotes || '').replace(/^INTAKE_SESSION:\{[\s\S]*?\}\s*\n?/m, '').trim();
+      const line = 'INTAKE_SESSION:' + JSON.stringify(sessionObj);
+      const next = stripped ? stripped + '\n\n' + line : line;
+      await sbUpdate('vef_engagements', { notes: next }, { eq: { engagement_id: engagementId } });
+      return next;
+    }
+    // Generates a fresh session record. Token + session_id are unguessable UUIDs
+    // (timestamp fallback for ancient browsers).
+    function newIntakeSession({ shared_with_email, shared_with_role, curated_input_keys }) {
+      const uuid = () => (crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2, 14));
+      return {
+        session_id: uuid(),
+        share_token: uuid(),
+        shared_with_email: shared_with_email || null,
+        shared_with_role: shared_with_role || null,
+        shared_at: new Date().toISOString(),
+        expires_at: null,                      // v1: no expiry; future column-migration to add
+        status: 'pending',                     // pending | in_progress | submitted | applied
+        curated_input_keys: curated_input_keys || [],
+        responses: {}                          // {input_key: {value, source, at}}
+      };
+    }
+    // Curate up to N inputs the prospect can actually answer. Heuristic with seller override.
+    // Order: discovery_prompt-equipped inputs ranked by ARV sensitivity; vendor/derived
+    // inputs (implementation_cost, *_reduction_pct, rfid_*, vendor_*) blacklisted.
+    // Hard cap defaults to 5 — completion rate beats coverage on a 5-minute mobile intake.
+    function curateInputs(defs, scenarios, valuesMap, n = 5) {
+      if (!defs?.length) return [];
+      const blacklist = /^(implementation_cost|.*_reduction_pct|rfid_.*|vendor_.*)$/i;
+      const asked = defs.filter(d => d.discovery_prompt && !blacklist.test(d.input_key));
+      if (asked.length === 0) return [];
+      // When the engagement has scenarios + values loaded, rank by sensitivity within the
+      // discovery_prompt set. Otherwise fall back to print_priority asc.
+      if (scenarios?.length && valuesMap) {
+        const sensitive = topSensitiveInputs(scenarios, asked, valuesMap, n);
+        if (sensitive.length >= n) return sensitive;
+        const used = new Set(sensitive.map(d => d.input_key));
+        const rest = asked.filter(d => !used.has(d.input_key));
+        return [...sensitive, ...rest].slice(0, n);
+      }
+      return asked.slice().sort((a, b) => (Number(a.print_priority) || 99) - (Number(b.print_priority) || 99)).slice(0, n);
+    }
+    function buildShareLink(token) {
+      const base = location.href.replace(/\/[^/]*(\?.*)?$/, '/');
+      return base + 'intake.html?s=' + encodeURIComponent(token);
+    }
+
     /* ---------- LOGIN — fake, no validation, no API ---------- */
     function LoginScreen({ onEnter }) {
       const [email, setEmail] = useState('seller@altmeridian.com');
