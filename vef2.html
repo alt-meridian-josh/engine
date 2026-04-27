@@ -1,0 +1,812 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Alt Meridian · VEF Assist</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: {
+      colors: { bg:'#0e0e0e', surface:'#141414', surface2:'#1a1a1a', border1:'#222', border2:'#2d2d2d', ink:'#e8e8e8', ink2:'#888', ink3:'#444', red:'#d63b2f' },
+      fontFamily: { display:['Syne','sans-serif'], mono:['"DM Mono"','monospace'], sans:['Syne','system-ui','sans-serif'] }
+    } } };
+  </script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    html, body, #root { height: 100%; }
+    body { background: #0e0e0e; color: #e8e8e8; font-family: 'Syne', system-ui, sans-serif; }
+    input, textarea, button, select { font-family: inherit; }
+  </style>
+</head>
+<body class="bg-bg text-ink">
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+    /* ---------- SUPABASE ---------- */
+    const SUPABASE_URL = 'https://kpecdezcolcycgpuqbgs.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwZWNkZXpjb2xjeWNncHVxYmdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2ODIyMDYsImV4cCI6MjA5MTI1ODIwNn0.rKHzdjjkYToEZWdS0ngg3Kgigh_gDWt5cRbLBCE44rg';
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    async function sbSelect(table, q) {
+      let b = sb.from(table).select('*');
+      if (q?.eq) Object.entries(q.eq).forEach(([k, v]) => b = b.eq(k, v));
+      if (q?.in) Object.entries(q.in).forEach(([k, vs]) => b = b.in(k, vs));
+      if (q?.limit) b = b.limit(q.limit);
+      const { data, error } = await b;
+      if (error) throw error;
+      return data || [];
+    }
+    async function sbInsert(table, row) {
+      const { data, error } = await sb.from(table).insert(row).select();
+      if (error) throw error;
+      return data?.[0] || null;
+    }
+    async function sbUpsert(table, row, onConflict) {
+      const { data, error } = await sb.from(table).upsert(row, onConflict ? { onConflict } : {}).select();
+      if (error) throw error;
+      return data?.[0] || null;
+    }
+
+    /* ---------- LOADERS ---------- */
+    const cleanDomainName = (n) => (n || '').replace(/^[A-Z][A-Z0-9]+\s+—\s+/, '');
+    async function loadDomains() {
+      const arr = await sbSelect('vef_domains');
+      const m = {}; arr.forEach(d => m[d.domain_id] = d); return m;
+    }
+    const loadAllScenarios = () => sbSelect('vef_value_scenarios').catch(() => []);
+    const loadValueSignals = (domainId) => sbSelect('vef_value_signals', { eq: { domain_id: domainId } }).catch(() => []);
+    async function loadInputDefinitions(domainId, domain) {
+      let rows = await sbSelect('vef_input_definitions', { eq: { domain_id: domainId } }).catch(() => []);
+      if (!rows.length && domain?.technology === 'RFID' && domainId !== 'RFD') {
+        rows = await sbSelect('vef_input_definitions', { eq: { domain_id: 'RFD' } }).catch(() => []);
+      }
+      const seen = new Set();
+      return rows.filter(r => seen.has(r.input_key) ? false : (seen.add(r.input_key), true));
+    }
+
+    /* ---------- VOCAB + FORMAT ---------- */
+    const OUTCOMES = [
+      { key: 'Visibility',   color: '#93c5fd', desc: "Know where things are and what condition they're in" },
+      { key: 'Throughput',   color: '#fbbf24', desc: 'Move things faster through your operation' },
+      { key: 'Compliance',   color: '#c4b5fd', desc: 'Prove what happened and when' },
+      { key: 'Risk',         color: '#f87171', desc: 'Predict and prevent financial exposure' },
+      { key: 'Intelligence', color: '#5eead4', desc: 'Turn data into faster decisions' },
+      { key: 'Performance',  color: '#86efac', desc: 'Get more from equipment and assets' },
+      { key: 'Revenue',      color: '#6ee7b7', desc: "Capture value that's being lost" }
+    ];
+    const OUTCOME_BY = OUTCOMES.reduce((m, o) => (m[o.key] = o, m), {});
+    const THEME_COLORS = {
+      'Operational Efficiency':'#fbbf24', 'Compliance & Risk':'#c4b5fd', 'Asset Performance':'#86efac',
+      'Inventory Accuracy':'#93c5fd', 'Throughput':'#f59e0b', 'Visibility':'#60a5fa',
+      'Revenue':'#6ee7b7', 'Labor Productivity':'#5eead4'
+    };
+    const themeColor = (t) => THEME_COLORS[t] || '#888';
+    function fmtMoney(n) {
+      if (n == null || !isFinite(n)) return '—';
+      const a = Math.abs(n);
+      if (a >= 1e9) return '$' + (n / 1e9).toFixed(1) + 'B';
+      if (a >= 1e6) return '$' + (n / 1e6).toFixed(1) + 'M';
+      if (a >= 1e3) return '$' + (n / 1e3).toFixed(0) + 'K';
+      return '$' + Math.round(n).toLocaleString();
+    }
+
+    /* ---------- FUZZY TOKENIZER (lesson 2026-04-24) ---------- */
+    // length >= 3, stopwords filtered, secondary 'strong' bucket gated at length >= 6
+    // for categorical fields (mechanism_label + value_theme).
+    const STOPWORDS = new Set('the and for with from this that have been into were when what your you are our about over more some most all any can will would could should there their these those'.split(' '));
+    function tokensFor(text) {
+      return new Set(String(text || '').toLowerCase().match(/[a-z][a-z0-9_-]{2,}/g)?.filter(w => !STOPWORDS.has(w)) || []);
+    }
+    function strongTokens(text) {
+      return new Set([...tokensFor(text)].filter(w => w.length >= 6));
+    }
+
+    /* ---------- CLAIM EXTRACTION + MATCHING ---------- */
+    const QUANTITY_RE = /(\$\s?[\d,]+(?:\.\d+)?\s?(?:k|m|b|million|billion)?|\d{1,3}(?:\.\d+)?\s?%|\d+\s?(?:hours?|days?|weeks?|months?|min|x|times))/i;
+    function extractClaims(text) {
+      const lines = (text || '').split(/[\n\.]+/).map(l => l.trim()).filter(Boolean);
+      const out = [];
+      for (const line of lines) {
+        const m = line.match(QUANTITY_RE);
+        if (!m) continue;
+        const value = m[0].trim();
+        const metric = line.replace(m[0], '').replace(/\b(by|of|to|at|in|on|the|a|an|with|from|up|down)\b/gi, '').replace(/\s+/g, ' ').trim();
+        if (metric.length < 3) continue;
+        out.push({ raw: line, metric: metric.slice(0, 80), value });
+      }
+      return out;
+    }
+    function matchClaim(claim, pool) {
+      const claimTok = tokensFor(claim.metric);
+      const claimStrong = strongTokens(claim.metric);
+      if (!claimTok.size) return null;
+      let best = { score: 0, scenario: null };
+      for (const sc of pool || []) {
+        const text = [sc.mechanism_label, sc.value_theme, sc.one_liner, sc.scenario_description].filter(Boolean).join(' ');
+        const stTok = tokensFor(text);
+        const stStrong = strongTokens([sc.mechanism_label, sc.value_theme].filter(Boolean).join(' '));
+        let hits = 0, strongHits = 0;
+        claimTok.forEach(t => { if (stTok.has(t)) hits++; });
+        claimStrong.forEach(t => { if (stStrong.has(t)) strongHits++; });
+        if (hits >= 2 || strongHits >= 1) {
+          const score = hits * 10 + strongHits * 5 - (Number(sc.print_priority) || 0);
+          if (score > best.score) best = { score, scenario: sc };
+        }
+      }
+      return best.scenario;
+    }
+
+    const VERDICTS = [
+      { key: 'Accept',    color: '#86efac' },
+      { key: 'Adjust',    color: '#fbbf24' },
+      { key: 'Challenge', color: '#f87171' },
+      { key: 'Missing',   color: '#93c5fd' }
+    ];
+    const VERDICT_BY = VERDICTS.reduce((m, v) => (m[v.key] = v, m), {});
+    const cycleVerdict = (cur) => { const i = VERDICTS.findIndex(v => v.key === cur); return VERDICTS[(i + 1) % VERDICTS.length].key; };
+
+    function VerdictChip({ verdict, onCycle }) {
+      const v = VERDICT_BY[verdict] || VERDICTS[1];
+      return (
+        <button onClick={onCycle} title="Click to cycle verdict"
+          className="text-[10px] font-mono uppercase tracking-widest px-2 py-0.5"
+          style={{ background: v.color + '22', color: v.color, border: '1px solid ' + v.color + '55' }}>
+          {v.key}
+        </button>
+      );
+    }
+
+    function Step0Import({ s, update, matchPool, setMatchPool, onSkip }) {
+      const [busy, setBusy] = useState(false);
+      const extract = async () => {
+        if (!s.pasted.trim()) return;
+        setBusy(true);
+        try {
+          let pool = matchPool;
+          if (!pool) { pool = await loadAllScenarios(); setMatchPool(pool); }
+          const claims = extractClaims(s.pasted).map(c => ({ ...c, scenario: matchClaim(c, pool), verdict: 'Adjust' }));
+          update({ claims, extracted: true });
+        } finally { setBusy(false); }
+      };
+      const cycleClaim = (i) => {
+        update({ claims: s.claims.map((c, idx) => idx === i ? { ...c, verdict: cycleVerdict(c.verdict) } : c) });
+      };
+      return (
+        <div>
+          <div className="text-[12px] text-ink2 mb-3 leading-relaxed">Paste a vendor's ROI claim, case study excerpt, or marketing one-pager. We'll extract the quantitative claims and try to map each to a value mechanism in our framework.</div>
+          <textarea value={s.pasted} onChange={e => update({ pasted: e.target.value })}
+            rows={8} placeholder={'e.g. "Customers see 30% reduction in inventory shrinkage and save $400K annually in labor costs by using our RFID solution. Picking accuracy improves to 99.9%."'}
+            className="w-full bg-surface border border-border1 px-3 py-2 text-sm focus:border-red outline-none mb-3" />
+          <div className="flex items-center gap-3 mb-6">
+            <button onClick={extract} disabled={busy || !s.pasted.trim()}
+              className="bg-red hover:bg-red/90 disabled:opacity-40 text-white px-4 py-2 text-[11px] font-mono uppercase tracking-widest">{busy ? 'Extracting…' : 'Extract & Map →'}</button>
+            <button onClick={onSkip} className="text-[11px] font-mono text-ink2 hover:text-red uppercase tracking-widest">Skip →</button>
+          </div>
+          {s.extracted && s.claims.length === 0 && (
+            <div className="text-[11px] font-mono text-ink3 italic">No quantitative claims found. Paste vendor copy with concrete numbers ($, %, time, multiples) or skip ahead.</div>
+          )}
+          {s.claims.length > 0 && (
+            <div>
+              <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-3">{s.claims.length} extracted claims</div>
+              <div className="space-y-2">
+                {s.claims.map((c, i) => (
+                  <div key={i} className="bg-surface border border-border1 px-4 py-3 grid grid-cols-12 gap-3 items-center">
+                    <div className="col-span-6">
+                      <div className="text-sm text-ink truncate">{c.metric}</div>
+                      <div className="text-[10px] font-mono text-ink3 mt-0.5 truncate">{c.scenario ? '→ ' + (c.scenario.mechanism_label || c.scenario.scenario_id) : 'no match'}</div>
+                    </div>
+                    <div className="col-span-3 font-mono text-sm text-ink">{c.value}</div>
+                    <div className="col-span-3 flex justify-end"><VerdictChip verdict={c.verdict} onCycle={() => cycleClaim(i)} /></div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    /* ---------- STEP 1 — CONTEXT ---------- */
+    function OutcomeTile({ outcome, selected, onToggle }) {
+      return (
+        <button onClick={() => onToggle(outcome.key)}
+          className={`text-left p-4 border transition-colors ${selected ? 'border-red bg-red/10' : 'border-border1 bg-surface hover:border-border2'}`}>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full" style={{ background: outcome.color }} />
+            <span className="font-display text-base text-ink">{outcome.key}</span>
+          </div>
+          <div className="text-[11px] text-ink2 mt-1.5 leading-relaxed">{outcome.desc}</div>
+        </button>
+      );
+    }
+    function DomainTile({ domain, count, selected, onSelect }) {
+      return (
+        <button onClick={() => onSelect(domain.domain_id)}
+          className={`text-left p-3 border transition-colors ${selected ? 'border-red bg-red/10' : 'border-border1 bg-surface hover:border-border2'}`}>
+          <div className="font-display text-sm text-ink truncate">{cleanDomainName(domain.domain_name) || domain.domain_id}</div>
+          <div className="flex items-center justify-between mt-2">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-ink3">{domain.technology || 'Other'}</span>
+            <span className="text-[10px] font-mono text-ink2">{count} <span className="text-ink3">scen</span></span>
+          </div>
+        </button>
+      );
+    }
+    function Step1Context({ s, update, matchPool, setMatchPool }) {
+      const [domains, setDomains] = useState({});
+      const [domainsLoaded, setDomainsLoaded] = useState(false);
+      useEffect(() => {
+        (async () => {
+          const [doms, pool] = await Promise.all([
+            loadDomains(),
+            matchPool ? Promise.resolve(matchPool) : loadAllScenarios()
+          ]);
+          setDomains(doms); setDomainsLoaded(true);
+          if (!matchPool) setMatchPool(pool);
+        })();
+      }, []);
+      const scenarioCounts = useMemo(() => {
+        const m = {}; (matchPool || []).forEach(sc => { m[sc.domain_id] = (m[sc.domain_id] || 0) + 1; }); return m;
+      }, [matchPool]);
+      const filteredDomains = useMemo(() => {
+        const list = Object.values(domains);
+        if (s.outcomes.length === 0) return list;
+        return list.filter(d => s.outcomes.includes(d.primary_outcome));
+      }, [domains, s.outcomes]);
+      const toggleOutcome = (key) => {
+        const next = s.outcomes.includes(key) ? s.outcomes.filter(o => o !== key) : [...s.outcomes, key];
+        update({ outcomes: next, ...(s.domain && next.length && !next.includes(domains[s.domain]?.primary_outcome) ? { domain: null } : {}) });
+      };
+      return (
+        <div>
+          <div className="text-[12px] text-ink2 mb-4 leading-relaxed">Pick the business outcomes this analysis is targeting. Multi-select.</div>
+          <div className="grid grid-cols-2 gap-3 mb-8">
+            {OUTCOMES.map(o => <OutcomeTile key={o.key} outcome={o} selected={s.outcomes.includes(o.key)} onToggle={toggleOutcome} />)}
+          </div>
+          {s.outcomes.length > 0 && (
+            <>
+              <div className="text-[10px] font-mono uppercase tracking-widest text-red mb-3">Where does this apply?</div>
+              {!domainsLoaded ? (
+                <div className="text-[11px] font-mono text-ink3 italic mb-8">Loading domains…</div>
+              ) : filteredDomains.length === 0 ? (
+                <div className="text-[11px] font-mono text-ink3 italic mb-8">No domains match the selected outcomes.</div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2 mb-8">
+                  {filteredDomains.map(d => <DomainTile key={d.domain_id} domain={d} count={scenarioCounts[d.domain_id] || 0} selected={s.domain === d.domain_id} onSelect={(id) => update({ domain: id })} />)}
+                </div>
+              )}
+            </>
+          )}
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-ink2 mb-1">Analysis Name</label>
+              <input value={s.analysis_name} onChange={e => update({ analysis_name: e.target.value })}
+                placeholder="e.g. ACME RFID Q1 Analysis" className="w-full bg-surface border border-border1 px-3 py-2 text-sm focus:border-red outline-none" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-ink2 mb-1">Customer</label>
+              <input value={s.customer} onChange={e => update({ customer: e.target.value })}
+                placeholder="e.g. ACME Corp" className="w-full bg-surface border border-border1 px-3 py-2 text-sm focus:border-red outline-none" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-mono uppercase tracking-widest text-ink2 mb-1">Vendor</label>
+              <input value={s.vendor} onChange={e => update({ vendor: e.target.value })}
+                placeholder="e.g. Zebra" className="w-full bg-surface border border-border1 px-3 py-2 text-sm focus:border-red outline-none" />
+            </div>
+          </div>
+          <div>
+            <button onClick={() => update({ whatToProveOpen: !s.whatToProveOpen })}
+              className="text-[10px] font-mono uppercase tracking-widest text-ink2 hover:text-red flex items-center gap-1.5">
+              <span className="text-ink3">{s.whatToProveOpen ? '▾' : '▸'}</span>
+              {s.whatToProveOpen ? "What we're trying to prove" : 'Add context +'}
+            </button>
+            {s.whatToProveOpen && (
+              <textarea value={s.whatToProve} onChange={e => update({ whatToProve: e.target.value })}
+                rows={3} placeholder="What's the question this analysis needs to answer? (Optional but valuable.)"
+                className="w-full mt-2 bg-surface border border-border1 px-3 py-2 text-sm focus:border-red outline-none" />
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    /* ---------- STEP 2 — SCENARIOS ---------- */
+    function ScenarioPickCard({ scenario, checked, recommended, matched, onToggle }) {
+      const ev = scenario.evidence_strength || 'Moderate';
+      const evColor = ev === 'Strong' ? '#86efac' : ev === 'Weak' ? '#f87171' : '#fbbf24';
+      const themeC = themeColor(scenario.value_theme);
+      return (
+        <button onClick={() => onToggle(scenario.scenario_id)}
+          className={`w-full text-left p-4 border transition-colors ${checked ? 'border-red bg-red/10' : 'border-border1 bg-surface hover:border-border2'}`}>
+          <div className="flex items-start gap-3">
+            <span className={`mt-1 w-4 h-4 border flex items-center justify-center flex-shrink-0 ${checked ? 'bg-red border-red' : 'border-border2'}`}>
+              {checked && <span className="text-white text-[10px]">✓</span>}
+            </span>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                {scenario.value_theme && <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5" style={{ background: themeC + '22', color: themeC }}>{scenario.value_theme}</span>}
+                {recommended && <span className="text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 bg-green-900/40 text-green-300">Recommended</span>}
+                {matched && <span className="text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 bg-red/20 text-red">Matched</span>}
+              </div>
+              <div className="font-display text-sm text-ink truncate">{scenario.mechanism_label || scenario.scenario_label || 'Untitled'}</div>
+              <div className="text-[11px] text-ink2 mt-1 leading-relaxed">{scenario.one_liner || scenario.scenario_description || ''}</div>
+            </div>
+            <div className="flex-shrink-0 text-right">
+              <span className="text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 border" style={{ borderColor: evColor + '55', color: evColor }}>{ev}</span>
+            </div>
+          </div>
+        </button>
+      );
+    }
+    function Step2Scenarios({ s, update, matchPool }) {
+      const pool = useMemo(() => {
+        if (!s.domain || !matchPool) return [];
+        let list = matchPool.filter(sc => sc.domain_id === s.domain);
+        // RFID fallback baked in: if domain looks RFID-synthetic and has no scenarios, try RFD
+        if (!list.length) list = matchPool.filter(sc => sc.domain_id === 'RFD');
+        return list;
+      }, [matchPool, s.domain]);
+      const matchedIds = useMemo(() => new Set((s.claims || []).filter(c => c.scenario && c.verdict !== 'Missing').map(c => c.scenario.scenario_id)), [s.claims]);
+      const allThemes = useMemo(() => Array.from(new Set(pool.map(p => p.value_theme).filter(Boolean))).sort(), [pool]);
+      const filtered = useMemo(() => {
+        const q = (s.scenarioSearch || '').toLowerCase();
+        return pool.filter(sc => {
+          if (s.themeFilter.size && !s.themeFilter.has(sc.value_theme)) return false;
+          if (q && !((sc.mechanism_label || '') + ' ' + (sc.one_liner || '') + ' ' + (sc.scenario_description || '')).toLowerCase().includes(q)) return false;
+          return true;
+        });
+      }, [pool, s.scenarioSearch, s.themeFilter]);
+      const toggle = (id) => {
+        const next = new Set(s.selectedScenarios);
+        next.has(id) ? next.delete(id) : next.add(id);
+        update({ selectedScenarios: next });
+      };
+      const toggleTheme = (t) => {
+        const next = new Set(s.themeFilter); next.has(t) ? next.delete(t) : next.add(t);
+        update({ themeFilter: next });
+      };
+      const selectAll = () => update({ selectedScenarios: new Set(filtered.map(sc => sc.scenario_id)) });
+      const clearAll = () => update({ selectedScenarios: new Set() });
+      if (!s.domain) return <div className="text-[12px] font-mono text-ink3 italic">Pick a domain in Step 1 first.</div>;
+      return (
+        <div>
+          <div className="text-[12px] text-ink2 mb-4 leading-relaxed">{pool.length} mechanisms in this domain. Pick the ones that fit this customer's situation. The interpretation panel updates as you select.</div>
+          <div className="flex items-center gap-3 mb-3">
+            <input value={s.scenarioSearch} onChange={e => update({ scenarioSearch: e.target.value })}
+              placeholder="Search mechanisms…" className="flex-1 bg-surface border border-border1 px-3 py-2 text-sm focus:border-red outline-none" />
+            <button onClick={selectAll} className="text-[10px] font-mono uppercase tracking-widest text-ink2 hover:text-red">Select all</button>
+            <button onClick={clearAll} className="text-[10px] font-mono uppercase tracking-widest text-ink2 hover:text-red">Clear</button>
+          </div>
+          {allThemes.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-4">
+              {allThemes.map(t => {
+                const on = s.themeFilter.has(t);
+                const c = themeColor(t);
+                return (
+                  <button key={t} onClick={() => toggleTheme(t)}
+                    className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 transition-colors"
+                    style={{ background: on ? c + '33' : 'transparent', color: on ? c : '#888', border: '1px solid ' + (on ? c : '#222') }}>
+                    {t}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-3">{s.selectedScenarios.size} of {filtered.length} selected</div>
+          <div className="space-y-2 max-h-[640px] overflow-auto pr-1">
+            {filtered.length === 0 && <div className="text-[11px] font-mono text-ink3 italic">No mechanisms match the current filters.</div>}
+            {filtered.map(sc => (
+              <ScenarioPickCard key={sc.scenario_id} scenario={sc} checked={s.selectedScenarios.has(sc.scenario_id)}
+                recommended={!!sc.active_by_default} matched={matchedIds.has(sc.scenario_id)} onToggle={toggle} />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    /* ---------- STEP 3 — EVIDENCE & AUDIT ---------- */
+    function evidenceStatus(scenario) {
+      const ev = scenario.evidence_strength || 'Moderate';
+      const ids = String(scenario.evidence_ids || '').split(',').map(x => x.trim()).filter(Boolean);
+      if (ev === 'Strong') return { label: 'Good to go', color: '#86efac' };
+      if (ev === 'Moderate' && ids.length > 0) return { label: 'Good to go', color: '#86efac' };
+      if (ev === 'Moderate') return { label: 'Needs data', color: '#fbbf24' };
+      return { label: 'Assumption', color: '#f87171' };
+    }
+    function EvidenceCoverageTable({ scenarios }) {
+      if (!scenarios.length) return <div className="text-[11px] font-mono text-ink3 italic">Pick at least one scenario in Step 2.</div>;
+      return (
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-border1">
+              <th className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">Scenario</th>
+              <th className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">Evidence</th>
+              <th className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">Sources</th>
+              <th className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {scenarios.map(sc => {
+              const ids = String(sc.evidence_ids || '').split(',').map(x => x.trim()).filter(Boolean);
+              const ev = sc.evidence_strength || 'Moderate';
+              const evColor = ev === 'Strong' ? '#86efac' : ev === 'Weak' ? '#f87171' : '#fbbf24';
+              const st = evidenceStatus(sc);
+              return (
+                <tr key={sc.scenario_id} className="border-b border-border1">
+                  <td className="py-2.5 px-3 text-xs text-ink truncate max-w-[280px]">{sc.mechanism_label || sc.scenario_id}</td>
+                  <td className="py-2.5 px-3"><span className="text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 border" style={{ borderColor: evColor + '55', color: evColor }}>{ev}</span></td>
+                  <td className="py-2.5 px-3 text-xs font-mono text-ink2">{ids.length}</td>
+                  <td className="py-2.5 px-3"><span className="text-[10px] font-mono" style={{ color: st.color }}>{st.label}</span></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      );
+    }
+    function ClaimAuditTable({ claims }) {
+      const used = (claims || []).filter(c => c.scenario && c.verdict !== 'Missing');
+      if (!used.length) return null;
+      return (
+        <div className="mt-8">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-red mb-3">Claim audit · {used.length} claims</div>
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-border1">
+                <th className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">Vendor claim</th>
+                <th className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">Matched scenario</th>
+                <th className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">Verdict</th>
+                <th className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">AM Range</th>
+              </tr>
+            </thead>
+            <tbody>
+              {used.map((c, i) => {
+                const v = VERDICT_BY[c.verdict] || VERDICTS[1];
+                const ev = c.scenario?.evidence_strength || 'Moderate';
+                const evColor = ev === 'Strong' ? '#86efac' : ev === 'Weak' ? '#f87171' : '#fbbf24';
+                return (
+                  <tr key={i} className="border-b border-border1">
+                    <td className="py-2.5 px-3 text-xs text-ink"><span className="font-mono mr-2">{c.value}</span>{c.metric}</td>
+                    <td className="py-2.5 px-3 text-xs text-ink2 truncate max-w-[200px]">{c.scenario?.mechanism_label || c.scenario?.scenario_id || '—'}</td>
+                    <td className="py-2.5 px-3"><span className="text-[10px] font-mono" style={{ color: v.color }}>{v.key}</span></td>
+                    <td className="py-2.5 px-3"><span className="text-[10px] font-mono" style={{ color: evColor }}>{ev}</span></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+    function Step3Evidence({ s, update, matchPool, onCreate, busy }) {
+      const selectedScenarios = useMemo(() => {
+        return (matchPool || []).filter(sc => s.selectedScenarios.has(sc.scenario_id));
+      }, [matchPool, s.selectedScenarios]);
+      return (
+        <div>
+          <div className="text-[12px] text-ink2 mb-4 leading-relaxed">Coverage of evidence across the chosen mechanisms. Anything marked "Needs data" or "Assumption" is fair game for the customer or finance to challenge.</div>
+          <EvidenceCoverageTable scenarios={selectedScenarios} />
+          <ClaimAuditTable claims={s.claims} />
+          <div className="mt-8">
+            <label className="block text-[10px] font-mono uppercase tracking-widest text-ink2 mb-2">What evidence still needs to be gathered?</label>
+            <textarea value={s.notes} onChange={e => update({ notes: e.target.value })}
+              rows={4} placeholder="Notes on case studies to pull, customer references to talk to, finance proof points to source…"
+              className="w-full bg-surface border border-border1 px-3 py-2 text-sm focus:border-red outline-none" />
+          </div>
+          <div className="mt-8 flex items-center justify-end gap-4">
+            <span className="text-[10px] font-mono text-ink3">Ready to create the analysis?</span>
+            <button onClick={onCreate} disabled={busy || s.selectedScenarios.size === 0 || !s.domain}
+              className="bg-red hover:bg-red/90 disabled:opacity-40 text-white px-5 py-2.5 text-xs font-display tracking-wide">
+              {busy ? 'Creating…' : 'Create Analysis →'}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    /* ---------- STEPS ---------- */
+    const STEPS = [
+      { key: 0, label: 'Import',    title: 'Paste a vendor claim' },
+      { key: 1, label: 'Context',   title: 'What are we trying to improve?' },
+      { key: 2, label: 'Scenarios', title: 'Select mechanisms for this analysis' },
+      { key: 3, label: 'Evidence',  title: 'Evidence & audit' }
+    ];
+
+    function StepIndicator({ step, complete }) {
+      return (
+        <div className="flex items-center gap-2">
+          {STEPS.map((s, i) => {
+            const isDone = complete[s.key];
+            const isCurrent = step === s.key;
+            const fillStyle = isDone ? 'bg-red border-red text-white' : isCurrent ? 'bg-bg border-red text-red' : 'bg-bg border-border2 text-ink3';
+            return (
+              <React.Fragment key={s.key}>
+                <div className="flex items-center gap-2">
+                  <div className={`w-6 h-6 border flex items-center justify-center text-[10px] font-mono ${fillStyle}`}>{i + 1}</div>
+                  <span className={`text-[10px] font-mono uppercase tracking-widest ${isCurrent ? 'text-red' : isDone ? 'text-ink' : 'text-ink3'}`}>{s.label}</span>
+                </div>
+                {i < STEPS.length - 1 && <div className={`w-8 h-px ${isDone ? 'bg-red' : 'bg-border1'}`} />}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      );
+    }
+
+    function Topbar({ step, complete, onCancel }) {
+      return (
+        <header className="h-14 px-6 border-b border-border1 bg-surface flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-6">
+            <div className="font-display text-lg tracking-wide"><span className="text-red">ALT</span> <span className="text-ink">MERIDIAN</span></div>
+            <span className="font-mono text-[10px] uppercase tracking-widest text-ink2">VEF Assist</span>
+          </div>
+          <StepIndicator step={step} complete={complete} />
+          <button onClick={onCancel} className="text-[11px] font-mono text-ink2 hover:text-red">Cancel</button>
+        </header>
+      );
+    }
+
+    /* ---------- APP STATE ---------- */
+    function makeInitialState() {
+      return {
+        // Step 0
+        pasted: '', claims: [], extracted: false,
+        // Step 1
+        outcomes: [], domain: null,
+        analysis_name: '', customer: '', vendor: '',
+        whatToProve: '', whatToProveOpen: false,
+        // Step 2
+        selectedScenarios: new Set(),
+        scenarioSearch: '', themeFilter: new Set(),
+        // Step 3
+        notes: ''
+      };
+    }
+
+    /* ---------- INTERPRETATION CONTEXT (V8) ---------- */
+    function confidenceFromScenarios(scenarios) {
+      if (!scenarios.length) return { tier: 'EXPLORATORY', pct: 25, color: '#888' };
+      const tally = { Strong: 0, Moderate: 0, Weak: 0 };
+      scenarios.forEach(s => { const e = s.evidence_strength || 'Moderate'; if (tally[e] != null) tally[e]++; });
+      const score = (tally.Strong + tally.Moderate * 0.6 + tally.Weak * 0.3) / scenarios.length;
+      if (score >= 0.75) return { tier: 'STRONG', pct: 90, color: '#86efac' };
+      if (score >= 0.45) return { tier: 'MODERATE', pct: 60, color: '#fbbf24' };
+      return { tier: 'EXPLORATORY', pct: 30, color: '#888' };
+    }
+    function useInterpretation(s, matchPool, domains) {
+      const [signals, setSignals] = useState([]);
+      const [inputDefs, setInputDefs] = useState([]);
+      useEffect(() => {
+        if (!s.domain) { setSignals([]); setInputDefs([]); return; }
+        const dom = domains[s.domain];
+        Promise.all([
+          loadValueSignals(s.domain),
+          loadInputDefinitions(s.domain, dom)
+        ]).then(([sigs, defs]) => { setSignals(sigs); setInputDefs(defs); });
+      }, [s.domain, domains]);
+      return useMemo(() => {
+        const dom = s.domain ? domains[s.domain] : null;
+        const domainPool = (matchPool || []).filter(sc => sc.domain_id === s.domain);
+        const themes = Array.from(new Set(domainPool.map(p => p.value_theme).filter(Boolean)));
+        const selectedScenarios = domainPool.filter(sc => s.selectedScenarios.has(sc.scenario_id));
+        const tally = { Strong: 0, Moderate: 0, Weak: 0 };
+        domainPool.forEach(sc => { const e = sc.evidence_strength || 'Moderate'; if (tally[e] != null) tally[e]++; });
+        const conf = confidenceFromScenarios(selectedScenarios.length ? selectedScenarios : domainPool);
+        const missing = (inputDefs || [])
+          .filter(d => d.discovery_prompt && d.input_key !== 'implementation_cost')
+          .slice(0, 3)
+          .map(d => ({ key: d.input_key, label: d.input_label || d.input_key, discovery: d.discovery_prompt }));
+        const topMini = domainPool.slice().sort((a, b) => (Number(a.print_priority) || 99) - (Number(b.print_priority) || 99)).slice(0, 3);
+        return {
+          signals: (signals || []).map(sg => sg.signal_label || sg.signal_name || sg.signal_key).filter(Boolean),
+          themes,
+          engine: dom ? cleanDomainName(dom.domain_name) || dom.domain_id : null,
+          scenarios: domainPool,
+          tally,
+          confidence: conf,
+          missing,
+          topMini
+        };
+      }, [s.domain, s.selectedScenarios, matchPool, domains, signals, inputDefs]);
+    }
+
+    /* ---------- CREATE HANDLER ---------- */
+    function buildEngagementRow({ s, domains }) {
+      const today = new Date().toISOString().slice(0, 10);
+      const id = (crypto && crypto.randomUUID) ? crypto.randomUUID() : 'eng_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      // Speculative fields (whatToProve, outcomes, claims summary) are stashed in `notes`
+      // with a labeled prefix per lesson 2026-04-24 — never include speculative columns
+      // on INSERT, they fail-loud against unknown PostgREST schema.
+      const claimSummary = (s.claims || []).filter(c => c.scenario && c.verdict !== 'Missing')
+        .map(c => `  - "${c.metric}" ${c.value} → ${c.scenario.mechanism_label || c.scenario.scenario_id} [${c.verdict}]`).join('\n');
+      const notesParts = [];
+      if (s.whatToProve) notesParts.push('WHAT WE\'RE TRYING TO PROVE:\n' + s.whatToProve);
+      if (s.outcomes.length) notesParts.push('TARGET OUTCOMES: ' + s.outcomes.join(', '));
+      if (claimSummary) notesParts.push('VENDOR CLAIMS:\n' + claimSummary);
+      if (s.notes) notesParts.push('EVIDENCE NOTES:\n' + s.notes);
+      return {
+        engagement_id: id,
+        analysis_name: s.analysis_name || 'Untitled analysis',
+        prospect_name: s.customer || null,
+        vendor_name:   s.vendor || null,
+        domain_id:     s.domain,
+        intake_date:   today,
+        deal_stage:    'discovery',
+        engagement_status: 'Draft',
+        phase:         'Discovery',
+        notes:         notesParts.join('\n\n') || null
+      };
+    }
+    async function createAnalysis({ s, domains }) {
+      if (!s.domain || !s.selectedScenarios.size) throw new Error('Pick a domain and at least one scenario.');
+      const row = buildEngagementRow({ s, domains });
+      await sbInsert('vef_engagements', row);
+      await Promise.all(Array.from(s.selectedScenarios).map(scenario_id =>
+        sbUpsert('vef_scenario_selections', { engagement_id: row.engagement_id, scenario_id, is_active: true }, 'engagement_id,scenario_id')
+      ));
+      return row.engagement_id;
+    }
+
+    /* ---------- LEFT PANEL — step dispatcher ---------- */
+    function LeftPanel({ step, s, update, matchPool, setMatchPool, onSkip, onCreate, busy }) {
+      return (
+        <div>
+          <div className="font-display text-2xl text-ink mb-1">{STEPS[step].title}</div>
+          <div className="text-[11px] font-mono text-ink2 mb-8">Step {step + 1} of {STEPS.length} · {STEPS[step].label}</div>
+          {step === 0 && <Step0Import s={s} update={update} matchPool={matchPool} setMatchPool={setMatchPool} onSkip={onSkip} />}
+          {step === 1 && <Step1Context s={s} update={update} matchPool={matchPool} setMatchPool={setMatchPool} />}
+          {step === 2 && <Step2Scenarios s={s} update={update} matchPool={matchPool} />}
+          {step === 3 && <Step3Evidence s={s} update={update} matchPool={matchPool} onCreate={onCreate} busy={busy} />}
+        </div>
+      );
+    }
+
+    /* ---------- RIGHT PANEL — live interpretation ---------- */
+    function InterpSection({ title, children }) {
+      return (
+        <div className="mb-5">
+          <div className="text-[9px] font-mono uppercase tracking-widest text-red/80 mb-1.5">{title}</div>
+          {children}
+        </div>
+      );
+    }
+    function ChipRow({ items, color = '#888', empty = '—' }) {
+      if (!items?.length) return <div className="text-[11px] font-mono text-ink3 italic">{empty}</div>;
+      return (
+        <div className="flex flex-wrap gap-1.5">
+          {items.map(t => (
+            <span key={t} className="text-[10px] font-mono px-2 py-0.5" style={{ background: color + '22', color }}>{t}</span>
+          ))}
+        </div>
+      );
+    }
+    function RightPanel({ ctx }) {
+      const c = ctx || { signals: [], themes: [], scenarios: [], missing: [], engine: null, tally: { Strong: 0, Moderate: 0, Weak: 0 }, topMini: [], confidence: { tier: 'EXPLORATORY', pct: 25, color: '#888' } };
+      const tot = c.tally.Strong + c.tally.Moderate + c.tally.Weak;
+      return (
+        <aside className="bg-red/5 border border-red/30 p-6 sticky top-6">
+          <div className="flex items-center justify-between mb-5">
+            <div className="font-display text-base text-red">VEF Interpretation</div>
+            <span className="text-[9px] font-mono uppercase tracking-widest text-red/60">live</span>
+          </div>
+          <InterpSection title="Detected Signals">
+            <ChipRow items={c.signals} color="#fbbf24" empty="Pick a domain to load signals." />
+          </InterpSection>
+          <InterpSection title="Value Themes">
+            <ChipRow items={c.themes} color="#93c5fd" empty="—" />
+          </InterpSection>
+          <InterpSection title="Recommended Engine">
+            <div className="font-display text-sm text-ink">{c.engine || <span className="text-ink3 italic font-mono text-[11px]">Pending domain selection.</span>}</div>
+          </InterpSection>
+          <InterpSection title="Scenarios Available">
+            <div className="text-sm font-mono text-ink mb-2">{c.scenarios.length}</div>
+            {tot > 0 && (
+              <>
+                <div className="text-[10px] font-mono text-ink2 mb-1">{c.tally.Strong} <span style={{ color: '#86efac' }}>Strong</span> · {c.tally.Moderate} <span style={{ color: '#fbbf24' }}>Moderate</span> · {c.tally.Weak} <span style={{ color: '#f87171' }}>Weak</span></div>
+                <div className="flex h-1.5 w-full">
+                  <div style={{ width: ((c.tally.Strong / tot) * 100) + '%', background: '#86efac' }} />
+                  <div style={{ width: ((c.tally.Moderate / tot) * 100) + '%', background: '#fbbf24' }} />
+                  <div style={{ width: ((c.tally.Weak / tot) * 100) + '%', background: '#f87171' }} />
+                </div>
+              </>
+            )}
+          </InterpSection>
+          <InterpSection title="Confidence Preview">
+            <div className="text-[11px] font-mono text-ink mb-1">Based on your selections, this analysis will be <span style={{ color: c.confidence.color }}>{c.confidence.tier}</span>.</div>
+            <div className="h-1.5 bg-surface2 relative">
+              <div className="absolute inset-y-0 left-0" style={{ width: c.confidence.pct + '%', background: c.confidence.color }} />
+            </div>
+          </InterpSection>
+          <InterpSection title="Missing Inputs">
+            {c.missing.length === 0
+              ? <div className="text-[11px] font-mono text-ink3 italic">No discovery prompts loaded yet.</div>
+              : c.missing.map(m => (
+                  <div key={m.key} className="mb-2">
+                    <div className="text-[11px] text-ink">{m.label}</div>
+                    {m.discovery && <div className="text-[10px] font-mono text-ink3 italic">Ask: {m.discovery}</div>}
+                  </div>
+                ))}
+          </InterpSection>
+          {c.topMini.length > 0 && (
+            <div className="pt-4 mt-2 border-t border-red/20">
+              <div className="text-[9px] font-mono uppercase tracking-widest text-red/80 mb-2">Top Mechanisms</div>
+              <div className="space-y-2">
+                {c.topMini.map(sc => {
+                  const ev = sc.evidence_strength || 'Moderate';
+                  const evC = ev === 'Strong' ? '#86efac' : ev === 'Weak' ? '#f87171' : '#fbbf24';
+                  const evPct = ev === 'Strong' ? 100 : ev === 'Weak' ? 30 : 60;
+                  return (
+                    <div key={sc.scenario_id} className="bg-surface border border-border1 px-3 py-2">
+                      <div className="text-[11px] text-ink truncate">{sc.mechanism_label || sc.scenario_id}</div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="flex-1 h-1 bg-surface2 relative"><div className="absolute inset-y-0 left-0" style={{ width: evPct + '%', background: evC }} /></div>
+                        <span className="text-[9px] font-mono uppercase tracking-widest" style={{ color: evC }}>{ev}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </aside>
+      );
+    }
+
+    function App() {
+      const [step, setStep] = useState(0);
+      const [s, setS] = useState(makeInitialState);
+      const [matchPool, setMatchPool] = useState(null);
+      const [domains, setDomains] = useState({});
+      const [busy, setBusy] = useState(false);
+      const update = (patch) => setS(prev => ({ ...prev, ...patch }));
+      useEffect(() => { loadDomains().then(setDomains).catch(() => {}); }, []);
+      const ctx = useInterpretation(s, matchPool, domains);
+      const complete = useMemo(() => ({
+        0: s.extracted || s.claims.length > 0,
+        1: s.outcomes.length > 0 && !!s.domain,
+        2: s.selectedScenarios.size > 0,
+        3: false
+      }), [s]);
+      const cancel = () => { if (confirm('Cancel and discard?')) location.href = 'workspace2.html'; };
+      const onCreate = async () => {
+        setBusy(true);
+        try {
+          const id = await createAnalysis({ s, domains });
+          location.href = 'workspace2.html?engagement=' + encodeURIComponent(id);
+        } catch (e) {
+          alert('Create failed: ' + (e.message || e));
+          setBusy(false);
+        }
+      };
+      return (
+        <div className="h-full flex flex-col bg-bg">
+          <Topbar step={step} complete={complete} onCancel={cancel} />
+          <main className="flex-1 overflow-auto">
+            <div className="max-w-[1280px] mx-auto px-8 py-8 grid grid-cols-12 gap-8">
+              <div className="col-span-7">
+                <LeftPanel step={step} s={s} update={update} matchPool={matchPool} setMatchPool={setMatchPool} onSkip={() => setStep(p => Math.min(STEPS.length - 1, p + 1))} onCreate={onCreate} busy={busy} />
+                <div className="mt-12 flex items-center justify-between">
+                  <button onClick={() => setStep(p => Math.max(0, p - 1))} disabled={step === 0}
+                    className="text-[11px] font-mono uppercase tracking-widest text-ink2 hover:text-red disabled:opacity-30">← Back</button>
+                  <button onClick={() => setStep(p => Math.min(STEPS.length - 1, p + 1))} disabled={step === STEPS.length - 1}
+                    className="bg-red hover:bg-red/90 disabled:opacity-30 text-white px-4 py-2 text-[11px] font-mono uppercase tracking-widest">Next →</button>
+                </div>
+              </div>
+              <div className="col-span-5">
+                <RightPanel ctx={ctx} />
+              </div>
+            </div>
+          </main>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
