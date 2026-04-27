@@ -166,6 +166,77 @@
       };
     }
 
+    /* ---------- LEFT PANEL — step dispatcher ---------- */
+    function LeftPanel({ step, s, update }) {
+      return (
+        <div>
+          <div className="font-display text-2xl text-ink mb-1">{STEPS[step].title}</div>
+          <div className="text-[11px] font-mono text-ink2 mb-8">Step {step + 1} of {STEPS.length} · {STEPS[step].label}</div>
+          <div className="font-mono text-xs text-ink3 italic">[ step content — chunks V4–V7 ]</div>
+        </div>
+      );
+    }
+
+    /* ---------- RIGHT PANEL — live interpretation ---------- */
+    function InterpSection({ title, children }) {
+      return (
+        <div className="mb-5">
+          <div className="text-[9px] font-mono uppercase tracking-widest text-red/80 mb-1.5">{title}</div>
+          {children}
+        </div>
+      );
+    }
+    function ChipRow({ items, color = '#888', empty = '—' }) {
+      if (!items?.length) return <div className="text-[11px] font-mono text-ink3 italic">{empty}</div>;
+      return (
+        <div className="flex flex-wrap gap-1.5">
+          {items.map(t => (
+            <span key={t} className="text-[10px] font-mono px-2 py-0.5" style={{ background: color + '22', color }}>{t}</span>
+          ))}
+        </div>
+      );
+    }
+    function RightPanel({ ctx }) {
+      const c = ctx || { signals: [], themes: [], scenarios: [], missing: [], engine: null, confidence: { tier: 'EXPLORATORY', pct: 25, color: '#888' } };
+      return (
+        <aside className="bg-red/5 border border-red/30 p-6 sticky top-6">
+          <div className="flex items-center justify-between mb-5">
+            <div className="font-display text-base text-red">VEF Interpretation</div>
+            <span className="text-[9px] font-mono uppercase tracking-widest text-red/60">live</span>
+          </div>
+          <InterpSection title="Detected Signals">
+            <ChipRow items={c.signals} color="#fbbf24" empty="Pick a domain to load signals." />
+          </InterpSection>
+          <InterpSection title="Value Themes">
+            <ChipRow items={c.themes} color="#93c5fd" empty="—" />
+          </InterpSection>
+          <InterpSection title="Recommended Engine">
+            <div className="font-display text-sm text-ink">{c.engine || <span className="text-ink3 italic font-mono text-[11px]">Pending domain selection.</span>}</div>
+          </InterpSection>
+          <InterpSection title="Scenarios Available">
+            <div className="text-sm font-mono text-ink">{c.scenarios.length || 0}</div>
+            <div className="text-[10px] font-mono text-ink3 mt-1">[ V8 fills the strong/moderate/weak breakdown ]</div>
+          </InterpSection>
+          <InterpSection title="Confidence Preview">
+            <div className="text-[11px] font-mono text-ink mb-1">Based on your selections, this analysis will be <span style={{ color: c.confidence.color }}>{c.confidence.tier}</span>.</div>
+            <div className="h-1.5 bg-surface2 relative">
+              <div className="absolute inset-y-0 left-0" style={{ width: c.confidence.pct + '%', background: c.confidence.color }} />
+            </div>
+          </InterpSection>
+          <InterpSection title="Missing Inputs">
+            {c.missing.length === 0
+              ? <div className="text-[11px] font-mono text-ink3 italic">[ V8 surfaces top 3 unset inputs ]</div>
+              : c.missing.map(m => (
+                  <div key={m.key} className="mb-2">
+                    <div className="text-[11px] text-ink">{m.label}</div>
+                    {m.discovery && <div className="text-[10px] font-mono text-ink3 italic">Ask: {m.discovery}</div>}
+                  </div>
+                ))}
+          </InterpSection>
+        </aside>
+      );
+    }
+
     function App() {
       const [step, setStep] = useState(0);
       const [s, setS] = useState(makeInitialState);
@@ -181,15 +252,18 @@
         <div className="h-full flex flex-col bg-bg">
           <Topbar step={step} complete={complete} onCancel={cancel} />
           <main className="flex-1 overflow-auto">
-            <div className="max-w-[1280px] mx-auto px-8 py-10">
-              <div className="font-display text-2xl text-ink mb-1">{STEPS[step].title}</div>
-              <div className="text-[11px] font-mono text-ink2 mb-8">Step {step + 1} of {STEPS.length} · {STEPS[step].label}</div>
-              <div className="font-mono text-xs text-ink3 italic">[ step content — chunks V3-V8 ]</div>
-              <div className="mt-12 flex items-center justify-between">
-                <button onClick={() => setStep(p => Math.max(0, p - 1))} disabled={step === 0}
-                  className="text-[11px] font-mono uppercase tracking-widest text-ink2 hover:text-red disabled:opacity-30">← Back</button>
-                <button onClick={() => setStep(p => Math.min(STEPS.length - 1, p + 1))} disabled={step === STEPS.length - 1}
-                  className="bg-red hover:bg-red/90 disabled:opacity-30 text-white px-4 py-2 text-[11px] font-mono uppercase tracking-widest">Next →</button>
+            <div className="max-w-[1280px] mx-auto px-8 py-8 grid grid-cols-12 gap-8">
+              <div className="col-span-7">
+                <LeftPanel step={step} s={s} update={update} />
+                <div className="mt-12 flex items-center justify-between">
+                  <button onClick={() => setStep(p => Math.max(0, p - 1))} disabled={step === 0}
+                    className="text-[11px] font-mono uppercase tracking-widest text-ink2 hover:text-red disabled:opacity-30">← Back</button>
+                  <button onClick={() => setStep(p => Math.min(STEPS.length - 1, p + 1))} disabled={step === STEPS.length - 1}
+                    className="bg-red hover:bg-red/90 disabled:opacity-30 text-white px-4 py-2 text-[11px] font-mono uppercase tracking-widest">Next →</button>
+                </div>
+              </div>
+              <div className="col-span-5">
+                <RightPanel s={s} />
               </div>
             </div>
           </main>
