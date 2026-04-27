@@ -537,7 +537,7 @@
     }
 
     /* ---------- LIVE ASSUMPTIONS RAIL ---------- */
-    function LiveAssumptions({ scenarios, defs, values, analysis, onSlide, onCommit }) {
+    function LiveAssumptions({ scenarios, defs, values, analysis, onSlide, onCommit, tone }) {
       const top = useMemo(() => topSensitiveInputs(scenarios, defs, values, 3), [scenarios, defs, values]);
       const conf = useMemo(() => confidenceTier(scenarios), [scenarios]);
       return (
@@ -570,7 +570,7 @@
           <div className="pt-3 mt-4 border-t border-border">
             <div className="font-display font-bold text-red leading-none" style={{ fontSize: '24px' }}>{fmtMoney(analysis?.arvY1 || 0)}</div>
             <div className="mt-1.5 inline-flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-widest" style={{ color: conf.color }}>
-              <span className="w-1.5 h-1.5 rounded-full" style={{ background: conf.color }} />{conf.tier}
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: conf.color }} />{TONE_COPY[tone || 'operational'].confidenceVerb} · {conf.tier}
             </div>
           </div>
         </div>
@@ -1268,19 +1268,25 @@
       outputs:   ['Is this defensible to finance?', 'How would procurement attack the BCR?'],
       snapshots: ['Compare the last two snapshots.', 'What changed since the last snapshot?']
     };
-    function meridianSystemPrompt({ engagement, domain, scenarios, analysis, tab }) {
+    function meridianSystemPrompt({ engagement, domain, scenarios, analysis, tab, tags, behavior, tone }) {
       const active = scenarios.filter(s => s.active);
       const stage = friendlyStage(engagement.deal_stage);
       const phase = friendlyPhase(engagement.phase);
+      const tagList = [...(tags || [])].map(humanizeTagLabel).filter(Boolean);
+      const toneNote = tone === 'conservative' ? 'Be conservative. Lead with NPV / payback. Hedge less than usual; numbers do the work.'
+                     : tone === 'urgent'       ? 'Be urgent. Lead with cost of delay. Short sentences. Bias toward action this quarter.'
+                                               : 'Be operational. Lead with realized Y1 value and what the team can ship.';
+      const persona = `You are Meridian, a value-engineering analyst copilot inside the Alt Meridian workspace.\n${toneNote}\nNo filler. No hedging.`;
       return [
-        'You are Meridian, a value-engineering analyst copilot inside the Alt Meridian workspace.',
-        'Be concise and specific — write like a senior consultant briefing a deal team. No filler, no hedging.',
+        persona,
         '',
         '# Current analysis',
         `Customer: ${engagement.prospect_name || '—'}`,
         `Vendor: ${engagement.vendor_name || '—'}`,
         `Domain: ${cleanDomainName(domain?.domain_name) || engagement.domain_id} (${domain?.primary_outcome || 'unmapped'})`,
         `Stage: ${stage.label} · Phase: ${phase.label}`,
+        tagList.length ? `Tags: ${tagList.join(', ')}` : null,
+        behavior?.signalEmphasis ? `Lead with: ${behavior.signalEmphasis}` : null,
         '',
         '# Computed numbers',
         `Y1 ARV: ${fmtMoney(analysis?.arvY1)} · Full ARV: ${fmtMoney(analysis?.arvFull)} · NPV: ${analysis?.npv != null ? fmtMoney(analysis.npv) : 'N/A'} · Payback: ${analysis?.payback != null ? fmtMonths(analysis.payback) : 'N/A'} · BCR: ${analysis?.bcr != null ? fmtMultiple(analysis.bcr) : 'N/A'}`,
@@ -1289,7 +1295,16 @@
         ...active.map(s => `- ${s.mechanism_label || s.scenario_id} (${s.value_theme || 'untyped'}, evidence: ${s.evidence_strength || 'Moderate'})`),
         '',
         `User is on the ${tab.toUpperCase()} tab.`
-      ].join('\n');
+      ].filter(Boolean).join('\n');
+    }
+    // Friendly label for a tag key (matches the chip text shown in vef2 step 1).
+    function humanizeTagLabel(key) {
+      const map = {
+        finance_led: 'Finance-led', ops_led: 'Ops-led', risk_led: 'Risk / compliance-led',
+        rescue: 'Rescue / turnaround', new_footprint: 'New footprint', expansion: 'Expansion', compliance_driven: 'Compliance-driven',
+        physical_network: 'Physical network', field_fleet: 'Field & fleet', digital_platform: 'Digital / data platform'
+      };
+      return map[key] || key;
     }
     function getMeridianKey() {
       let k = localStorage.getItem('anthropic_api_key');
@@ -1501,7 +1516,7 @@
                   </button>
                 ))}
               </nav>
-              <LiveAssumptions scenarios={scenarios} defs={bundle.defs} values={values} analysis={analysis} onSlide={slideInput} onCommit={commitInput} />
+              <LiveAssumptions scenarios={scenarios} defs={bundle.defs} values={values} analysis={analysis} onSlide={slideInput} onCommit={commitInput} tone={tone} />
             </aside>
             <main className="flex-1 overflow-auto">
               {tab === 'overview' ? <OverviewTab bundle={bundle} scenarios={scenarios} analysis={analysis} governed={governed} onTab={setTab} tags={tags} behavior={behavior} tone={tone} />
@@ -1510,7 +1525,7 @@
                 : tab === 'outputs' ? <OutputsTab scenarios={scenarios} analysis={analysis} tier={tier} onPreset={applyPreset} />
                 : <SnapshotsTab snapshots={bundle.snapshots || []} onSave={saveSnapshot} />}
             </main>
-            {drawerOpen && <MeridianDrawer onClose={() => setDrawerOpen(false)} tab={tab} context={{ engagement: bundle.engagement, domain: bundle.domain, scenarios, analysis }} />}
+            {drawerOpen && <MeridianDrawer onClose={() => setDrawerOpen(false)} tab={tab} context={{ engagement: bundle.engagement, domain: bundle.domain, scenarios, analysis, tags, behavior, tone }} />}
           </div>
         </div>
       );
