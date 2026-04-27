@@ -726,6 +726,94 @@
       );
     }
 
+    /* ---------- INPUTS TAB ---------- */
+    const FORMULA_KEY_RE = /\b[a-z_][a-z0-9_]*\b/g;
+    function extractKeys(formula, knownKeys) {
+      if (!formula) return new Set();
+      const set = new Set();
+      (formula.match(FORMULA_KEY_RE) || []).forEach(m => { if (knownKeys.has(m)) set.add(m); });
+      return set;
+    }
+    function groupInputsByScenario(scenarios, defs) {
+      const known = new Set((defs || []).map(d => d.input_key));
+      const used = new Set();
+      const groups = scenarios.filter(s => s.active).map(s => {
+        const keys = new Set([
+          ...extractKeys(s.value_scenario_formula, known),
+          ...extractKeys(s.delay_cost_formula, known),
+          ...extractKeys(s.cost_of_inaction_formula, known)
+        ]);
+        keys.forEach(k => used.add(k));
+        return { name: s.mechanism_label || s.scenario_label || s.scenario_id, defs: defs.filter(d => keys.has(d.input_key)) };
+      }).filter(g => g.defs.length);
+      const other = defs.filter(d => !used.has(d.input_key) && d.input_key !== 'implementation_cost');
+      if (other.length) groups.push({ name: 'Other', defs: other });
+      const impl = defs.filter(d => d.input_key === 'implementation_cost');
+      if (impl.length) groups.push({ name: 'Implementation', defs: impl });
+      return groups;
+    }
+    function PresetStrip({ tier, onPreset }) {
+      const tiers = [
+        { key: 'conservative', label: 'Conservative' },
+        { key: 'typical',      label: 'Typical' },
+        { key: 'aggressive',   label: 'Aggressive' }
+      ];
+      return (
+        <div className="grid grid-cols-3 border border-border">
+          {tiers.map(t => (
+            <button key={t.key} onClick={() => onPreset(t.key)}
+              className={`py-2 text-[10px] font-mono uppercase tracking-widest border-r last:border-r-0 border-border transition-colors ${tier === t.key ? 'bg-red text-white' : 'text-ink2 hover:text-ink hover:bg-surface'}`}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      );
+    }
+    function InputRow({ def, iv, onSlide, onCommit }) {
+      const cur = Number(iv?.provided_value ?? def.typical_value ?? def.default_value ?? 0);
+      const min = Number(def.min_value ?? 0);
+      const max = Number(def.max_value ?? Math.max(cur * 2, 1000));
+      const step = Number(def.step_value ?? Math.max((max - min) / 100, 0.01));
+      // Rule 1: no labels above. Label sits inline left; slider is the affordance.
+      return (
+        <div className="grid grid-cols-12 gap-3 items-center py-2.5 border-b border-border">
+          <div className="col-span-12 sm:col-span-4 flex items-center gap-2 min-w-0">
+            <SourceDot source={iv?.value_source} />
+            <span className="text-xs text-ink truncate">{def.input_label || def.input_key.replace(/_/g, ' ')}</span>
+            {def.discovery_prompt && <span title={def.discovery_prompt} className="text-[10px] text-ink3 cursor-help">ⓘ</span>}
+          </div>
+          <div className="col-span-8 sm:col-span-6">
+            <Slider value={cur} min={min} max={max} step={step}
+              onChange={v => onSlide(def.input_key, v)} onCommit={v => onCommit(def.input_key, v)} />
+          </div>
+          <div className="col-span-4 sm:col-span-2 text-right font-mono text-xs text-ink">
+            {cur.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            {def.input_unit && <span className="text-ink3 ml-1">{def.input_unit}</span>}
+          </div>
+        </div>
+      );
+    }
+    function InputsTab({ scenarios, defs, values, tier, onSlide, onCommit, onPreset }) {
+      const groups = useMemo(() => groupInputsByScenario(scenarios, defs), [scenarios, defs]);
+      if (!defs?.length) return <div className="p-8 font-mono text-xs text-ink3">No inputs defined for this domain.</div>;
+      return (
+        <div className="max-w-[920px] mx-auto px-4 sm:px-8 py-8">
+          <div className="flex items-center justify-between mb-6 gap-4">
+            <div className="text-[10px] font-mono uppercase tracking-widest text-ink2">{defs.length} inputs · {Object.keys(values).filter(k => values[k]?.provided_value != null).length} provided</div>
+            <PresetStrip tier={tier} onPreset={onPreset} />
+          </div>
+          <div className="space-y-8">
+            {groups.map(g => (
+              <div key={g.name}>
+                <div className="text-[10px] font-mono uppercase tracking-widest text-red mb-2 pb-2 border-b border-border">{g.name}</div>
+                {g.defs.map(d => <InputRow key={d.input_key} def={d} iv={values[d.input_key]} onSlide={onSlide} onCommit={onCommit} />)}
+              </div>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
     /* ---------- ANALYSIS SHELL ---------- */
     const NAV = [
       { key: 'overview',  label: 'Overview' },
@@ -742,6 +830,7 @@
       const [overrides, setOverrides] = useState({});
       const [activeOverrides, setActiveOverrides] = useState({});
       const [navOpen, setNavOpen] = useState(false);
+      const [tier, setTier] = useState('typical');
       useEffect(() => {
         setBundle(null); setOverrides({}); setActiveOverrides({}); setErr('');
         loadEngagementBundle(engagementId).then(b => b ? setBundle(b) : setErr('Engagement not found')).catch(e => setErr(e.message || 'Failed to load'));
@@ -757,6 +846,18 @@
       const toggleScenario = (scenarioId, isActive) => {
         setActiveOverrides(p => ({ ...p, [scenarioId]: isActive }));
         sbUpsert('vef_scenario_selections', { engagement_id: engagementId, scenario_id: scenarioId, is_active: isActive }, 'engagement_id,scenario_id').catch(() => {});
+      };
+      const applyPreset = (newTier) => {
+        if (!bundle?.defs) return;
+        setTier(newTier);
+        const tk = newTier === 'conservative' ? 'conservative_value' : newTier === 'aggressive' ? 'aggressive_value' : 'typical_value';
+        const next = {};
+        bundle.defs.forEach(d => {
+          const v = d[tk] ?? d.typical_value ?? d.default_value;
+          if (v != null) next[d.input_key] = { engagement_id: engagementId, input_key: d.input_key, provided_value: Number(v), value_source: 'preset:' + newTier };
+        });
+        setOverrides(next);
+        Promise.all(Object.values(next).map(row => sbUpsert('vef_input_values', row, 'engagement_id,input_key'))).catch(() => {});
       };
       const governed = useMemo(() => bundle ? governedPct(values, bundle.defs) : 0, [bundle, values]);
       if (err) return <div className="p-12 font-mono text-xs text-red">{err} <button onClick={onBack} className="ml-4 text-ink2 hover:text-red">← Back</button></div>;
@@ -794,7 +895,8 @@
             <main className="flex-1 overflow-auto">
               {tab === 'overview' ? <OverviewTab bundle={bundle} scenarios={scenarios} analysis={analysis} governed={governed} onTab={setTab} />
                 : tab === 'scenarios' ? <ScenariosTab scenarios={scenarios} analysis={analysis} onToggle={toggleScenario} />
-                : <div className="p-8 font-mono text-xs text-ink3 italic">[ {tab.toUpperCase()} TAB — chunk W{tab === 'inputs' ? 8 : tab === 'outputs' ? 9 : 11} ]</div>}
+                : tab === 'inputs' ? <InputsTab scenarios={scenarios} defs={bundle.defs} values={values} tier={tier} onSlide={slideInput} onCommit={commitInput} onPreset={applyPreset} />
+                : <div className="p-8 font-mono text-xs text-ink3 italic">[ {tab.toUpperCase()} TAB — chunk W{tab === 'outputs' ? 9 : 11} ]</div>}
             </main>
           </div>
         </div>
