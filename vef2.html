@@ -132,6 +132,65 @@
       }
       return null;
     }
+
+    /* ---------- TAG BEHAVIOR ENGINE (kept in sync with workspace2.html) ---------- */
+    // Tag → behavior config. Precedence Buyer lens > Motion > Environment.
+    // Each tag declares only the slots it influences; resolveTagBehavior merges them.
+    const TAG_BEHAVIOR = {
+      finance_led:       { group: 'Buyer lens', tone: 'conservative', tierDefault: 'conservative', signalEmphasis: 'NPV',    signalSecondary: 'BCR',          rankBy: 'bcr' },
+      ops_led:           { group: 'Buyer lens', tone: 'operational',  tierDefault: 'typical',      signalEmphasis: 'Y1 ARV', signalSecondary: 'Throughput',   rankBy: 'arv' },
+      risk_led:          { group: 'Buyer lens', tone: 'conservative', tierDefault: 'conservative', signalEmphasis: 'CoI',    signalSecondary: 'Evidence',     rankBy: 'evidence' },
+      rescue:            { group: 'Motion',     tone: 'urgent',       signalEmphasis: 'CoD',       rankBy: 'delay',          overrides: ['tone', 'signalEmphasis'] },
+      new_footprint:     { group: 'Motion',     weakLast: true },
+      compliance_driven: { group: 'Motion',     tierDefault: 'conservative', themeBias: ['Compliance & Risk'], autoActiveThemes: ['Compliance & Risk'], hideNonBiasedWeak: true },
+      expansion:         { group: 'Motion' },
+      physical_network:  { group: 'Environment', themeBias: ['Operational Efficiency', 'Inventory Accuracy', 'Throughput'] },
+      field_fleet:       { group: 'Environment', themeBias: ['Asset Performance', 'Operational Efficiency'] },
+      digital_platform:  { group: 'Environment', themeBias: ['Visibility', 'Intelligence'], deprioritize: ['Throughput', 'Operational Efficiency'] }
+    };
+    const TAG_PRECEDENCE = ['Buyer lens', 'Motion', 'Environment'];
+    const TAG_SCALAR_FIELDS = ['tone', 'tierDefault', 'signalEmphasis', 'signalSecondary', 'rankBy'];
+    const TAG_LIST_FIELDS   = ['themeBias', 'autoActiveThemes', 'deprioritize'];
+    const TAG_BOOL_FIELDS   = ['weakLast', 'hideNonBiasedWeak'];
+
+    // Merge selected tags into a single behavior object honoring precedence + overrides.
+    function resolveTagBehavior(tagsSet) {
+      const tags = [...(tagsSet || [])]
+        .map(k => ({ key: k, ...(TAG_BEHAVIOR[k] || {}) }))
+        .filter(t => t.group)
+        .sort((a, b) => TAG_PRECEDENCE.indexOf(a.group) - TAG_PRECEDENCE.indexOf(b.group));
+      const out = {};
+      tags.forEach(t => TAG_SCALAR_FIELDS.forEach(f => { if (t[f] != null && out[f] == null) out[f] = t[f]; }));
+      tags.forEach(t => (t.overrides || []).forEach(f => { if (t[f] != null) out[f] = t[f]; }));
+      TAG_LIST_FIELDS.forEach(f => {
+        const set = new Set();
+        tags.forEach(t => (t[f] || []).forEach(v => set.add(v)));
+        if (set.size) out[f] = [...set];
+      });
+      TAG_BOOL_FIELDS.forEach(f => { if (tags.some(t => t[f])) out[f] = true; });
+      return out;
+    }
+    const getTone = (behavior) => behavior?.tone || 'operational';
+
+    /* ---------- TONE_COPY — three tones, three surfaces ---------- */
+    const TONE_COPY = {
+      conservative: {
+        heroSubtitle:    (outcome) => (outcome ? outcome.toLowerCase() + ' value' : 'Annual value') + ' defensible at NPV review',
+        confidenceVerb:  'Defensible',
+        nextActionVerbs: { send: 'send', schedule: 'schedule', strengthen: 'tighten' }
+      },
+      operational: {
+        heroSubtitle:    (outcome) => (outcome ? outcome.toLowerCase() + ' value' : 'Value') + ' unlocked annually',
+        confidenceVerb:  'Shippable',
+        nextActionVerbs: { send: 'walk through', schedule: 'book', strengthen: 'firm up' }
+      },
+      urgent: {
+        heroSubtitle:    () => 'Value at risk every month of delay',
+        confidenceVerb:  'Ready',
+        nextActionVerbs: { send: 'get to', schedule: 'set', strengthen: 'lock in' }
+      }
+    };
+
     const THEME_COLORS = {
       'Operational Efficiency':'#fbbf24', 'Compliance & Risk':'#c4b5fd', 'Asset Performance':'#86efac',
       'Inventory Accuracy':'#93c5fd', 'Throughput':'#f59e0b', 'Visibility':'#60a5fa',
