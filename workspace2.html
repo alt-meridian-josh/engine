@@ -1073,6 +1073,122 @@
       );
     }
 
+    /* ---------- MERIDIAN DRAWER (Anthropic chat) ---------- */
+    const MERIDIAN_MODEL = 'claude-sonnet-4-5';
+    const QUICK_PROMPTS = {
+      overview:  ['Weakest assumption?', 'Draft a CFO narrative.'],
+      scenarios: ['Which scenario gets challenged?', 'What evidence hardens the weak ones?'],
+      inputs:    ['What am I missing?', 'Which inputs would the buyer push back on?'],
+      outputs:   ['Is this defensible to finance?', 'How would procurement attack the BCR?'],
+      snapshots: ['Compare the last two snapshots.', 'What changed since the last snapshot?']
+    };
+    function meridianSystemPrompt({ engagement, domain, scenarios, analysis, tab }) {
+      const active = scenarios.filter(s => s.active);
+      const stage = friendlyStage(engagement.deal_stage);
+      const phase = friendlyPhase(engagement.phase);
+      return [
+        'You are Meridian, a value-engineering analyst copilot inside the Alt Meridian workspace.',
+        'Be concise and specific — write like a senior consultant briefing a deal team. No filler, no hedging.',
+        '',
+        '# Current analysis',
+        `Customer: ${engagement.prospect_name || '—'}`,
+        `Vendor: ${engagement.vendor_name || '—'}`,
+        `Domain: ${cleanDomainName(domain?.domain_name) || engagement.domain_id} (${domain?.primary_outcome || 'unmapped'})`,
+        `Stage: ${stage.label} · Phase: ${phase.label}`,
+        '',
+        '# Computed numbers',
+        `Y1 ARV: ${fmtMoney(analysis?.arvY1)} · Full ARV: ${fmtMoney(analysis?.arvFull)} · NPV: ${analysis?.npv != null ? fmtMoney(analysis.npv) : 'N/A'} · Payback: ${analysis?.payback != null ? fmtMonths(analysis.payback) : 'N/A'} · BCR: ${analysis?.bcr != null ? fmtMultiple(analysis.bcr) : 'N/A'}`,
+        '',
+        '# Active mechanisms',
+        ...active.map(s => `- ${s.mechanism_label || s.scenario_id} (${s.value_theme || 'untyped'}, evidence: ${s.evidence_strength || 'Moderate'})`),
+        '',
+        `User is on the ${tab.toUpperCase()} tab.`
+      ].join('\n');
+    }
+    function getMeridianKey() {
+      let k = localStorage.getItem('anthropic_api_key');
+      if (!k) {
+        k = prompt('Enter your Anthropic API key (stored in localStorage):');
+        if (k) localStorage.setItem('anthropic_api_key', k.trim());
+      }
+      return k;
+    }
+    async function callMeridian(messages, system) {
+      const key = getMeridianKey();
+      if (!key) throw new Error('No API key.');
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': key,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'  // Lesson 2026-04-24 — required for browser CORS
+        },
+        body: JSON.stringify({ model: MERIDIAN_MODEL, max_tokens: 1024, system, messages })
+      });
+      if (!resp.ok) throw new Error('Meridian ' + resp.status + ': ' + await resp.text());
+      const data = await resp.json();
+      return data.content?.map(c => c.text).join('') || '';
+    }
+    function ChatBubble({ role, text }) {
+      const cls = role === 'user' ? 'bg-red/15 border-red/40 text-ink' : role === 'error' ? 'bg-red/10 border-red text-red' : 'bg-surface2 border-border text-ink';
+      return (
+        <div className="mb-3">
+          <div className="text-[8px] font-mono uppercase tracking-widest text-ink3 mb-1">{role === 'user' ? 'You' : role === 'error' ? 'Error' : 'Assistant'}</div>
+          <div className={`border px-3 py-2 text-[12px] leading-relaxed whitespace-pre-wrap ${cls}`}>{text}</div>
+        </div>
+      );
+    }
+    function MeridianDrawer({ onClose, tab, context }) {
+      const [messages, setMessages] = useState([]);
+      const [input, setInput] = useState('');
+      const [busy, setBusy] = useState(false);
+      const bodyRef = useRef(null);
+      useEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight; }, [messages]);
+      const send = async (text) => {
+        const t = (text || input).trim();
+        if (!t || busy) return;
+        setInput('');
+        const next = [...messages, { role: 'user', content: t }];
+        setMessages(next); setBusy(true);
+        try {
+          const reply = await callMeridian(next, meridianSystemPrompt({ ...context, tab }));
+          setMessages([...next, { role: 'assistant', content: reply }]);
+        } catch (e) {
+          setMessages([...next, { role: 'error', content: e.message || 'Request failed' }]);
+        } finally { setBusy(false); }
+      };
+      const prompts = QUICK_PROMPTS[tab] || QUICK_PROMPTS.overview;
+      return (
+        <aside className="fixed inset-0 z-20 md:relative md:inset-auto md:z-auto md:w-[320px] bg-surface md:border-l md:border-border flex flex-col flex-shrink-0">
+          <div className="h-12 px-4 border-b border-border flex items-center justify-between flex-shrink-0">
+            <div className="font-mono text-[10px] uppercase tracking-widest text-ink2">Meridian · {MERIDIAN_MODEL}</div>
+            <button onClick={onClose} className="text-ink3 hover:text-red text-base leading-none">×</button>
+          </div>
+          {messages.length === 0 && (
+            <div className="px-4 pt-4 flex-shrink-0">
+              <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mb-2">Quick prompts · {tab}</div>
+              <div className="space-y-1.5">
+                {prompts.map(p => (
+                  <button key={p} onClick={() => send(p)} className="block w-full text-left text-[11px] text-ink2 hover:text-red border border-border hover:border-red/50 px-2.5 py-1.5">{p}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div ref={bodyRef} className="flex-1 overflow-auto px-4 pt-4">
+            {messages.map((m, i) => <ChatBubble key={i} role={m.role === 'error' ? 'error' : m.role} text={m.content} />)}
+            {busy && <div className="text-[10px] font-mono text-ink3 italic">thinking…</div>}
+          </div>
+          <div className="border-t border-border p-3 flex-shrink-0">
+            <textarea value={input} onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+              rows={2} placeholder="Ask Meridian…" className="w-full bg-surface2 border border-border px-2 py-1.5 text-[12px] resize-none focus:border-red outline-none" />
+            <button onClick={() => send()} disabled={busy} className="w-full mt-2 bg-red hover:bg-red/90 disabled:opacity-50 text-white py-1.5 text-[11px] font-mono uppercase tracking-wider">Send</button>
+          </div>
+        </aside>
+      );
+    }
+
     /* ---------- ANALYSIS SHELL ---------- */
     const NAV = [
       { key: 'overview',  label: 'Overview' },
@@ -1089,6 +1205,7 @@
       const [overrides, setOverrides] = useState({});
       const [activeOverrides, setActiveOverrides] = useState({});
       const [navOpen, setNavOpen] = useState(false);
+      const [drawerOpen, setDrawerOpen] = useState(false);
       const [tier, setTier] = useState('typical');
       useEffect(() => {
         setBundle(null); setOverrides({}); setActiveOverrides({}); setErr('');
@@ -1145,7 +1262,8 @@
             </div>
             <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
               <StageBadge stage={bundle.engagement.deal_stage} />
-              <button className="bg-red hover:bg-red/90 text-white px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider">Report</button>
+              <button onClick={() => setDrawerOpen(o => !o)} className={`px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider border ${drawerOpen ? 'border-red text-red' : 'border-border2 text-ink2 hover:text-ink'}`}>Meridian ◆</button>
+              <button className="hidden sm:block bg-red hover:bg-red/90 text-white px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider">Report</button>
             </div>
           </header>
           <div className="flex-1 flex min-h-0">
@@ -1171,6 +1289,7 @@
                 : tab === 'outputs' ? <OutputsTab scenarios={scenarios} analysis={analysis} tier={tier} onPreset={applyPreset} />
                 : <SnapshotsTab snapshots={bundle.snapshots || []} onSave={saveSnapshot} />}
             </main>
+            {drawerOpen && <MeridianDrawer onClose={() => setDrawerOpen(false)} tab={tab} context={{ engagement: bundle.engagement, domain: bundle.domain, scenarios, analysis }} />}
           </div>
         </div>
       );
