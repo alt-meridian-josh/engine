@@ -1422,6 +1422,18 @@
         });
         Promise.all(targets.map(s => sbUpsert('vef_scenario_selections', { engagement_id: engagementId, scenario_id: s.scenario_id, is_active: true }, 'engagement_id,scenario_id'))).catch(() => {});
       }, [bundle, behavior]);
+      // Buyer-lens tier default: surface visually on every load; auto-apply values only
+      // on a fresh engagement (no input_values rows yet) to avoid clobbering buyer input.
+      const tierDefaultedRef = useRef(null);
+      useEffect(() => {
+        if (!bundle || !behavior.tierDefault) return;
+        if (tierDefaultedRef.current === bundle.engagement.engagement_id) return;
+        tierDefaultedRef.current = bundle.engagement.engagement_id;
+        setTier(behavior.tierDefault);
+        if (Object.keys(bundle.values || {}).length === 0) {
+          applyPreset(behavior.tierDefault);
+        }
+      }, [bundle, behavior]);
       const slideInput = (key, val) => setOverrides(p => ({ ...p, [key]: { ...(p[key] || bundle.values?.[key] || {}), engagement_id: engagementId, input_key: key, provided_value: val, value_source: 'buyer' } }));
       const commitInput = (key, val) => sbUpsert('vef_input_values', { engagement_id: engagementId, input_key: key, provided_value: val, value_source: 'buyer' }, 'engagement_id,input_key').catch(() => {});
       const toggleScenario = (scenarioId, isActive) => {
