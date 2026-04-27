@@ -273,19 +273,146 @@
       );
     }
 
-    /* ---------- ROUTE STUBS (filled in later chunks) ---------- */
-    function HomeScreen({ onOpen, onNew, signOut }) {
+    /* ---------- VOCAB + OUTCOMES ---------- */
+    const OUTCOMES = [
+      { key: 'Visibility',   color: '#93c5fd' },
+      { key: 'Throughput',   color: '#fbbf24' },
+      { key: 'Compliance',   color: '#c4b5fd' },
+      { key: 'Risk',         color: '#f87171' },
+      { key: 'Intelligence', color: '#5eead4' },
+      { key: 'Performance',  color: '#86efac' },
+      { key: 'Revenue',      color: '#6ee7b7' }
+    ];
+    const OUTCOME_BY = OUTCOMES.reduce((m, o) => (m[o.key] = o, m), {});
+    const cleanDomainName = (n) => (n || '').replace(/^[A-Z][A-Z0-9]+\s+—\s+/, '');
+
+    /* ---------- SHARED PRIMITIVES ---------- */
+    function OutcomeDot({ outcome, size = 8 }) {
+      const o = OUTCOME_BY[outcome];
+      return <span className="inline-block rounded-full" style={{ background: o?.color || '#444', width: size, height: size }} />;
+    }
+    function StageBadge({ stage }) {
+      const s = friendlyStage(stage);
+      return <span className={`text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 ${TONE_BG[s.tone]}`}>{s.label}</span>;
+    }
+    // Horizontal bar chart used by PipelineBars and elsewhere — Rule 5.
+    function BarChart({ rows, max, format = (v) => v, height = 8 }) {
+      const m = max || Math.max(...rows.map(r => r.value), 1);
       return (
-        <div className="p-12 font-mono text-xs text-ink2">
-          <div className="font-display text-2xl mb-4"><span className="text-red">ALT</span> <span className="text-ink">MERIDIAN</span></div>
-          [ HOME — chunk W4 ]
-          <div className="mt-6 flex gap-4">
-            <button onClick={onNew} className="hover:text-red">+ New Analysis</button>
-            <button onClick={signOut} className="hover:text-red">Sign out</button>
-          </div>
+        <div className="space-y-1.5">
+          {rows.map(r => (
+            <div key={r.key} className="grid grid-cols-12 gap-3 items-center">
+              <div className="col-span-3 text-[10px] font-mono uppercase tracking-wider text-ink2 truncate">{r.label}</div>
+              <div className="col-span-7 bg-surface2 relative" style={{ height }}>
+                <div className="absolute inset-y-0 left-0" style={{ width: ((r.value / m) * 100) + '%', background: r.color || '#d63b2f' }} />
+              </div>
+              <div className="col-span-2 text-right font-mono text-[11px] text-ink">{format(r.value)}</div>
+            </div>
+          ))}
         </div>
       );
     }
+
+    /* ---------- HOME SCREEN ---------- */
+    function HomeScreen({ onOpen, onNew, signOut }) {
+      const [engagements, setEngagements] = useState([]);
+      const [domains, setDomains] = useState({});
+      const [arvByEng, setArvByEng] = useState({});
+      const [filter, setFilter] = useState('all');
+      const [loading, setLoading] = useState(true);
+      useEffect(() => {
+        (async () => {
+          try {
+            const [engs, doms, snaps] = await Promise.all([loadEngagements(), loadDomains(), loadAllSnapshots()]);
+            setEngagements(engs); setDomains(doms);
+            const by = {};
+            snaps.forEach(s => { if (!by[s.engagement_id]) by[s.engagement_id] = Number(s.annual_value) || 0; });
+            setArvByEng(by);
+          } finally { setLoading(false); }
+        })();
+      }, []);
+      const stats = useMemo(() => ({
+        totalArv: engagements.reduce((s, e) => s + (arvByEng[e.engagement_id] || 0), 0),
+        total: engagements.length,
+        active: engagements.filter(isActive).length,
+        pilot: engagements.filter(isPilot).length
+      }), [engagements, arvByEng]);
+      // Pipeline distribution: sum ARV per outcome — feeds PipelineBars (Rule 5).
+      const byOutcome = useMemo(() => {
+        const acc = {};
+        engagements.forEach(e => {
+          const oc = domains[e.domain_id]?.primary_outcome;
+          if (!oc) return;
+          acc[oc] = (acc[oc] || 0) + (arvByEng[e.engagement_id] || 0);
+        });
+        return Object.entries(acc).map(([k, v]) => ({ key: k, label: k, value: v, color: OUTCOME_BY[k]?.color || '#888' }))
+          .sort((a, b) => b.value - a.value);
+      }, [engagements, domains, arvByEng]);
+      const counts = { all: engagements.length, active: engagements.filter(isActive).length, pilot: engagements.filter(isPilot).length, complete: engagements.filter(isCompleted).length };
+      const filterFn = { all: () => true, active: isActive, pilot: isPilot, complete: isCompleted }[filter];
+      const rows = useMemo(() => engagements.filter(filterFn).slice().sort((a, b) => (arvByEng[b.engagement_id] || 0) - (arvByEng[a.engagement_id] || 0)), [engagements, filter, arvByEng]);
+      return (
+        <div className="min-h-full bg-bg">
+          <header className="h-12 px-4 sm:px-6 border-b border-border flex items-center justify-between bg-surface">
+            <div className="font-display text-lg tracking-wide"><span className="text-red">ALT</span> <span className="text-ink">MERIDIAN</span></div>
+            <div className="flex items-center gap-3 sm:gap-4">
+              <button onClick={onNew} className="bg-red hover:bg-red/90 text-white px-3 py-1.5 text-xs font-display tracking-wide">+ New Analysis</button>
+              <button onClick={signOut} className="text-[11px] font-mono text-ink2 hover:text-red hidden sm:block">Sign out</button>
+            </div>
+          </header>
+          <main className="max-w-[1200px] mx-auto px-4 sm:px-6 py-8">
+            <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 mb-10">
+              <div className="font-display font-bold text-red leading-none" style={{ fontSize: '32px' }}>{fmtMoney(stats.totalArv)}</div>
+              <div className="text-[11px] font-mono uppercase tracking-widest text-ink2">portfolio ARV</div>
+              <div className="text-[11px] font-mono uppercase tracking-widest text-ink3">·</div>
+              <div className="text-[11px] font-mono uppercase tracking-widest text-ink2">{stats.total} <span className="text-ink3">analyses</span></div>
+              <div className="text-[11px] font-mono uppercase tracking-widest text-ink2">{stats.active} <span className="text-ink3">active</span></div>
+              <div className="text-[11px] font-mono uppercase tracking-widest text-ink2">{stats.pilot} <span className="text-ink3">in pilot</span></div>
+            </div>
+            {byOutcome.length > 0 && (
+              <div className="mb-10">
+                <div className="text-[10px] font-mono uppercase tracking-widest text-ink3 mb-3">Where value sits</div>
+                <BarChart rows={byOutcome} format={fmtMoney} height={10} />
+              </div>
+            )}
+            <div className="flex items-center gap-5 sm:gap-6 border-b border-border mb-3 overflow-x-auto">
+              {[['all','All'],['active','Validating'],['pilot','Piloting'],['complete','Complete']].map(([k, label]) => (
+                <button key={k} onClick={() => setFilter(k)}
+                  className={`pb-2 text-[11px] font-mono uppercase tracking-widest transition-colors border-b-2 -mb-px whitespace-nowrap ${filter === k ? 'text-red border-red' : 'text-ink2 border-transparent hover:text-ink'}`}>
+                  {label} <span className="text-ink3 ml-1">{counts[k]}</span>
+                </button>
+              ))}
+            </div>
+            {loading ? (
+              <div className="py-16 text-center text-ink2 font-mono text-xs">Loading…</div>
+            ) : rows.length === 0 ? (
+              <div className="py-16 text-center text-ink2 font-mono text-xs">No analyses match this filter.</div>
+            ) : (
+              <div>
+                {rows.map(e => {
+                  const d = domains[e.domain_id];
+                  const arv = arvByEng[e.engagement_id] || 0;
+                  const stage = friendlyStage(e.deal_stage);
+                  const phase = friendlyPhase(e.phase);
+                  return (
+                    <button key={e.engagement_id} onClick={() => onOpen(e.engagement_id)}
+                      className="w-full text-left grid grid-cols-12 gap-3 items-center px-3 py-3 border-b border-border border-l-2 border-l-transparent hover:border-l-red hover:bg-red-dim transition-colors">
+                      <div className="col-span-1 sm:col-span-1 flex justify-center"><OutcomeDot outcome={d?.primary_outcome} size={10} /></div>
+                      <div className="col-span-8 sm:col-span-7 min-w-0">
+                        <div className="text-sm text-ink truncate">{e.vendor_name || 'Untitled'} <span className="text-ink3">→</span> {e.prospect_name || '—'}</div>
+                        <div className="text-[11px] font-mono text-ink3 mt-0.5 truncate">{cleanDomainName(d?.domain_name) || '—'} · {stage.label} · {phase.label} · {fmtRelative(e.intake_date)}</div>
+                      </div>
+                      <div className={`col-span-3 sm:col-span-4 text-right font-display font-bold ${arv > 0 ? 'text-red' : 'text-ink3'}`} style={{ fontSize: '18px' }}>{arv > 0 ? fmtMoney(arv) : '—'}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </main>
+        </div>
+      );
+    }
+
     function AnalysisShell({ engagementId, onBack }) {
       return (
         <div className="p-12 font-mono text-xs text-ink2">
