@@ -91,27 +91,39 @@
       { key: 'Revenue',      color: '#6ee7b7', desc: "Capture value that's being lost" }
     ];
     const OUTCOME_BY = OUTCOMES.reduce((m, o) => (m[o.key] = o, m), {});
-    // Op areas — "Where in their operation?" chips (multi-select).
-    const OP_AREAS = [
-      { key: 'store',     label: 'Store / Branch',             sub: 'Frontline locations' },
-      { key: 'warehouse', label: 'Warehouse / DC',             sub: 'Inventory & flows' },
-      { key: 'plant',     label: 'Plant / Line',               sub: 'Production & quality' },
-      { key: 'fleet',     label: 'Fleet / Field',              sub: 'Mobile assets & routes' },
-      { key: 'office',    label: 'Back Office / Finance',      sub: 'Planning, risk, finance' },
-      { key: 'platform',  label: 'Digital Product / Platform', sub: 'Software, data, APIs' }
+    // Deal-flavor tags — three small chip groups in step 1, multi-select.
+    // Tags filter the solution-pattern set (OR'd with outcomes) and later
+    // can also drive copy tone + scenario bias.
+    const DEAL_TAGS = [
+      { group: 'Environment', items: [
+        { key: 'physical_network', label: 'Physical network',     hint: 'stores / DCs / plants' },
+        { key: 'field_fleet',      label: 'Field & fleet' },
+        { key: 'digital_platform', label: 'Digital / data platform' }
+      ] },
+      { group: 'Motion', items: [
+        { key: 'new_footprint',     label: 'New footprint' },
+        { key: 'expansion',         label: 'Expansion' },
+        { key: 'rescue',            label: 'Rescue / turnaround' },
+        { key: 'compliance_driven', label: 'Compliance-driven' }
+      ] },
+      { group: 'Buyer lens', items: [
+        { key: 'ops_led',     label: 'Ops-led' },
+        { key: 'finance_led', label: 'Finance-led' },
+        { key: 'risk_led',    label: 'Risk / compliance-led' }
+      ] }
     ];
-    // Solution patterns shown after at least one op area is picked.
-    // `match` regex resolves a pattern to its representative domain by scanning
-    // domain_name + technology + primary_outcome of each domain in the catalog.
+    // Solution patterns — each shown when at least one of its outcomes or tags
+    // is selected. `match` regex resolves to a representative domain from the
+    // live catalog (domain_name + technology + primary_outcome).
     const SOLUTION_PATTERNS = [
-      { key: 'asset_location', label: 'Asset & Location Intelligence', desc: "Track what's where in real time.",            opAreas: ['store','warehouse','plant','fleet'], match: /rfid|rtls|gps|ble|location|asset[\s-]*track|track[\s-]*asset|telemetry|tag/i },
-      { key: 'risk_cat',       label: 'Risk & Cat Analytics',          desc: 'Predict and prevent financial exposure.',     opAreas: ['office','plant','fleet'],            match: /risk|insur|compliance|catastrophe|fraud|exposure|safety/i },
-      { key: 'cv_quality',     label: 'Computer Vision Quality',       desc: 'Visual inspection and defect detection.',     opAreas: ['plant','warehouse'],                 match: /vision|inspect|defect|visual|imaging|camera/i },
-      { key: 'enterprise_ai',  label: 'Enterprise AI Platform',        desc: 'Foundation for cross-cutting AI workflows.',  opAreas: ['office','platform'],                 match: /\bai\b|\bml\b|machine[\s-]*learn|llm|gen[\s-]*ai|intelligence/i },
-      { key: 'inventory_flow', label: 'Inventory & Flow Optimization', desc: 'Move things faster through your operation.',  opAreas: ['warehouse','store'],                 match: /inventory|throughput|picking|pick[\s-]*pack|flow|wms|stock/i },
-      { key: 'workforce',      label: 'Workforce & Productivity',      desc: 'Get more from your people.',                  opAreas: ['store','warehouse','plant','office'], match: /labor|workforce|productiv|employee|crew|wfm/i },
-      { key: 'connected_ops',  label: 'Connected Operations',          desc: 'Real-time visibility across your operation.', opAreas: ['plant','warehouse','fleet'],         match: /iot|connect|telemetry|real[\s-]?time|sensor|mes|scada/i },
-      { key: 'data_platform',  label: 'Data & Integration',            desc: 'Software, data flows, APIs.',                 opAreas: ['platform','office'],                 match: /data|api|integrat|platform|etl|lake|stream/i }
+      { key: 'asset_location', label: 'Asset & Location Intelligence', desc: "Track what's where in real time.",            outcomes: ['Visibility','Throughput'],     tags: ['physical_network','field_fleet','ops_led'],                  match: /rfid|rtls|gps|ble|location|asset[\s-]*track|track[\s-]*asset|telemetry|tag/i },
+      { key: 'risk_cat',       label: 'Risk & Cat Analytics',          desc: 'Predict and prevent financial exposure.',     outcomes: ['Risk','Compliance'],            tags: ['finance_led','risk_led','compliance_driven'],                match: /risk|insur|compliance|catastrophe|fraud|exposure|safety/i },
+      { key: 'cv_quality',     label: 'Computer Vision Quality',       desc: 'Visual inspection and defect detection.',     outcomes: ['Performance','Compliance'],     tags: ['physical_network','ops_led'],                                match: /vision|inspect|defect|visual|imaging|camera/i },
+      { key: 'enterprise_ai',  label: 'Enterprise AI Platform',        desc: 'Foundation for cross-cutting AI workflows.',  outcomes: ['Intelligence'],                 tags: ['digital_platform','finance_led'],                            match: /\bai\b|\bml\b|machine[\s-]*learn|llm|gen[\s-]*ai|intelligence/i },
+      { key: 'inventory_flow', label: 'Inventory & Flow Optimization', desc: 'Move things faster through your operation.',  outcomes: ['Throughput','Revenue'],         tags: ['physical_network','ops_led','expansion'],                    match: /inventory|throughput|picking|pick[\s-]*pack|flow|wms|stock/i },
+      { key: 'workforce',      label: 'Workforce & Productivity',      desc: 'Get more from your people.',                  outcomes: ['Performance','Revenue'],        tags: ['physical_network','field_fleet','ops_led'],                  match: /labor|workforce|productiv|employee|crew|wfm/i },
+      { key: 'connected_ops',  label: 'Connected Operations',          desc: 'Real-time visibility across your operation.', outcomes: ['Visibility','Performance'],     tags: ['physical_network','field_fleet','new_footprint'],            match: /iot|connect|telemetry|real[\s-]?time|sensor|mes|scada/i },
+      { key: 'data_platform',  label: 'Data & Integration',            desc: 'Software, data flows, APIs.',                 outcomes: ['Intelligence'],                 tags: ['digital_platform','finance_led','rescue'],                   match: /data|api|integrat|platform|etl|lake|stream/i }
     ];
     function resolvePatternDomain(pattern, domains) {
       for (const d of Object.values(domains || {})) {
@@ -274,13 +286,23 @@
         </div>
       );
     }
-    function OpAreaChip({ area, selected, onToggle }) {
+    function DealTagChip({ tag, selected, onToggle }) {
       return (
-        <button onClick={() => onToggle(area.key)}
-          className={`text-left px-3 py-2 border transition-colors ${selected ? 'border-red bg-red/10' : 'border-border bg-surface hover:border-border2'}`}>
-          <div className="font-display text-sm text-ink">{area.label}</div>
-          <div className="text-[10px] font-mono text-ink2 mt-0.5">{area.sub}</div>
+        <button onClick={() => onToggle(tag.key)}
+          className={`text-[11px] font-mono px-2.5 py-1 border transition-colors whitespace-nowrap ${selected ? 'border-red bg-red/15 text-ink' : 'border-border bg-surface text-ink2 hover:text-ink hover:border-border2'}`}>
+          {tag.label}
+          {tag.hint && <span className="text-ink3 ml-1.5">({tag.hint})</span>}
         </button>
+      );
+    }
+    function TagGroup({ group, selected, onToggle }) {
+      return (
+        <div className="mb-3 last:mb-0">
+          <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mb-1.5">{group.group}</div>
+          <div className="flex flex-wrap gap-1.5">
+            {group.items.map(t => <DealTagChip key={t.key} tag={t} selected={selected.has(t.key)} onToggle={onToggle} />)}
+          </div>
+        </div>
       );
     }
     function SolutionPatternTile({ pattern, resolvable, selected, onSelect }) {
@@ -299,60 +321,64 @@
         const next = s.outcomes.includes(key) ? s.outcomes.filter(o => o !== key) : [...s.outcomes, key];
         update({ outcomes: next });
       };
-      const toggleArea = (key) => {
-        const next = new Set(s.opAreas);
+      const toggleTag = (key) => {
+        const next = new Set(s.dealTags);
         next.has(key) ? next.delete(key) : next.add(key);
-        // Re-validate selected pattern against the new op-area set; clear if no overlap.
+        // Re-validate selected pattern against the new tag/outcome set; clear if no overlap.
         const pat = s.pattern ? SOLUTION_PATTERNS.find(p => p.key === s.pattern) : null;
-        const stillValid = pat && pat.opAreas.some(a => next.has(a));
-        update({ opAreas: next, ...(stillValid ? {} : { pattern: null, domain: null }) });
+        const stillValid = pat && (
+          pat.outcomes.some(o => s.outcomes.includes(o)) ||
+          pat.tags.some(t => next.has(t))
+        );
+        update({ dealTags: next, ...(stillValid ? {} : { pattern: null, domain: null }) });
       };
       const visiblePatterns = useMemo(() => {
-        if (s.opAreas.size === 0) return [];
-        return SOLUTION_PATTERNS.filter(p => p.opAreas.some(a => s.opAreas.has(a)));
-      }, [s.opAreas]);
+        if (s.outcomes.length === 0 && s.dealTags.size === 0) return [];
+        return SOLUTION_PATTERNS.filter(p =>
+          (s.outcomes.length > 0 && p.outcomes.some(o => s.outcomes.includes(o))) ||
+          (s.dealTags.size > 0 && p.tags.some(t => s.dealTags.has(t)))
+        );
+      }, [s.outcomes, s.dealTags]);
       const pickPattern = (key) => {
         const p = SOLUTION_PATTERNS.find(x => x.key === key);
         const did = p ? resolvePatternDomain(p, domains) : null;
         update({ pattern: key, domain: did });
       };
-      const showAreaError = attempted && s.opAreas.size === 0;
+      const showNoFilterError = attempted && s.outcomes.length === 0 && s.dealTags.size === 0;
       return (
         <div>
           <div className="text-[12px] text-ink2 mb-4 leading-relaxed">Pick the business outcomes this analysis is targeting. Multi-select.</div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
             {OUTCOMES.map(o => <OutcomeTile key={o.key} outcome={o} selected={s.outcomes.includes(o.key)} onToggle={toggleOutcome} />)}
           </div>
-          {s.outcomes.length > 0 && (
-            <>
-              <div className="flex items-center justify-between mb-1">
-                <div className="font-display text-base text-ink">Where in their operation?</div>
-                <span className="text-[9px] font-mono uppercase tracking-widest px-2 py-0.5 border border-border2 text-ink3">Multi-select</span>
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-1">
+              <div className="font-display text-base text-ink">How will you talk about this with them?</div>
+              <span className="text-[9px] font-mono uppercase tracking-widest px-2 py-0.5 border border-border2 text-ink3">Multi-select</span>
+            </div>
+            <div className="text-[12px] text-ink2 mb-3 leading-relaxed">Pick a few tags that best describe the situation.</div>
+            <div>
+              {DEAL_TAGS.map(g => <TagGroup key={g.group} group={g} selected={s.dealTags} onToggle={toggleTag} />)}
+            </div>
+            {s.dealTags.size > 0 && (
+              <div className="text-[10px] font-mono text-ink3 italic mt-2">Tip: add another tag if the situation spans multiple areas.</div>
+            )}
+            {showNoFilterError && (
+              <div className="text-[11px] font-mono text-red mt-3 border-l-2 border-red bg-red/5 px-3 py-2">Pick at least one outcome or tag so we can narrow the right engines.</div>
+            )}
+          </div>
+          {visiblePatterns.length > 0 && (
+            <div className="mb-8">
+              <div className="text-[10px] font-mono uppercase tracking-widest text-red mb-3">Solution pattern</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {visiblePatterns.map(p => (
+                  <SolutionPatternTile key={p.key} pattern={p}
+                    resolvable={!!resolvePatternDomain(p, domains)}
+                    selected={s.pattern === p.key}
+                    onSelect={pickPattern} />
+                ))}
               </div>
-              <div className="text-[12px] text-ink2 mb-3 leading-relaxed">Choose the parts of the operation most affected by this problem.</div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                {OP_AREAS.map(a => <OpAreaChip key={a.key} area={a} selected={s.opAreas.has(a.key)} onToggle={toggleArea} />)}
-              </div>
-              {s.opAreas.size > 0 && (
-                <div className="text-[10px] font-mono text-ink3 italic mt-2">Tip: add another area if the problem spans multiple parts of the operation.</div>
-              )}
-              {showAreaError && (
-                <div className="text-[11px] font-mono text-red mt-3 border-l-2 border-red bg-red/5 px-3 py-2">Pick at least one part of the operation so we can narrow the right engines.</div>
-              )}
-              {s.opAreas.size > 0 && (
-                <div className="mt-6 mb-8">
-                  <div className="text-[10px] font-mono uppercase tracking-widest text-red mb-3">Solution pattern</div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    {visiblePatterns.map(p => (
-                      <SolutionPatternTile key={p.key} pattern={p}
-                        resolvable={!!resolvePatternDomain(p, domains)}
-                        selected={s.pattern === p.key}
-                        onSelect={pickPattern} />
-                    ))}
-                  </div>
-                </div>
-              )}
-            </>
+            </div>
           )}
           <div className="mb-3">
             <div className="text-[10px] font-mono uppercase tracking-widest text-ink3 mb-2">Tag this analysis</div>
@@ -832,7 +858,7 @@
     function makeInitialState() {
       return {
         pasted: '', claims: [], extracted: false,
-        outcomes: [], opAreas: new Set(), domain: null, pattern: null,
+        outcomes: [], dealTags: new Set(), domain: null, pattern: null,
         analysis_name: '', customer: '', vendor: '',
         whatToProve: '', whatToProveOpen: false,
         selectedScenarios: new Set(),
@@ -867,7 +893,7 @@
       const [attempted, setAttempted] = useState({});
       const complete = useMemo(() => ({
         0: s.extracted || s.claims.length > 0,
-        1: s.outcomes.length > 0 && s.opAreas.size > 0 && !!s.domain,
+        1: (s.outcomes.length > 0 || s.dealTags.size > 0) && !!s.domain,
         2: s.selectedScenarios.size > 0,
         3: false
       }), [s]);
