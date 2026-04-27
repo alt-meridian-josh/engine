@@ -1003,6 +1003,76 @@
       );
     }
 
+    /* ---------- SNAPSHOTS TAB ---------- */
+    function buildSnapshotRow({ engagementId, label, intent, analysis, defs, values, scenarios, engagement }) {
+      const inputSnap = {};
+      (defs || []).forEach(d => { inputSnap[d.input_key] = values?.[d.input_key]?.provided_value ?? d.typical_value ?? d.default_value ?? null; });
+      // Lesson 2026-04-24: stash speculative fields in JSON sidecar; never INSERT
+      // unknown columns. stage/phase at snapshot live here in case the columns
+      // don't exist on every tenant schema.
+      inputSnap._meta = {
+        stage_at_snapshot: engagement?.deal_stage || null,
+        phase_at_snapshot: engagement?.phase || null,
+        active_scenario_count: scenarios.filter(s => s.active).length,
+        arv_full: analysis?.arvFull || 0,
+        npv: analysis?.npv ?? null
+      };
+      return {
+        engagement_id: engagementId,
+        snapshot_label: label,
+        intent: (intent || 'track').toLowerCase(),  // BUG-004 — DB CHECK constraint requires lowercase
+        annual_value: analysis?.arvY1 || 0,
+        input_snapshot: inputSnap,
+        notes: ''
+      };
+    }
+    function SnapshotCard({ snapshot }) {
+      const meta = snapshot.input_snapshot?._meta || {};
+      const stage = friendlyStage(meta.stage_at_snapshot);
+      return (
+        <div className="bg-surface border border-border p-4">
+          <div className="flex items-center justify-between mb-2 gap-3">
+            <div className="font-display text-sm text-ink truncate">{snapshot.snapshot_label || '(unlabeled)'}</div>
+            <span className="text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 bg-surface2 text-ink2 flex-shrink-0">{snapshot.intent || 'track'}</span>
+          </div>
+          <div className="text-[11px] font-mono text-ink2 mb-3">{fmtDate(snapshot.created_at)} · {fmtRelative(snapshot.created_at)}</div>
+          <div className="grid grid-cols-3 gap-3 pt-3 border-t border-border">
+            <div><div className="text-[9px] font-mono uppercase tracking-widest text-ink3">Y1 ARV</div><div className="text-sm font-display text-red mt-0.5">{fmtMoney(snapshot.annual_value)}</div></div>
+            <div><div className="text-[9px] font-mono uppercase tracking-widest text-ink3">Full ARV</div><div className="text-sm font-mono text-ink mt-0.5">{fmtMoney(meta.arv_full)}</div></div>
+            <div><div className="text-[9px] font-mono uppercase tracking-widest text-ink3">Stage</div><div className="text-sm font-mono text-ink mt-0.5">{stage.label}</div></div>
+          </div>
+        </div>
+      );
+    }
+    function SnapshotsTab({ snapshots, onSave }) {
+      const [busy, setBusy] = useState(false);
+      const save = async () => { setBusy(true); try { await onSave(); } finally { setBusy(false); } };
+      return (
+        <div className="max-w-[720px] mx-auto px-4 sm:px-8 py-8">
+          <div className="flex items-center justify-between mb-6 gap-3">
+            <div>
+              <div className="font-display text-xl text-ink">Snapshots</div>
+              <div className="text-[11px] font-mono text-ink2 mt-1">{snapshots.length} captured</div>
+            </div>
+            <button onClick={save} disabled={busy} className="bg-red hover:bg-red/90 disabled:opacity-50 text-white px-4 py-2 text-xs font-display tracking-wide">{busy ? 'Saving…' : '+ Save Snapshot'}</button>
+          </div>
+          {snapshots.length === 0 ? (
+            <div className="py-16 text-center text-ink3 font-mono text-xs">No snapshots yet. Save the first one to capture this baseline.</div>
+          ) : (
+            <div className="relative pl-6 space-y-4">
+              <div className="absolute left-2 top-1 bottom-1 w-px bg-border" />
+              {snapshots.map(s => (
+                <div key={s.snapshot_id || s.created_at} className="relative">
+                  <span className="absolute -left-[20px] top-3 w-2 h-2 rounded-full bg-red" />
+                  <SnapshotCard snapshot={s} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      );
+    }
+
     /* ---------- ANALYSIS SHELL ---------- */
     const NAV = [
       { key: 'overview',  label: 'Overview' },
@@ -1035,6 +1105,19 @@
       const toggleScenario = (scenarioId, isActive) => {
         setActiveOverrides(p => ({ ...p, [scenarioId]: isActive }));
         sbUpsert('vef_scenario_selections', { engagement_id: engagementId, scenario_id: scenarioId, is_active: isActive }, 'engagement_id,scenario_id').catch(() => {});
+      };
+      const refreshSnapshots = async () => {
+        const snaps = await loadSnapshots(engagementId).catch(() => []);
+        setBundle(b => b ? { ...b, snapshots: snaps } : b);
+      };
+      const saveSnapshot = async () => {
+        const today = new Date().toISOString().slice(0, 10);
+        const row = buildSnapshotRow({
+          engagementId, label: `Snapshot ${today}`, intent: 'track',
+          analysis, defs: bundle.defs, values, scenarios, engagement: bundle.engagement
+        });
+        await sbInsert('vef_output_snapshots', row);
+        await refreshSnapshots();
       };
       const applyPreset = (newTier) => {
         if (!bundle?.defs) return;
@@ -1086,7 +1169,7 @@
                 : tab === 'scenarios' ? <ScenariosTab scenarios={scenarios} analysis={analysis} onToggle={toggleScenario} />
                 : tab === 'inputs' ? <InputsTab scenarios={scenarios} defs={bundle.defs} values={values} tier={tier} onSlide={slideInput} onCommit={commitInput} onPreset={applyPreset} />
                 : tab === 'outputs' ? <OutputsTab scenarios={scenarios} analysis={analysis} tier={tier} onPreset={applyPreset} />
-                : <div className="p-8 font-mono text-xs text-ink3 italic">[ SNAPSHOTS — chunk W11 ]</div>}
+                : <SnapshotsTab snapshots={bundle.snapshots || []} onSave={saveSnapshot} />}
             </main>
           </div>
         </div>
