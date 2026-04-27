@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Alt Meridian · VEF Assist</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: {
+      colors: { bg:'#0e0e0e', surface:'#141414', surface2:'#1a1a1a', border1:'#222', border2:'#2d2d2d', ink:'#e8e8e8', ink2:'#888', ink3:'#444', red:'#d63b2f' },
+      fontFamily: { display:['Syne','sans-serif'], mono:['"DM Mono"','monospace'], sans:['Syne','system-ui','sans-serif'] }
+    } } };
+  </script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    html, body, #root { height: 100%; }
+    body { background: #0e0e0e; color: #e8e8e8; font-family: 'Syne', system-ui, sans-serif; }
+    input, textarea, button, select { font-family: inherit; }
+  </style>
+</head>
+<body class="bg-bg text-ink">
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+    /* ---------- STEPS ---------- */
+    const STEPS = [
+      { key: 0, label: 'Import',    title: 'Paste a vendor claim' },
+      { key: 1, label: 'Context',   title: 'What are we trying to improve?' },
+      { key: 2, label: 'Scenarios', title: 'Select mechanisms for this analysis' },
+      { key: 3, label: 'Evidence',  title: 'Evidence & audit' }
+    ];
+
+    function StepIndicator({ step, complete }) {
+      return (
+        <div className="flex items-center gap-2">
+          {STEPS.map((s, i) => {
+            const isDone = complete[s.key];
+            const isCurrent = step === s.key;
+            const fillStyle = isDone ? 'bg-red border-red text-white' : isCurrent ? 'bg-bg border-red text-red' : 'bg-bg border-border2 text-ink3';
+            return (
+              <React.Fragment key={s.key}>
+                <div className="flex items-center gap-2">
+                  <div className={`w-6 h-6 border flex items-center justify-center text-[10px] font-mono ${fillStyle}`}>{i + 1}</div>
+                  <span className={`text-[10px] font-mono uppercase tracking-widest ${isCurrent ? 'text-red' : isDone ? 'text-ink' : 'text-ink3'}`}>{s.label}</span>
+                </div>
+                {i < STEPS.length - 1 && <div className={`w-8 h-px ${isDone ? 'bg-red' : 'bg-border1'}`} />}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      );
+    }
+
+    function Topbar({ step, complete, onCancel }) {
+      return (
+        <header className="h-14 px-6 border-b border-border1 bg-surface flex items-center justify-between flex-shrink-0">
+          <div className="flex items-center gap-6">
+            <div className="font-display text-lg tracking-wide"><span className="text-red">ALT</span> <span className="text-ink">MERIDIAN</span></div>
+            <span className="font-mono text-[10px] uppercase tracking-widest text-ink2">VEF Assist</span>
+          </div>
+          <StepIndicator step={step} complete={complete} />
+          <button onClick={onCancel} className="text-[11px] font-mono text-ink2 hover:text-red">Cancel</button>
+        </header>
+      );
+    }
+
+    /* ---------- APP STATE ---------- */
+    function makeInitialState() {
+      return {
+        // Step 0
+        pasted: '', claims: [], extracted: false,
+        // Step 1
+        outcomes: [], domain: null,
+        analysis_name: '', customer: '', vendor: '',
+        whatToProve: '', whatToProveOpen: false,
+        // Step 2
+        selectedScenarios: new Set(),
+        scenarioSearch: '', themeFilter: new Set(),
+        // Step 3
+        notes: ''
+      };
+    }
+
+    function App() {
+      const [step, setStep] = useState(0);
+      const [s, setS] = useState(makeInitialState);
+      const update = (patch) => setS(prev => ({ ...prev, ...patch }));
+      const complete = useMemo(() => ({
+        0: s.extracted || s.claims.length > 0,
+        1: s.outcomes.length > 0 && !!s.domain,
+        2: s.selectedScenarios.size > 0,
+        3: false
+      }), [s]);
+      const cancel = () => { if (confirm('Cancel and discard?')) location.href = 'workspace2.html'; };
+      return (
+        <div className="h-full flex flex-col bg-bg">
+          <Topbar step={step} complete={complete} onCancel={cancel} />
+          <main className="flex-1 overflow-auto">
+            <div className="max-w-[1280px] mx-auto px-8 py-10">
+              <div className="font-display text-2xl text-ink mb-1">{STEPS[step].title}</div>
+              <div className="text-[11px] font-mono text-ink2 mb-8">Step {step + 1} of {STEPS.length} · {STEPS[step].label}</div>
+              <div className="font-mono text-xs text-ink3 italic">[ step content — chunks V3-V8 ]</div>
+              <div className="mt-12 flex items-center justify-between">
+                <button onClick={() => setStep(p => Math.max(0, p - 1))} disabled={step === 0}
+                  className="text-[11px] font-mono uppercase tracking-widest text-ink2 hover:text-red disabled:opacity-30">← Back</button>
+                <button onClick={() => setStep(p => Math.min(STEPS.length - 1, p + 1))} disabled={step === STEPS.length - 1}
+                  className="bg-red hover:bg-red/90 disabled:opacity-30 text-white px-4 py-2 text-[11px] font-mono uppercase tracking-widest">Next →</button>
+              </div>
+            </div>
+          </main>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
