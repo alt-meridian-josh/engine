@@ -70,3 +70,12 @@
 **Prevention rule:** When a spec lists chip content as a list of bare values, render exactly those values — don't add prefix labels for "context" unless the spec asks. The chip's `title` and surrounding bar provide context already.
 **Status:** RESOLVED
 **Project:** alt-meridian
+
+## BUG-006 2026-04-26 — Home filter + search persist across navigation, look like wrong defaults
+**File(s):** workspace.html (back-to-home dispatch arm at line 3040)
+**Symptom:** User reported the Analysis Home default filter tab was "COMPLETED not ALL" and that the stats row appeared filtered. Source state init sets `homeFilter:'all'` and `computeHomeStats()` reads from the global `state.engagements` (not `homeRows()`), so neither default was actually wrong on first load. The illusion appeared only after navigation: clicking a tab (e.g. Completed) or typing in the search persists into `state.homeFilter` / `state.homeSearch`, and `back-to-home` only reset `screen`, `activeEngagementId`, and `activeTab` — leaving the previous filter/search sticky. Returning to Home then showed the previously-selected tab highlighted, with the table filtered to a small (or empty) subset, while the stats row still reported global totals — reading as a stats/table inconsistency.
+**Root cause:** Back-navigation reset was incomplete — preserved home-screen filter state instead of returning to the canonical default view.
+**Fix applied:** Added `homeFilter:'all', homeSearch:''` to the `back-to-home` setState patch. Sort preference (`homeSort`) intentionally NOT reset — sort is a viewing preference, not a filter, and persisting it across sessions is helpful UX.
+**Prevention rule:** When a screen has multiple state fields driving its view, the back-navigation reset must list every field that should snap back to default — not just the screen and active tab. Audit setState patches that change `screen`: any per-screen state that's user-selectable AND has a meaningful "default view" should be reset there.
+**Status:** RESOLVED
+**Project:** alt-meridian

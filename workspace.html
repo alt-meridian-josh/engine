@@ -3037,7 +3037,7 @@ document.addEventListener('click', e => {
     if (!state.activeEngagementId) return toast('No active engagement', true);
     return openVEFAssist({ mode:'update', engagementId: state.activeEngagementId });
   }
-  if (a === 'back-to-home')      return setState({ screen:'home', activeEngagementId:null, activeTab:'value-case' });
+  if (a === 'back-to-home')      return setState({ screen:'home', activeEngagementId:null, activeTab:'value-case', homeFilter:'all', homeSearch:'' });
   if (a === 'ws-tab')            return setState({ activeTab: node.getAttribute('data-tab') });
   if (a === 'ctx-jump-vc')       return setState({ activeTab: 'value-case' });
   if (a === 'ctx-tier-cycle'){
