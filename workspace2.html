@@ -306,6 +306,19 @@
       }
     };
 
+    // Parses 'TAGS: a, b, c' line stashed by vef2 createAnalysis (lesson 2026-04-24
+    // — speculative fields stash into notes with labeled prefix). Returns a Set of
+    // tag keys; gracefully empty when no line found.
+    function parseTagsFromNotes(notes) {
+      const set = new Set();
+      const m = String(notes || '').match(/^TAGS:\s*(.+)$/m);
+      if (!m) return set;
+      m[1].split(',').map(t => t.trim()).filter(Boolean).forEach(t => {
+        if (TAG_BEHAVIOR[t]) set.add(t);  // ignore unknown keys defensively
+      });
+      return set;
+    }
+
     /* ---------- LOGIN — fake, no validation, no API ---------- */
     function LoginScreen({ onEnter }) {
       const [email, setEmail] = useState('seller@altmeridian.com');
@@ -1279,6 +1292,10 @@
         return merged.map(s => activeOverrides[s.scenario_id] != null ? { ...s, active: activeOverrides[s.scenario_id] } : s);
       }, [bundle, activeOverrides]);
       const analysis = useMemo(() => bundle ? computeAnalysis(scenarios, values, bundle.defs) : null, [bundle, scenarios, values]);
+      // Tag behavior derived once per bundle load — drives Overview/Scenarios/Inputs/Meridian copy + ranking.
+      const tags = useMemo(() => bundle ? parseTagsFromNotes(bundle.engagement?.notes) : new Set(), [bundle]);
+      const behavior = useMemo(() => resolveTagBehavior(tags), [tags]);
+      const tone = getTone(behavior);
       const slideInput = (key, val) => setOverrides(p => ({ ...p, [key]: { ...(p[key] || bundle.values?.[key] || {}), engagement_id: engagementId, input_key: key, provided_value: val, value_source: 'buyer' } }));
       const commitInput = (key, val) => sbUpsert('vef_input_values', { engagement_id: engagementId, input_key: key, provided_value: val, value_source: 'buyer' }, 'engagement_id,input_key').catch(() => {});
       const toggleScenario = (scenarioId, isActive) => {
