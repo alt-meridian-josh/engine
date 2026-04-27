@@ -413,11 +413,159 @@
       );
     }
 
-    function AnalysisShell({ engagementId, onBack }) {
+    /* ---------- ANALYSIS HELPERS ---------- */
+    function mergeScenarios(scenarios, selections) {
+      return (scenarios || []).map(s => {
+        const sel = (selections || []).find(x => x.scenario_id === s.scenario_id);
+        return { ...s, active: sel ? sel.is_active !== false : !!s.active_by_default };
+      });
+    }
+    function governedPct(values, defs) {
+      if (!defs?.length) return 0;
+      const provided = defs.filter(d => values?.[d.input_key]?.provided_value != null).length;
+      return Math.round((provided / defs.length) * 100);
+    }
+    function confidenceTier(scenarios) {
+      const active = (scenarios || []).filter(s => s.active);
+      if (!active.length) return { tier: 'EXPLORATORY', pct: 25, color: '#888' };
+      const t = { Strong: 0, Moderate: 0, Weak: 0 };
+      active.forEach(s => { const e = s.evidence_strength || 'Moderate'; if (t[e] != null) t[e]++; });
+      const score = (t.Strong + t.Moderate * 0.6 + t.Weak * 0.3) / active.length;
+      if (score >= 0.75) return { tier: 'STRONG', pct: 90, color: '#86efac' };
+      if (score >= 0.45) return { tier: 'MODERATE', pct: 60, color: '#fbbf24' };
+      return { tier: 'EXPLORATORY', pct: 30, color: '#888' };
+    }
+    function topSensitiveInputs(scenarios, defs, valuesMap, n = 3) {
+      if (!defs?.length || !scenarios?.length) return [];
+      const base = computeAnalysis(scenarios, valuesMap, defs).arvFull;
+      return defs.filter(d => d.input_key !== 'implementation_cost').map(d => {
+        const cur = Number(valuesMap?.[d.input_key]?.provided_value ?? d.typical_value ?? d.default_value ?? 0);
+        const probe = cur === 0 ? 1 : cur * 1.2;
+        const probed = { ...valuesMap, [d.input_key]: { ...(valuesMap?.[d.input_key] || {}), provided_value: probe } };
+        return { def: d, delta: Math.abs(computeAnalysis(scenarios, probed, defs).arvFull - base) };
+      }).filter(x => x.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, n).map(x => x.def);
+    }
+
+    /* ---------- SLIDER + SOURCE CHIP ---------- */
+    function Slider({ value, min, max, step, onChange, onCommit }) {
+      const commit = () => onCommit?.(Number(value));
       return (
-        <div className="p-12 font-mono text-xs text-ink2">
-          <div className="mb-4">[ ANALYSIS — chunk W5+ ]</div>
-          <button onClick={onBack} className="hover:text-red">← Back</button>
+        <input type="range" value={value} min={min} max={max} step={step}
+          onChange={e => onChange(Number(e.target.value))}
+          onMouseUp={commit} onTouchEnd={commit} onKeyUp={commit}
+          className="w-full h-1 accent-red bg-border cursor-pointer" />
+      );
+    }
+    function SourceDot({ source }) {
+      const isBuyer = source && source !== 'default';
+      return <span className="inline-block w-1.5 h-1.5 rounded-full" title={isBuyer ? 'Buyer-confirmed' : 'Default'} style={{ background: isBuyer ? '#86efac' : '#444' }} />;
+    }
+
+    /* ---------- LIVE ASSUMPTIONS RAIL ---------- */
+    function LiveAssumptions({ scenarios, defs, values, analysis, onSlide, onCommit }) {
+      const top = useMemo(() => topSensitiveInputs(scenarios, defs, values, 3), [scenarios, defs, values]);
+      const conf = useMemo(() => confidenceTier(scenarios), [scenarios]);
+      return (
+        <div className="px-4 py-4 border-t border-border">
+          <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mb-3">Live Assumptions</div>
+          {top.length === 0 ? (
+            <div className="text-[11px] font-mono text-ink3 italic">No sensitivity signal yet.</div>
+          ) : (
+            <div className="space-y-3">
+              {top.map(d => {
+                const iv = values?.[d.input_key];
+                const cur = Number(iv?.provided_value ?? d.typical_value ?? d.default_value ?? 0);
+                const min = Number(d.min_value ?? 0);
+                const max = Number(d.max_value ?? Math.max(cur * 2, 1000));
+                const step = Number(d.step_value ?? Math.max((max - min) / 100, 0.01));
+                return (
+                  <div key={d.input_key}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] text-ink2 truncate">{d.input_label || d.input_key.replace(/_/g, ' ')}</span>
+                      <SourceDot source={iv?.value_source} />
+                    </div>
+                    <Slider value={cur} min={min} max={max} step={step}
+                      onChange={(v) => onSlide(d.input_key, v)} onCommit={(v) => onCommit(d.input_key, v)} />
+                    <div className="text-[11px] font-mono text-ink mt-0.5">{cur.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div className="pt-3 mt-4 border-t border-border">
+            <div className="font-display font-bold text-red leading-none" style={{ fontSize: '24px' }}>{fmtMoney(analysis?.arvY1 || 0)}</div>
+            <div className="mt-1.5 inline-flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-widest" style={{ color: conf.color }}>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: conf.color }} />{conf.tier}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ---------- ANALYSIS SHELL ---------- */
+    const NAV = [
+      { key: 'overview',  label: 'Overview' },
+      { key: 'scenarios', label: 'Scenarios' },
+      { key: 'inputs',    label: 'Inputs' },
+      { key: 'outputs',   label: 'Outputs' },
+      { key: 'snapshots', label: 'Snapshots' }
+    ];
+
+    function AnalysisShell({ engagementId, onBack }) {
+      const [bundle, setBundle] = useState(null);
+      const [err, setErr] = useState('');
+      const [tab, setTab] = useState('overview');
+      const [overrides, setOverrides] = useState({});
+      const [activeOverrides, setActiveOverrides] = useState({});
+      const [navOpen, setNavOpen] = useState(false);
+      useEffect(() => {
+        setBundle(null); setOverrides({}); setActiveOverrides({}); setErr('');
+        loadEngagementBundle(engagementId).then(b => b ? setBundle(b) : setErr('Engagement not found')).catch(e => setErr(e.message || 'Failed to load'));
+      }, [engagementId]);
+      const values = useMemo(() => ({ ...(bundle?.values || {}), ...overrides }), [bundle, overrides]);
+      const scenarios = useMemo(() => {
+        const merged = bundle ? mergeScenarios(bundle.scenarios, bundle.selections) : [];
+        return merged.map(s => activeOverrides[s.scenario_id] != null ? { ...s, active: activeOverrides[s.scenario_id] } : s);
+      }, [bundle, activeOverrides]);
+      const analysis = useMemo(() => bundle ? computeAnalysis(scenarios, values, bundle.defs) : null, [bundle, scenarios, values]);
+      const slideInput = (key, val) => setOverrides(p => ({ ...p, [key]: { ...(p[key] || bundle.values?.[key] || {}), engagement_id: engagementId, input_key: key, provided_value: val, value_source: 'buyer' } }));
+      const commitInput = (key, val) => sbUpsert('vef_input_values', { engagement_id: engagementId, input_key: key, provided_value: val, value_source: 'buyer' }, 'engagement_id,input_key').catch(() => {});
+      if (err) return <div className="p-12 font-mono text-xs text-red">{err} <button onClick={onBack} className="ml-4 text-ink2 hover:text-red">← Back</button></div>;
+      if (!bundle) return <div className="min-h-full grid place-items-center text-ink2 font-mono text-xs">Loading…</div>;
+      const stage = friendlyStage(bundle.engagement.deal_stage);
+      return (
+        <div className="h-full flex flex-col bg-bg">
+          <header className="h-12 px-3 sm:px-4 border-b border-border bg-surface flex items-center justify-between flex-shrink-0 gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <button onClick={onBack} className="text-ink2 hover:text-red text-sm font-mono flex-shrink-0">←</button>
+              <button onClick={() => setNavOpen(o => !o)} className="md:hidden text-ink2 hover:text-red text-sm font-mono flex-shrink-0">☰</button>
+              <div className="font-display text-sm tracking-wide"><span className="text-red">ALT</span> <span className="text-ink">MERIDIAN</span></div>
+            </div>
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+              <StageBadge stage={bundle.engagement.deal_stage} />
+              <button className="bg-red hover:bg-red/90 text-white px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider">Report</button>
+            </div>
+          </header>
+          <div className="flex-1 flex min-h-0">
+            <aside className={`${navOpen ? 'absolute inset-0 z-10 flex' : 'hidden'} md:relative md:flex md:w-[220px] bg-surface border-r border-border flex-col flex-shrink-0`}>
+              <div className="px-4 py-4 border-b border-border">
+                <div className="font-display text-sm text-ink truncate">{bundle.engagement.analysis_name || bundle.engagement.vendor_name || 'Untitled'}</div>
+                <div className="font-mono text-[10px] text-ink3 truncate mt-0.5">{bundle.engagement.prospect_name || '—'}</div>
+              </div>
+              <nav className="py-2 flex-shrink-0">
+                {NAV.map(t => (
+                  <button key={t.key} onClick={() => { setTab(t.key); setNavOpen(false); }}
+                    className={`w-full text-left px-4 py-2 text-[11px] font-mono uppercase tracking-widest border-l-2 transition-colors ${tab === t.key ? 'border-red text-red bg-red-dim' : 'border-transparent text-ink2 hover:text-ink'}`}>
+                    {t.label}
+                  </button>
+                ))}
+              </nav>
+              <LiveAssumptions scenarios={scenarios} defs={bundle.defs} values={values} analysis={analysis} onSlide={slideInput} onCommit={commitInput} />
+            </aside>
+            <main className="flex-1 overflow-auto">
+              <div className="p-8 font-mono text-xs text-ink3 italic">[ {tab.toUpperCase()} TAB — chunk W{tab === 'overview' ? 6 : tab === 'scenarios' ? 7 : tab === 'inputs' ? 8 : tab === 'outputs' ? 9 : 11} ]</div>
+            </main>
+          </div>
         </div>
       );
     }
