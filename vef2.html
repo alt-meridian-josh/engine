@@ -772,6 +772,46 @@
       );
     }
 
+    /* ---------- INTERPRETATION ADAPTERS (A4) ---------- */
+    // Re-sort themeData so biased themes come first; report which theme to badge as Top.
+    function applyThemeBias(themeData, biasArr) {
+      if (!biasArr?.length || !themeData?.length) return { data: themeData || [], topTheme: null, biasUnmatched: !!biasArr?.length };
+      const biased = [], rest = [];
+      themeData.forEach(d => biasArr.includes(d.key) ? biased.push(d) : rest.push(d));
+      return { data: [...biased, ...rest], topTheme: biased[0]?.label || null, biasUnmatched: biased.length === 0 };
+    }
+    // Pre-engagement scenarios don't have computed values; only `evidence` rank is meaningful here.
+    // Workspace2 supports the full bcr/delay/arv set.
+    function rankScenariosForVef(scenarios, rankBy) {
+      if (!scenarios?.length) return [];
+      const sorted = scenarios.slice();
+      if (rankBy === 'evidence') {
+        const order = { Strong: 0, Moderate: 1, Weak: 2 };
+        sorted.sort((a, b) => (order[a.evidence_strength] ?? 1) - (order[b.evidence_strength] ?? 1));
+      } else {
+        sorted.sort((a, b) => (Number(a.print_priority) || 99) - (Number(b.print_priority) || 99));
+      }
+      return sorted;
+    }
+    const RANK_CAPTION = { bcr: 'Ranked by BCR', delay: 'Ranked by Cost of Delay', evidence: 'Ranked by evidence', arv: 'Ranked by Y1 ARV' };
+    function humanTagLabel(key) {
+      for (const g of DEAL_TAGS) { const item = g.items.find(i => i.key === key); if (item) return item.label; }
+      return key;
+    }
+    function interpHeadline(tagsSet, tone) {
+      const tags = [...(tagsSet || [])].filter(k => TAG_BEHAVIOR[k]);
+      if (!tags.length) return null;
+      const labels = tags.map(humanTagLabel);
+      const tagText = labels.length === 1 ? labels[0] : labels.slice(0, -1).join(', ') + ' + ' + labels[labels.length - 1];
+      if (tone === 'urgent')       return `${tagText} → surface fastest realized value first.`;
+      if (tone === 'conservative') return `${tagText} → defend NPV with strong evidence.`;
+      return `${tagText} → focus on operational ARV.`;
+    }
+    function toneConfidenceLine(conf, tone) {
+      const verb = TONE_COPY[tone]?.confidenceVerb;
+      return verb ? `${verb} — ${conf.tier}.` : `Confidence: ${conf.tier}.`;
+    }
+
     /* ---------- INTERPRETATION HOOK + PANEL ---------- */
     function useInterpretation(s, matchPool, domains) {
       const [signals, setSignals] = useState([]);
@@ -801,7 +841,7 @@
         const conf = score >= 0.75 ? { tier: 'STRONG', pct: 90, color: '#86efac' }
                     : score >= 0.45 ? { tier: 'MODERATE', pct: 60, color: '#fbbf24' }
                     : { tier: 'EXPLORATORY', pct: 30, color: '#888' };
-        const why = !s.domain
+        const baseWhy = !s.domain
           ? (s.outcomes.length === 0 ? 'Showing the full library. Pick outcomes to narrow.' : `${pool.length} mechanisms across ${s.outcomes.length} outcome${s.outcomes.length > 1 ? 's' : ''}.`)
           : `${pool.length} mechanisms in ${cleanDomainName(dom?.domain_name) || s.domain}.`;
         const signalLabels = (signals || []).map(sg => sg.signal_label || sg.signal_name || sg.signal_key).filter(Boolean);
@@ -809,9 +849,23 @@
           .filter(d => d.discovery_prompt && d.input_key !== 'implementation_cost')
           .slice(0, 3)
           .map(d => ({ key: d.input_key, label: d.input_label || d.input_key.replace(/_/g, ' '), discovery: d.discovery_prompt }));
-        const topMini = pool.slice().sort((a, b) => (Number(a.print_priority) || 99) - (Number(b.print_priority) || 99)).slice(0, 3);
-        return { engine: dom ? cleanDomainName(dom.domain_name) || dom.domain_id : null, pool, themes, themeData, tally, conf, why, signals: signalLabels, missing, topMini };
-      }, [s.domain, s.outcomes, matchPool, domains, signals, inputDefs]);
+        // Tag-aware overlays
+        const behavior = resolveTagBehavior(s.dealTags);
+        const tone = getTone(behavior);
+        const { data: themeDataSorted, topTheme, biasUnmatched } = applyThemeBias(themeData, behavior.themeBias);
+        const topMini = rankScenariosForVef(pool, behavior.rankBy).slice(0, 3);
+        const rankCaption = (behavior.rankBy === 'evidence') ? RANK_CAPTION.evidence : null;
+        const headline = interpHeadline(s.dealTags, tone);
+        const confidenceLine = toneConfidenceLine(conf, tone);
+        // Why: keep one sentence; append tag-driven clause when relevant.
+        const why = behavior.rankBy
+          ? `${baseWhy} Surfacing ${RANK_CAPTION[behavior.rankBy]?.toLowerCase().replace('ranked by ', '') || 'top picks'} first.`
+          : baseWhy;
+        return { engine: dom ? cleanDomainName(dom.domain_name) || dom.domain_id : null, pool, themes,
+                 themeData: themeDataSorted, topTheme, biasUnmatched, biasArr: behavior.themeBias || [],
+                 tally, conf, confidenceLine, why, headline, behavior, tone, rankCaption,
+                 signals: signalLabels, missing, topMini };
+      }, [s.domain, s.outcomes, s.dealTags, matchPool, domains, signals, inputDefs]);
     }
     function InterpretationPanel({ s, ctx }) {
       return (
@@ -820,6 +874,9 @@
             <div className="font-display text-base text-red">VEF Interpretation</div>
             <span className="text-[9px] font-mono uppercase tracking-widest text-red/60">live</span>
           </div>
+          {ctx.headline && (
+            <div className="text-[12px] text-ink leading-snug border-l-2 border-red pl-3 py-1 mb-4">{ctx.headline}</div>
+          )}
           <InterpSection title="Outcomes selected">
             <OutcomeMatrix selected={s.outcomes} />
             <div className="text-[10px] font-mono text-ink3 mt-2">{s.outcomes.length === 0 ? 'None yet' : s.outcomes.join(' · ')}</div>
@@ -829,6 +886,12 @@
           </InterpSection>
           {ctx.themeData.length > 0 && (
             <InterpSection title="Value themes">
+              {ctx.topTheme && (
+                <div className="text-[10px] font-mono text-red mb-2">Top theme · {ctx.topTheme}</div>
+              )}
+              {ctx.biasUnmatched && (
+                <div className="text-[10px] font-mono text-ink3 italic mb-2">Tag bias finds no matching theme — using ARV ordering.</div>
+              )}
               <div className="flex items-center gap-3">
                 <ThemeDonut data={ctx.themeData} size={72} />
                 <div className="flex-1 min-w-0 space-y-0.5">
@@ -836,6 +899,7 @@
                     <div key={d.key} className="flex items-center gap-1.5 text-[10px]">
                       <span className="w-2 h-2 flex-shrink-0" style={{ background: d.color }} />
                       <span className="text-ink truncate">{d.label}</span>
+                      {ctx.biasArr.includes(d.key) && <span className="text-[8px] font-mono text-red flex-shrink-0">★</span>}
                     </div>
                   ))}
                 </div>
@@ -847,7 +911,7 @@
             <EvidenceMixBar tally={ctx.tally} />
           </InterpSection>
           <InterpSection title="Confidence preview">
-            <div className="text-[11px] font-mono text-ink mb-1.5">This analysis will be <span style={{ color: ctx.conf.color }}>{ctx.conf.tier}</span>.</div>
+            <div className="text-[11px] font-mono text-ink mb-1.5">{ctx.confidenceLine}</div>
             <div className="h-1.5 bg-surface2 relative">
               <div className="absolute inset-y-0 left-0" style={{ width: ctx.conf.pct + '%', background: ctx.conf.color }} />
             </div>
@@ -869,6 +933,9 @@
               )}
               {ctx.topMini.length > 0 && (
                 <InterpSection title="Top mechanisms">
+                  {ctx.rankCaption && (
+                    <div className="text-[9px] font-mono uppercase tracking-widest text-red/80 mb-2">{ctx.rankCaption}</div>
+                  )}
                   <div className="space-y-1.5">
                     {ctx.topMini.map(sc => {
                       const ev = sc.evidence_strength || 'Moderate';
