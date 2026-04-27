@@ -319,6 +319,63 @@
       return set;
     }
 
+    /* ---------- INTAKE SESSION HELPERS (kept in sync with intake.html) ---------- */
+    // Session lives as one labeled JSON line in vef_engagements.notes — same sidecar
+    // pattern as TAGS / outcomes / vendor claims (lesson 2026-04-24, no schema change).
+    function parseIntakeSession(notes) {
+      const m = String(notes || '').match(/^INTAKE_SESSION:(\{[\s\S]*?\})\s*(?:\n|$)/m);
+      if (!m) return null;
+      try { return JSON.parse(m[1]); } catch { return null; }
+    }
+    // Replace (or insert) the INTAKE_SESSION line; preserves all other notes content.
+    async function writeIntakeSession(engagementId, currentNotes, sessionObj) {
+      const stripped = String(currentNotes || '').replace(/^INTAKE_SESSION:\{[\s\S]*?\}\s*\n?/m, '').trim();
+      const line = 'INTAKE_SESSION:' + JSON.stringify(sessionObj);
+      const next = stripped ? stripped + '\n\n' + line : line;
+      await sbUpdate('vef_engagements', { notes: next }, { eq: { engagement_id: engagementId } });
+      return next;
+    }
+    // Generates a fresh session record. Token + session_id are unguessable UUIDs
+    // (timestamp fallback for ancient browsers).
+    function newIntakeSession({ shared_with_email, shared_with_role, curated_input_keys }) {
+      const uuid = () => (crypto && crypto.randomUUID) ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2, 14));
+      return {
+        session_id: uuid(),
+        share_token: uuid(),
+        shared_with_email: shared_with_email || null,
+        shared_with_role: shared_with_role || null,
+        shared_at: new Date().toISOString(),
+        expires_at: null,                      // v1: no expiry; future column-migration to add
+        status: 'pending',                     // pending | in_progress | submitted | applied
+        curated_input_keys: curated_input_keys || [],
+        responses: {}                          // {input_key: {value, source, at}}
+      };
+    }
+    // Curate up to N inputs the prospect can actually answer. Heuristic with seller override.
+    // Order: discovery_prompt-equipped inputs ranked by ARV sensitivity; vendor/derived
+    // inputs (implementation_cost, *_reduction_pct, rfid_*, vendor_*) blacklisted.
+    // Hard cap defaults to 5 — completion rate beats coverage on a 5-minute mobile intake.
+    function curateInputs(defs, scenarios, valuesMap, n = 5) {
+      if (!defs?.length) return [];
+      const blacklist = /^(implementation_cost|.*_reduction_pct|rfid_.*|vendor_.*)$/i;
+      const asked = defs.filter(d => d.discovery_prompt && !blacklist.test(d.input_key));
+      if (asked.length === 0) return [];
+      // When the engagement has scenarios + values loaded, rank by sensitivity within the
+      // discovery_prompt set. Otherwise fall back to print_priority asc.
+      if (scenarios?.length && valuesMap) {
+        const sensitive = topSensitiveInputs(scenarios, asked, valuesMap, n);
+        if (sensitive.length >= n) return sensitive;
+        const used = new Set(sensitive.map(d => d.input_key));
+        const rest = asked.filter(d => !used.has(d.input_key));
+        return [...sensitive, ...rest].slice(0, n);
+      }
+      return asked.slice().sort((a, b) => (Number(a.print_priority) || 99) - (Number(b.print_priority) || 99)).slice(0, n);
+    }
+    function buildShareLink(token) {
+      const base = location.href.replace(/\/[^/]*(\?.*)?$/, '/');
+      return base + 'intake.html?s=' + encodeURIComponent(token);
+    }
+
     /* ---------- LOGIN — fake, no validation, no API ---------- */
     function LoginScreen({ onEnter }) {
       const [email, setEmail] = useState('seller@altmeridian.com');
@@ -979,15 +1036,383 @@
         </div>
       );
     }
-    function InputsTab({ scenarios, defs, values, tier, onSlide, onCommit, onPreset }) {
+    /* ---------- SHARE INTAKE DIALOG (I2) ---------- */
+    const RECIPIENT_ROLES = ['Champion', 'Finance', 'Risk / Compliance', 'Procurement', 'Operations', 'Other'];
+    const DEFAULT_INTAKE_INTRO = ({ customer, analysisName }) =>
+      `We're modeling the value case for ${customer || 'your initiative'}${analysisName ? ' (' + analysisName + ')' : ''}.\n\n` +
+      `This is a 5-question intake — about 5 minutes on phone or laptop. Confirm or adjust the industry benchmarks where you have a real number, skip the rest. Your account team will use it to build the case.`;
+
+    function ShareIntakeDialog({ engagement, defs, scenarios, values, onClose, onWritten }) {
+      const [step, setStep] = useState(0);
+      const [email, setEmail] = useState(engagement.champion_email || '');
+      const [role, setRole] = useState('Champion');
+      const curated = useMemo(() => curateInputs(defs, scenarios, values, 5), [defs, scenarios, values]);
+      const [selectedKeys, setSelectedKeys] = useState(() => new Set(curated.map(d => d.input_key)));
+      const [intro, setIntro] = useState(() => DEFAULT_INTAKE_INTRO({ customer: engagement.prospect_name, analysisName: engagement.analysis_name }));
+      const [busy, setBusy] = useState(false);
+      const [copied, setCopied] = useState(false);
+      const [err, setErr] = useState('');
+      const existing = parseIntakeSession(engagement?.notes);
+      const toggleKey = (k) => setSelectedKeys(p => { const n = new Set(p); if (n.has(k)) n.delete(k); else if (n.size < 5) n.add(k); return n; });
+      const buildAndWrite = async () => {
+        const sessionObj = newIntakeSession({ shared_with_email: email || null, shared_with_role: role, curated_input_keys: [...selectedKeys] });
+        sessionObj.status = 'in_progress';
+        const newNotes = await writeIntakeSession(engagement.engagement_id, engagement.notes, sessionObj);
+        onWritten?.(newNotes, sessionObj);
+        return buildShareLink(sessionObj.share_token);
+      };
+      const sendViaMail = async () => {
+        setBusy(true); setErr('');
+        try {
+          const link = await buildAndWrite();
+          const subject = encodeURIComponent('Quick value-case intake' + (engagement.analysis_name ? ' — ' + engagement.analysis_name : ''));
+          const body = encodeURIComponent(intro + '\n\n' + link + '\n\nThanks');
+          window.open(`mailto:${encodeURIComponent(email)}?subject=${subject}&body=${body}`, '_self');
+          onClose();
+        } catch (e) { setErr(e.message || 'Send failed'); }
+        finally { setBusy(false); }
+      };
+      const copyLink = async () => {
+        setBusy(true); setErr('');
+        try { const link = await buildAndWrite(); await navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 2000); }
+        catch (e) { setErr(e.message || 'Copy failed'); }
+        finally { setBusy(false); }
+      };
+      const stepValid = (i) => i === 0 ? /\S+@\S+\.\S+/.test(email) : i === 1 ? selectedKeys.size > 0 : true;
+      // Build a blank-template JSON for offline filling. Same shape as intake.html
+      // round-trip bundle so a returned file can be re-imported in I5.
+      const downloadBrief = () => {
+        const selectedDefs = curated.filter(d => selectedKeys.has(d.input_key));
+        const payload = {
+          schema: 'altmeridian.intake.v1',
+          customer: engagement.prospect_name || null,
+          analysis: engagement.analysis_name || null,
+          share_token: null,
+          exported_at: new Date().toISOString(),
+          questions: selectedDefs.map(d => ({
+            input_key: d.input_key,
+            question: d.discovery_prompt || d.input_label || d.input_key,
+            unit: d.input_unit || null,
+            benchmark: d.typical_value ?? d.default_value ?? null,
+            response: null
+          }))
+        };
+        const slug = ((engagement.prospect_name || engagement.analysis_name || 'analysis').toLowerCase().replace(/\W+/g, '-').replace(/^-|-$/g, '') || 'analysis');
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a'); a.href = url; a.download = 'intake-brief-' + slug + '.json';
+        document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+      };
+      return (
+        <div className="fixed inset-0 z-30 bg-bg/85 grid place-items-center p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+          <div className="w-full max-w-[560px] bg-surface border border-border max-h-[90vh] overflow-auto">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+              <div className="font-display text-base text-ink">Share intake</div>
+              <button onClick={onClose} className="text-ink3 hover:text-red text-base leading-none">×</button>
+            </div>
+            <div className="px-5 pt-3 pb-1 flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest">
+              {['Recipient', 'Questions', 'Send'].map((label, i) => (
+                <React.Fragment key={label}>
+                  <span className={i === step ? 'text-red' : i < step ? 'text-ink' : 'text-ink3'}>{i + 1} · {label}</span>
+                  {i < 2 && <span className="text-ink3">›</span>}
+                </React.Fragment>
+              ))}
+            </div>
+            {step === 0 && (
+              <div className="px-5 py-5">
+                {existing && <div className="text-[10px] font-mono text-amber border-l-2 border-amber bg-amber/5 px-3 py-2 mb-4">An intake was sent to {existing.shared_with_email || 'a prospect'} {fmtRelative(existing.shared_at)}. Sending again will replace the existing link.</div>}
+                <div className="text-[12px] text-ink2 mb-4 leading-relaxed">Who's filling this out?</div>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email"
+                  className="w-full bg-surface2 border border-border px-3 py-2.5 mb-4 text-sm font-mono text-ink placeholder:text-ink3 focus:border-red outline-none" />
+                <div className="text-[10px] font-mono uppercase tracking-widest text-ink3 mb-2">Their role</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {RECIPIENT_ROLES.map(r => (
+                    <button key={r} onClick={() => setRole(r)} className={`text-[11px] font-mono px-2.5 py-1 border ${role === r ? 'border-red bg-red/15 text-ink' : 'border-border bg-surface2 text-ink2 hover:text-ink'}`}>{r}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {step === 1 && (
+              <div className="px-5 py-5">
+                <div className="text-[12px] text-ink2 leading-relaxed">{selectedKeys.size} of 5 questions selected. Cap is 5 to keep the intake under 5 minutes.</div>
+                <div className="space-y-2 mt-3">
+                  {curated.map(d => {
+                    const on = selectedKeys.has(d.input_key);
+                    return (
+                      <button key={d.input_key} onClick={() => toggleKey(d.input_key)} className={`w-full text-left p-3 border transition-colors ${on ? 'border-red bg-red/10' : 'border-border bg-surface2 hover:border-border2'}`}>
+                        <div className="flex items-start gap-2">
+                          <span className={`mt-0.5 w-4 h-4 border flex items-center justify-center flex-shrink-0 ${on ? 'bg-red border-red' : 'border-border2'}`}>{on && <span className="text-white text-[10px]">✓</span>}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[12px] text-ink">{d.discovery_prompt || d.input_label || d.input_key}</div>
+                            <div className="text-[10px] font-mono text-ink3 mt-0.5">Benchmark · {d.typical_value ?? '—'} {d.input_unit || ''}</div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="text-[10px] font-mono text-ink3 italic mt-3">Heuristic-curated. Manual override (add other inputs) lands in a follow-up.</div>
+              </div>
+            )}
+            {step === 2 && (
+              <div className="px-5 py-5">
+                <div className="text-[10px] font-mono uppercase tracking-widest text-ink3 mb-2">Intro your prospect will see</div>
+                <textarea value={intro} onChange={e => setIntro(e.target.value)} rows={6}
+                  className="w-full bg-surface2 border border-border px-3 py-2 text-sm focus:border-red outline-none mb-2" />
+                <div className="text-[10px] font-mono text-ink3 italic mb-4">The link is appended automatically when sent.</div>
+                {err && <div className="text-[11px] font-mono text-red mb-3 border-l-2 border-red bg-red/5 px-3 py-2">{err}</div>}
+                <div className="space-y-2">
+                  <button onClick={sendViaMail} disabled={busy || !email} className="w-full bg-red hover:bg-red/90 disabled:opacity-40 text-white py-2.5 text-[12px] font-display tracking-wide">{busy ? 'Working…' : 'Open in mail client →'}</button>
+                  <button onClick={copyLink} disabled={busy} className="w-full border border-border2 hover:border-red/60 text-ink py-2 text-[11px] font-mono uppercase tracking-widest">{copied ? '✓ Copied' : 'Copy share link'}</button>
+                  <button onClick={downloadBrief} className="w-full border border-border2 hover:border-red/60 text-ink py-2 text-[11px] font-mono uppercase tracking-widest">↓ Download brief (.json)</button>
+                </div>
+              </div>
+            )}
+            <div className="flex items-center justify-between px-5 py-3 border-t border-border">
+              <button onClick={() => step === 0 ? onClose() : setStep(s => s - 1)} className="text-[11px] font-mono uppercase tracking-widest text-ink2 hover:text-red">{step === 0 ? 'Cancel' : '← Back'}</button>
+              {step < 2 && (
+                <button onClick={() => stepValid(step) && setStep(s => s + 1)} disabled={!stepValid(step)} className="bg-red hover:bg-red/90 disabled:opacity-30 text-white px-4 py-1.5 text-[11px] font-mono uppercase tracking-widest">Next →</button>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ---------- INTAKE STATUS BANNER (I5a) ---------- */
+    function IntakeStatusBanner({ session, defs, onReview }) {
+      if (!session) return null;
+      const total = session.curated_input_keys?.length || defs.length || 0;
+      const answered = Object.keys(session.responses || {}).length;
+      const who = session.shared_with_email || 'prospect';
+      const status = session.status || 'pending';
+      if (status === 'submitted') {
+        return (
+          <div className="bg-red/10 border border-red px-4 py-3 mb-6 flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <div className="text-[11px] font-mono uppercase tracking-widest text-red">Submitted · {who}</div>
+              <div className="text-[12px] text-ink mt-1">{answered} of {total} answered · ready to review</div>
+            </div>
+            <button onClick={onReview} className="bg-red hover:bg-red/90 text-white px-4 py-2 text-[11px] font-mono uppercase tracking-widest">Review responses →</button>
+          </div>
+        );
+      }
+      if (status === 'applied') {
+        return (
+          <div className="bg-green/15 border border-green/40 px-4 py-3 mb-6">
+            <div className="text-[11px] font-mono uppercase tracking-widest text-green">✓ Applied · {who}</div>
+            <div className="text-[12px] text-ink2 mt-1">{answered} responses applied {fmtRelative(session.applied_at || session.shared_at)}</div>
+          </div>
+        );
+      }
+      if (answered > 0) {
+        return (
+          <div className="bg-surface border-l-2 border-amber px-4 py-3 mb-6">
+            <div className="text-[11px] font-mono uppercase tracking-widest text-amber">In progress · {who}</div>
+            <div className="text-[12px] text-ink2 mt-1">{answered} of {total} answered · last touched {fmtRelative(session.shared_at)}</div>
+          </div>
+        );
+      }
+      return (
+        <div className="bg-surface border-l-2 border-border2 px-4 py-3 mb-6">
+          <div className="text-[11px] font-mono uppercase tracking-widest text-ink2">Sent · {who}</div>
+          <div className="text-[12px] text-ink3 mt-1">{fmtRelative(session.shared_at)} · waiting on responses</div>
+        </div>
+      );
+    }
+
+    /* ---------- INTAKE REVIEW DIALOG (I5a) ---------- */
+    function IntakeReviewDialog({ engagement, session, defs, currentValues, onClose, onApplied }) {
+      const initial = useMemo(() => {
+        const d = {};
+        defs.forEach(def => {
+          const r = session.responses?.[def.input_key];
+          d[def.input_key] = r && r.source !== 'skipped' && r.value != null ? 'apply' : 'reject';
+        });
+        return d;
+      }, [defs, session]);
+      const [decisions, setDecisions] = useState(initial);
+      const [busy, setBusy] = useState(false);
+      const [err, setErr] = useState('');
+      const setDecision = (k, v) => setDecisions(p => ({ ...p, [k]: v }));
+      const markAllApplicable = () => setDecisions(p => {
+        const n = { ...p };
+        defs.forEach(def => { const r = session.responses?.[def.input_key]; if (r && r.source !== 'skipped' && r.value != null) n[def.input_key] = 'apply'; });
+        return n;
+      });
+      const apply = async () => {
+        setBusy(true); setErr('');
+        try {
+          const toApply = defs.filter(d => decisions[d.input_key] === 'apply' && session.responses?.[d.input_key]?.value != null);
+          const sourceTag = 'buyer:intake:' + (session.session_id || '').slice(0, 8);
+          await Promise.all(toApply.map(d => sbUpsert('vef_input_values', {
+            engagement_id: engagement.engagement_id,
+            input_key: d.input_key,
+            provided_value: Number(session.responses[d.input_key].value),
+            value_source: sourceTag
+          }, 'engagement_id,input_key')));
+          const next = { ...session, status: 'applied', applied_at: new Date().toISOString() };
+          const newNotes = await writeIntakeSession(engagement.engagement_id, engagement.notes, next);
+          // Patch values map so the seller sees green BUYER dots + recomputed ARV without reload.
+          const valuesPatch = { ...currentValues };
+          toApply.forEach(d => { valuesPatch[d.input_key] = { engagement_id: engagement.engagement_id, input_key: d.input_key, provided_value: Number(session.responses[d.input_key].value), value_source: sourceTag }; });
+          onApplied(newNotes, next, valuesPatch);
+          onClose();
+        } catch (e) { setErr(e.message || 'Apply failed'); }
+        finally { setBusy(false); }
+      };
+      const applyCount = Object.values(decisions).filter(v => v === 'apply').length;
+      return (
+        <div className="fixed inset-0 z-30 bg-bg/85 grid place-items-center p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+          <div className="w-full max-w-[720px] bg-surface border border-border max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border flex-shrink-0">
+              <div>
+                <div className="font-display text-base text-ink">Intake responses</div>
+                <div className="text-[10px] font-mono text-ink3 mt-0.5">{session.shared_with_email || 'prospect'} · {fmtRelative(session.shared_at)}</div>
+              </div>
+              <button onClick={onClose} className="text-ink3 hover:text-red text-base leading-none">×</button>
+            </div>
+            <div className="px-5 py-4 overflow-auto">
+              {err && <div className="text-[11px] font-mono text-red mb-3 border-l-2 border-red bg-red/5 px-3 py-2">{err}</div>}
+              <div className="text-[12px] text-ink2 mb-4">{applyCount} of {defs.length} marked to apply. Toggle Apply / Reject per row, or use Mark all.</div>
+              <div className="space-y-2">
+                {defs.map(d => {
+                  const r = session.responses?.[d.input_key];
+                  const cur = currentValues?.[d.input_key]?.provided_value;
+                  const decision = decisions[d.input_key];
+                  const status = !r ? 'pending' : r.source;
+                  const chip = status === 'confirmed' ? 'text-green' : status === 'edited' ? 'text-red' : status === 'skipped' ? 'text-ink3' : 'text-amber';
+                  const noProspectValue = !r || r.value == null;
+                  return (
+                    <div key={d.input_key} className="bg-surface2 border border-border p-3">
+                      <div className="text-[12px] text-ink mb-2">{d.discovery_prompt || d.input_label || d.input_key}</div>
+                      <div className="grid grid-cols-3 gap-3 text-[11px] font-mono mb-2">
+                        <div><span className="text-ink3 text-[10px]">CURRENT</span><div className="text-ink mt-0.5">{cur != null ? Number(cur).toLocaleString() : '—'}{d.input_unit ? ' ' + d.input_unit : ''}</div></div>
+                        <div><span className="text-ink3 text-[10px]">PROSPECT</span><div className="text-ink mt-0.5">{r?.value != null ? Number(r.value).toLocaleString() + (d.input_unit ? ' ' + d.input_unit : '') : status === 'skipped' ? '—' : 'pending'}</div></div>
+                        <div><span className="text-ink3 text-[10px]">SOURCE</span><div className={chip + ' mt-0.5 uppercase tracking-widest text-[10px]'}>{status}</div></div>
+                      </div>
+                      <div className="flex gap-1 pt-2 border-t border-border">
+                        <button onClick={() => setDecision(d.input_key, 'apply')} disabled={noProspectValue}
+                          className={`flex-1 text-[10px] font-mono uppercase tracking-widest py-1.5 ${decision === 'apply' ? 'bg-red text-white' : noProspectValue ? 'border border-border text-ink3 opacity-30 cursor-not-allowed' : 'border border-border2 text-ink2 hover:text-ink'}`}>Apply</button>
+                        <button onClick={() => setDecision(d.input_key, 'reject')}
+                          className={`flex-1 text-[10px] font-mono uppercase tracking-widest py-1.5 ${decision === 'reject' ? 'bg-surface text-ink border border-border2' : 'border border-border2 text-ink3 hover:text-ink2'}`}>Reject</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex items-center justify-between px-5 py-3 border-t border-border gap-3 flex-shrink-0">
+              <button onClick={markAllApplicable} className="text-[11px] font-mono uppercase tracking-widest text-ink2 hover:text-red">Mark all applicable</button>
+              <div className="flex gap-2">
+                <button onClick={onClose} className="text-[11px] font-mono uppercase tracking-widest text-ink2 hover:text-red px-3 py-1.5">Cancel</button>
+                <button onClick={apply} disabled={busy || applyCount === 0} className="bg-red hover:bg-red/90 disabled:opacity-30 text-white px-4 py-1.5 text-[11px] font-mono uppercase tracking-widest">{busy ? 'Applying…' : `Apply ${applyCount} →`}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    /* ---------- IMPORT INTAKE DIALOG (I5b — offline JSON path) ---------- */
+    function ImportIntakeDialog({ engagement, defs, onClose, onImported }) {
+      const [pasted, setPasted] = useState('');
+      const [busy, setBusy] = useState(false);
+      const [err, setErr] = useState('');
+      const importFromText = async (text) => {
+        setBusy(true); setErr('');
+        try {
+          const payload = JSON.parse(text);
+          if (payload.schema !== 'altmeridian.intake.v1') throw new Error('Unrecognized file format. Expected altmeridian.intake.v1.');
+          if (!Array.isArray(payload.questions)) throw new Error('No questions found in the file.');
+          const validKeys = new Set(defs.map(d => d.input_key));
+          const responses = {};
+          const importedKeys = [];
+          payload.questions.forEach(q => {
+            if (!q?.input_key || !validKeys.has(q.input_key)) return;
+            importedKeys.push(q.input_key);
+            if (q.response && q.response.value != null) {
+              responses[q.input_key] = { value: Number(q.response.value), source: q.response.source || 'edited', at: q.response.at || new Date().toISOString() };
+            } else if (q.response && q.response.source === 'skipped') {
+              responses[q.input_key] = { value: null, source: 'skipped', at: q.response.at || new Date().toISOString() };
+            }
+          });
+          if (importedKeys.length === 0) throw new Error("None of the file's input_keys match this analysis.");
+          const existing = parseIntakeSession(engagement.notes);
+          const sess = existing
+            ? { ...existing, responses: { ...(existing.responses || {}), ...responses }, status: 'submitted' }
+            : { ...newIntakeSession({ shared_with_email: payload.customer || null, curated_input_keys: importedKeys }), responses, status: 'submitted' };
+          if (!sess.curated_input_keys?.length) sess.curated_input_keys = importedKeys;
+          const newNotes = await writeIntakeSession(engagement.engagement_id, engagement.notes, sess);
+          onImported(newNotes, sess);
+          onClose();
+        } catch (e) { setErr(e.message || 'Import failed'); }
+        finally { setBusy(false); }
+      };
+      const onFile = (e) => {
+        const f = e.target.files?.[0]; if (!f) return;
+        const reader = new FileReader();
+        reader.onload = () => importFromText(String(reader.result || ''));
+        reader.readAsText(f);
+      };
+      return (
+        <div className="fixed inset-0 z-30 bg-bg/85 grid place-items-center p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+          <div className="w-full max-w-[480px] bg-surface border border-border">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+              <div className="font-display text-base text-ink">Import intake responses</div>
+              <button onClick={onClose} className="text-ink3 hover:text-red text-base leading-none">×</button>
+            </div>
+            <div className="px-5 py-5">
+              <div className="text-[12px] text-ink2 mb-4 leading-relaxed">Upload the .json file the prospect returned, or paste its contents. We route straight to the review screen.</div>
+              <label className="block w-full bg-surface2 border border-dashed border-border2 hover:border-red/60 cursor-pointer text-center py-6 mb-3">
+                <input type="file" accept=".json,application/json" onChange={onFile} className="hidden" />
+                <div className="text-[11px] font-mono uppercase tracking-widest text-ink2">↑ Choose .json file</div>
+              </label>
+              <div className="text-[10px] font-mono uppercase tracking-widest text-ink3 mb-2">Or paste</div>
+              <textarea value={pasted} onChange={e => setPasted(e.target.value)} rows={5}
+                placeholder='{ "schema": "altmeridian.intake.v1", "questions": [...] }'
+                className="w-full bg-surface2 border border-border px-3 py-2 text-[11px] font-mono text-ink focus:border-red outline-none mb-3" />
+              {err && <div className="text-[11px] font-mono text-red mb-3 border-l-2 border-red bg-red/5 px-3 py-2">{err}</div>}
+              <button onClick={() => importFromText(pasted)} disabled={busy || !pasted.trim()} className="w-full bg-red hover:bg-red/90 disabled:opacity-30 text-white py-2 text-[11px] font-mono uppercase tracking-widest">{busy ? 'Importing…' : 'Import pasted →'}</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function InputsTab({ scenarios, defs, values, tier, onSlide, onCommit, onPreset, engagement, onSessionWritten }) {
       const groups = useMemo(() => groupInputsByScenario(scenarios, defs), [scenarios, defs]);
+      const [shareOpen, setShareOpen] = useState(false);
+      const [reviewOpen, setReviewOpen] = useState(false);
+      const [importOpen, setImportOpen] = useState(false);
+      const session = parseIntakeSession(engagement?.notes);
+      const reviewDefs = useMemo(() => session?.curated_input_keys
+        ? session.curated_input_keys.map(k => defs.find(d => d.input_key === k)).filter(Boolean)
+        : [], [session, defs]);
       if (!defs?.length) return <div className="p-8 font-mono text-xs text-ink3">No inputs defined for this domain.</div>;
       return (
         <div className="max-w-[920px] mx-auto px-4 sm:px-8 py-8">
-          <div className="flex items-center justify-between mb-6 gap-4">
+          <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
             <div className="text-[10px] font-mono uppercase tracking-widest text-ink2">{defs.length} inputs · {Object.keys(values).filter(k => values[k]?.provided_value != null).length} provided</div>
-            <PresetStrip tier={tier} onPreset={onPreset} />
+            <div className="flex items-center gap-2">
+              <button onClick={() => setShareOpen(true)} className={session ? 'text-[11px] font-mono uppercase tracking-widest border border-border2 hover:border-red px-2.5 py-1.5 text-ink' : 'bg-red hover:bg-red/90 text-white px-3 py-1.5 text-[11px] font-mono uppercase tracking-widest'}>
+                {session ? `◆ Sent · ${fmtRelative(session.shared_at)}` : 'Share intake →'}
+              </button>
+              <button onClick={() => setImportOpen(true)} title="Import a returned intake .json file" className="text-[11px] font-mono uppercase tracking-widest border border-border2 hover:border-red/60 text-ink2 hover:text-ink px-2.5 py-1.5">↑ Import</button>
+              <PresetStrip tier={tier} onPreset={onPreset} />
+            </div>
           </div>
+          <IntakeStatusBanner session={session} defs={reviewDefs} onReview={() => setReviewOpen(true)} />
+          {shareOpen && <ShareIntakeDialog engagement={engagement} defs={defs} scenarios={scenarios} values={values} onClose={() => setShareOpen(false)} onWritten={onSessionWritten} />}
+          {reviewOpen && session && reviewDefs.length > 0 && (
+            <IntakeReviewDialog engagement={engagement} session={session} defs={reviewDefs} currentValues={values}
+              onClose={() => setReviewOpen(false)} onApplied={onSessionWritten} />
+          )}
+          {importOpen && (
+            <ImportIntakeDialog engagement={engagement} defs={defs}
+              onClose={() => setImportOpen(false)}
+              onImported={(notes, sess) => { onSessionWritten(notes, sess); setReviewOpen(true); }} />
+          )}
           <div className="space-y-8">
             {groups.map(g => (
               <div key={g.name}>
@@ -1521,7 +1946,7 @@
             <main className="flex-1 overflow-auto">
               {tab === 'overview' ? <OverviewTab bundle={bundle} scenarios={scenarios} analysis={analysis} governed={governed} onTab={setTab} tags={tags} behavior={behavior} tone={tone} />
                 : tab === 'scenarios' ? <ScenariosTab scenarios={scenarios} analysis={analysis} onToggle={toggleScenario} behavior={behavior} />
-                : tab === 'inputs' ? <InputsTab scenarios={scenarios} defs={bundle.defs} values={values} tier={tier} onSlide={slideInput} onCommit={commitInput} onPreset={applyPreset} />
+                : tab === 'inputs' ? <InputsTab scenarios={scenarios} defs={bundle.defs} values={values} tier={tier} onSlide={slideInput} onCommit={commitInput} onPreset={applyPreset} engagement={bundle.engagement} onSessionWritten={(notes, _sess, valuesPatch) => setBundle(b => b ? { ...b, engagement: { ...b.engagement, notes }, ...(valuesPatch ? { values: valuesPatch } : {}) } : b)} />
                 : tab === 'outputs' ? <OutputsTab scenarios={scenarios} analysis={analysis} tier={tier} onPreset={applyPreset} />
                 : <SnapshotsTab snapshots={bundle.snapshots || []} onSave={saveSnapshot} />}
             </main>

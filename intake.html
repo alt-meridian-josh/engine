@@ -1,0 +1,347 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Value-case intake</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: {
+      colors: {
+        bg:'#0e0e0e', surface:'#141414', surface2:'#1a1a1a',
+        border:'#222222', border2:'#2d2d2d',
+        ink:'#e8e8e8', ink2:'#888888', ink3:'#444444',
+        red:'#d63b2f', 'red-dim':'rgba(214,59,47,0.10)',
+        green:'#2d7d4f', amber:'#b45309'
+      },
+      fontFamily: { display:['Syne','sans-serif'], mono:['"DM Mono"','monospace'], sans:['Syne','system-ui','sans-serif'] }
+    } } };
+  </script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    html, body, #root { height: 100%; }
+    body { background:#0e0e0e; color:#e8e8e8; font-family:'Syne', system-ui, sans-serif; }
+    input, textarea, button, select { font-family: inherit; }
+    @media screen { .print-only { display: none !important; } }
+    @media print {
+      .screen-only { display: none !important; }
+      html, body { background: #fff !important; color: #000 !important; }
+      .print-only { display: block; padding: 0; max-width: 6.5in; margin: 0 auto; font-family: Georgia, 'Times New Roman', serif; }
+      .print-only h1 { font-size: 20pt; margin: 0 0 4pt; font-weight: 600; }
+      .print-only h2 { font-size: 12pt; margin: 0 0 4pt; color: #555; font-weight: 400; }
+      .print-only .lead { font-size: 10pt; margin: 0 0 24pt; color: #555; }
+      .print-only .q { page-break-inside: avoid; margin: 0 0 22pt; padding-bottom: 16pt; border-bottom: 1px solid #e0e0e0; }
+      .print-only .q h3 { font-size: 12pt; margin: 0 0 4pt; font-weight: 600; }
+      .print-only .bench { font-size: 10pt; margin: 0 0 14pt; color: #555; }
+      .print-only .ans { font-size: 11pt; margin: 0 0 8pt; border-bottom: 1px solid #999; min-height: 24pt; padding-top: 14pt; }
+      .print-only .skip { font-size: 9pt; color: #777; margin: 0; }
+      .print-only .footer { font-size: 9pt; color: #555; margin-top: 28pt; border-top: 1px solid #ccc; padding-top: 10pt; }
+    }
+  </style>
+</head>
+<body class="bg-bg text-ink">
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useMemo, useRef } = React;
+
+    /* ---------- SUPABASE ---------- */
+    const SUPABASE_URL = 'https://kpecdezcolcycgpuqbgs.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwZWNkZXpjb2xjeWNncHVxYmdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2ODIyMDYsImV4cCI6MjA5MTI1ODIwNn0.rKHzdjjkYToEZWdS0ngg3Kgigh_gDWt5cRbLBCE44rg';
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    /* ---------- INTAKE HELPERS (mirror of workspace2.html) ---------- */
+    function parseIntakeSession(notes) {
+      const m = String(notes || '').match(/^INTAKE_SESSION:(\{[\s\S]*?\})\s*(?:\n|$)/m);
+      if (!m) return null;
+      try { return JSON.parse(m[1]); } catch { return null; }
+    }
+    async function writeIntakeSession(engagementId, currentNotes, sessionObj) {
+      const stripped = String(currentNotes || '').replace(/^INTAKE_SESSION:\{[\s\S]*?\}\s*\n?/m, '').trim();
+      const line = 'INTAKE_SESSION:' + JSON.stringify(sessionObj);
+      const next = stripped ? stripped + '\n\n' + line : line;
+      const { error } = await sb.from('vef_engagements').update({ notes: next }).eq('engagement_id', engagementId);
+      if (error) throw error;
+      return next;
+    }
+    async function loadEngagementByToken(token) {
+      const { data, error } = await sb.from('vef_engagements').select('*').ilike('notes', '%' + token + '%').limit(1);
+      if (error) throw error;
+      return data?.[0] || null;
+    }
+    async function loadCuratedInputDefs(domainId, keys) {
+      if (!keys?.length) return [];
+      const { data, error } = await sb.from('vef_input_definitions').select('*').eq('domain_id', domainId).in('input_key', keys);
+      if (error) throw error;
+      const seen = new Set();
+      return (data || []).filter(r => seen.has(r.input_key) ? false : (seen.add(r.input_key), true));
+    }
+
+    /* ---------- DOWNLOAD + PRINT HELPERS ---------- */
+    // JSON export: machine-readable round-trip bundle. Same shape used by
+    // the workspace2 share dialog for blank templates and by intake.html's
+    // Submitted screen for the completed copy.
+    function buildIntakePayload(engagement, session, defs) {
+      return {
+        schema: 'altmeridian.intake.v1',
+        customer: engagement.prospect_name || null,
+        analysis: engagement.analysis_name || null,
+        share_token: session?.share_token || null,
+        exported_at: new Date().toISOString(),
+        questions: defs.map(d => ({
+          input_key: d.input_key,
+          question: d.discovery_prompt || d.input_label || d.input_key,
+          unit: d.input_unit || null,
+          benchmark: d.typical_value ?? d.default_value ?? null,
+          response: session?.responses?.[d.input_key] || null
+        }))
+      };
+    }
+    function downloadJson(filename, payload) {
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = filename; document.body.appendChild(a); a.click();
+      a.remove(); URL.revokeObjectURL(url);
+    }
+    function intakeFileSlug(engagement) {
+      return ((engagement.prospect_name || engagement.analysis_name || 'analysis').toLowerCase().replace(/\W+/g, '-').replace(/^-|-$/g, '') || 'analysis');
+    }
+
+    /* ---------- PRINT WORKSHEET (always rendered, hidden on screen) ---------- */
+    function PrintWorksheet({ engagement, defs }) {
+      if (!engagement || !defs?.length) return null;
+      return (
+        <div className="print-only">
+          <h1>Value-case intake</h1>
+          <h2>{engagement.prospect_name || 'Customer'}</h2>
+          <p className="lead">{engagement.analysis_name ? engagement.analysis_name + ' · ' : ''}Please return this to your account team or fill it in online.</p>
+          {defs.map((d, i) => {
+            const benchmark = d.typical_value ?? d.default_value;
+            return (
+              <section key={d.input_key} className="q">
+                <h3>{i + 1}. {d.discovery_prompt || d.input_label || d.input_key}</h3>
+                {benchmark != null && <p className="bench">Industry benchmark: {Number(benchmark).toLocaleString()}{d.input_unit ? ' ' + d.input_unit : ''}</p>}
+                <div className="ans">Your number: &nbsp;</div>
+                <p className="skip">[ ] Skip — not sure</p>
+              </section>
+            );
+          })}
+          <p className="footer">Return this to your account team. If you'd rather submit online, open the link they emailed you.</p>
+        </div>
+      );
+    }
+
+    /* ---------- LAYOUT PRIMITIVES ---------- */
+    function Centered({ children }) {
+      return <div className="min-h-full grid place-items-center px-6 py-8 screen-only">{children}</div>;
+    }
+    function ProgressDots({ index, total }) {
+      return (
+        <div className="flex items-center gap-1.5 mb-8">
+          {Array.from({ length: total }, (_, i) => (
+            <span key={i} className={`w-2 h-2 rounded-full transition-colors ${i < index ? 'bg-red opacity-50' : i === index ? 'bg-red' : 'bg-border2'}`} />
+          ))}
+          <span className="text-[10px] font-mono text-ink3 ml-2">{index + 1} of {total}</span>
+        </div>
+      );
+    }
+
+    /* ---------- QUESTION + REVIEW SCREENS ---------- */
+    function Question({ def, response, total, index, onAnswer, onBack }) {
+      const benchmark = Number(def.typical_value ?? def.default_value ?? 0);
+      const inputRef = useRef(null);
+      const [draft, setDraft] = useState(() => response?.value != null ? String(response.value) : '');
+      useEffect(() => { setDraft(response?.value != null ? String(response.value) : ''); }, [def.input_key]);
+      const commitTyped = () => {
+        const n = parseFloat(draft);
+        if (isNaN(n)) return;
+        onAnswer({ source: n === benchmark ? 'confirmed' : 'edited', value: n });
+      };
+      return (
+        <Centered>
+          <div className="max-w-[480px] w-full py-6 sm:py-12">
+            <ProgressDots index={index} total={total} />
+            <div className="font-display text-xl sm:text-2xl text-ink leading-snug mb-6">
+              {def.discovery_prompt || def.input_label || 'Help us with this number.'}
+            </div>
+            <div className="flex items-baseline gap-2 mb-2">
+              <input ref={inputRef} type="number" value={draft} onChange={e => setDraft(e.target.value)}
+                placeholder={String(benchmark)} inputMode="decimal"
+                className="flex-1 bg-surface border border-border px-4 py-3 text-2xl font-display text-ink placeholder:text-ink3 focus:border-red outline-none" />
+              {def.input_unit && <span className="text-[12px] font-mono text-ink2">{def.input_unit}</span>}
+            </div>
+            <div className="text-[11px] font-mono text-ink3 mb-6">Industry benchmark · {benchmark.toLocaleString()} {def.input_unit || ''}</div>
+            <div className="space-y-2">
+              <button onClick={() => onAnswer({ source: 'confirmed', value: benchmark })}
+                className="w-full bg-green/20 border border-green/40 hover:bg-green/30 text-green py-2.5 text-[12px] font-mono uppercase tracking-widest">
+                ✓ Use this benchmark · {benchmark.toLocaleString()}{def.input_unit ? ' ' + def.input_unit : ''}
+              </button>
+              <button onClick={() => inputRef.current?.focus()}
+                className="w-full border border-border2 hover:border-red/60 hover:bg-red/5 text-ink py-2.5 text-[11px] font-mono uppercase tracking-widest">Enter my number</button>
+              <button onClick={() => onAnswer({ source: 'skipped', value: null })}
+                className="w-full text-[11px] font-mono uppercase tracking-widest text-ink3 hover:text-ink py-2">Skip — not sure</button>
+            </div>
+            <div className="mt-8 flex items-center justify-between">
+              <button onClick={onBack} className="text-[11px] font-mono uppercase tracking-widest text-ink2 hover:text-red">← Back</button>
+              <button onClick={commitTyped} disabled={!draft || parseFloat(draft) === benchmark}
+                className="bg-red hover:bg-red/90 disabled:opacity-30 text-white px-4 py-2 text-[11px] font-mono uppercase tracking-widest">Next →</button>
+            </div>
+          </div>
+        </Centered>
+      );
+    }
+
+    function Review({ defs, responses, onJump, onSubmit, busy }) {
+      const answeredCount = defs.filter(d => responses[d.input_key]).length;
+      return (
+        <Centered>
+          <div className="max-w-[480px] w-full py-6 sm:py-12">
+            <div className="font-display text-2xl sm:text-3xl text-ink mb-2">Quick review.</div>
+            <div className="text-[13px] text-ink2 mb-6">{answeredCount} of {defs.length} answered. Tap any row to change.</div>
+            <div className="space-y-2 mb-8">
+              {defs.map((d, idx) => {
+                const r = responses[d.input_key];
+                const status = !r ? 'pending' : r.source;
+                const chip = status === 'confirmed' ? { label: '✓ Confirmed', cls: 'text-green' }
+                           : status === 'edited'    ? { label: '◐ Edited',    cls: 'text-red' }
+                           : status === 'skipped'   ? { label: '○ Skipped',   cls: 'text-ink3' }
+                           : { label: '— Pending', cls: 'text-amber' };
+                const display = r?.value != null ? r.value.toLocaleString() + (d.input_unit ? ' ' + d.input_unit : '') : status === 'skipped' ? '—' : 'not yet answered';
+                return (
+                  <button key={d.input_key} onClick={() => onJump(idx)} className="w-full text-left bg-surface border border-border hover:border-border2 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[12px] text-ink truncate">{d.discovery_prompt || d.input_label || d.input_key.replace(/_/g, ' ')}</div>
+                        <div className="text-[11px] font-mono text-ink2 mt-0.5">{display}</div>
+                      </div>
+                      <div className={`text-[10px] font-mono uppercase tracking-widest flex-shrink-0 ${chip.cls}`}>{chip.label}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <button onClick={onSubmit} disabled={busy} className="w-full bg-red hover:bg-red/90 disabled:opacity-50 text-white py-3 text-[12px] font-display tracking-wide">
+              {busy ? 'Sending…' : 'Send back to your account team →'}
+            </button>
+          </div>
+        </Centered>
+      );
+    }
+
+    /* ---------- APP ---------- */
+    function App() {
+      const token = useMemo(() => new URLSearchParams(location.search).get('s'), []);
+      const [engagement, setEngagement] = useState(null);
+      const [session, setSession] = useState(null);
+      const [defs, setDefs] = useState([]);
+      const [stage, setStage] = useState('loading');
+      const [err, setErr] = useState('');
+      const [responses, setResponses] = useState({});
+      const [questionIndex, setQuestionIndex] = useState(0);
+      const [busy, setBusy] = useState(false);
+      useEffect(() => {
+        if (!token) { setErr('This intake link is missing its session token.'); setStage('error'); return; }
+        (async () => {
+          try {
+            const eng = await loadEngagementByToken(token);
+            if (!eng) { setErr('This intake link is invalid or has been replaced. Ask your account team for a fresh link.'); setStage('error'); return; }
+            const sess = parseIntakeSession(eng.notes);
+            if (!sess || sess.share_token !== token) { setErr('This intake link is invalid or has been replaced. Ask your account team for a fresh link.'); setStage('error'); return; }
+            const inputDefs = await loadCuratedInputDefs(eng.domain_id, sess.curated_input_keys);
+            setEngagement(eng); setSession(sess); setDefs(inputDefs);
+            setResponses(sess.responses || {});
+            // Resume to first unanswered question, else welcome.
+            const firstUn = (sess.curated_input_keys || []).findIndex(k => !(sess.responses || {})[k]);
+            if (firstUn > 0) setQuestionIndex(firstUn);
+            if (sess.status === 'submitted' || sess.status === 'applied') setStage('submitted');
+            else setStage('welcome');
+          } catch (e) { setErr(e.message || 'Failed to load intake.'); setStage('error'); }
+        })();
+      }, [token]);
+      const persist = async (newResponses, statusOverride) => {
+        if (!engagement || !session) return;
+        const status = statusOverride || (Object.keys(newResponses).length > 0 ? 'in_progress' : session.status);
+        const next = { ...session, responses: newResponses, status };
+        try {
+          const newNotes = await writeIntakeSession(engagement.engagement_id, engagement.notes, next);
+          setEngagement(e => ({ ...e, notes: newNotes }));
+          setSession(next);
+        } catch (e) { console.error('intake save failed', e); }
+      };
+      const onAnswer = ({ source, value }) => {
+        const def = defs[questionIndex]; if (!def) return;
+        const r = { ...responses, [def.input_key]: { value, source, at: new Date().toISOString() } };
+        setResponses(r); persist(r);
+        if (questionIndex + 1 < defs.length) setQuestionIndex(questionIndex + 1);
+        else setStage('review');
+      };
+      const onBack = () => { if (questionIndex > 0) setQuestionIndex(questionIndex - 1); else setStage('welcome'); };
+      const onJump = (idx) => { setQuestionIndex(idx); setStage('question'); };
+      const onSubmit = async () => { setBusy(true); try { await persist(responses, 'submitted'); setStage('submitted'); } finally { setBusy(false); } };
+      let screen = null;
+      if (stage === 'loading') screen = <Centered><div className="text-ink2 font-mono text-xs">Loading…</div></Centered>;
+      else if (stage === 'error') screen = <Centered><div className="max-w-[420px] text-center"><div className="text-red font-mono text-sm leading-relaxed">{err}</div></div></Centered>;
+      else if (stage === 'welcome') screen = <Welcome engagement={engagement} session={session} defs={defs} onBegin={() => setStage('question')} />;
+      else if (stage === 'question') {
+        const def = defs[questionIndex];
+        screen = def
+          ? <Question def={def} response={responses[def.input_key]} total={defs.length} index={questionIndex} onAnswer={onAnswer} onBack={onBack} />
+          : <Centered><div className="text-red font-mono text-sm">Question not found. Go back to review.</div></Centered>;
+      }
+      else if (stage === 'review') screen = <Review defs={defs} responses={responses} onJump={onJump} onSubmit={onSubmit} busy={busy} />;
+      else if (stage === 'submitted') screen = <Submitted engagement={engagement} session={session} defs={defs} />;
+      return <><PrintWorksheet engagement={engagement} defs={defs} />{screen}</>;
+    }
+
+    function Welcome({ engagement, session, defs, onBegin }) {
+      const customer = engagement.prospect_name || 'your team';
+      const analysis = engagement.analysis_name || '';
+      const count = defs.length || session?.curated_input_keys?.length || 5;
+      return (
+        <Centered>
+          <div className="max-w-[480px] py-8 sm:py-12">
+            <div className="text-[11px] font-mono uppercase tracking-widest text-ink3 mb-3">Hi from your account team.</div>
+            <div className="font-display text-2xl sm:text-3xl text-ink leading-tight mb-6">We're modeling the value case for <span className="text-red">{customer}</span>.</div>
+            <div className="text-[14px] text-ink2 leading-relaxed mb-8">
+              {count} quick questions about how things actually work today on your side. Confirm our industry benchmarks where you don't have a real number, or share yours if you do. About 5 minutes. You can save and come back anytime.
+            </div>
+            <button onClick={onBegin} className="bg-red hover:bg-red/90 text-white px-6 py-3 text-[12px] font-display tracking-wide">Begin →</button>
+            <div className="mt-6 flex flex-wrap gap-3 text-[10px] font-mono uppercase tracking-widest">
+              <button onClick={() => window.print()} className="text-ink2 hover:text-red">↓ Print worksheet</button>
+              <button onClick={() => downloadJson('intake-' + intakeFileSlug(engagement) + '.json', buildIntakePayload(engagement, session, defs))} className="text-ink2 hover:text-red">↓ Download .json</button>
+            </div>
+            {analysis && <div className="text-[10px] font-mono uppercase tracking-widest text-ink3 mt-12 pt-6 border-t border-border">{analysis}</div>}
+          </div>
+        </Centered>
+      );
+    }
+
+    function Submitted({ engagement, session, defs }) {
+      return (
+        <Centered>
+          <div className="max-w-[480px] py-8 sm:py-12">
+            <div className="text-[11px] font-mono uppercase tracking-widest text-green mb-3">✓ Sent</div>
+            <div className="font-display text-2xl sm:text-3xl text-ink leading-tight mb-6">Thanks — got it.</div>
+            <div className="text-[14px] text-ink2 leading-relaxed mb-8">
+              Your account team has been notified. They'll use these answers to build the value case and walk you through the result.
+            </div>
+            <div className="flex flex-wrap gap-3 text-[10px] font-mono uppercase tracking-widest">
+              <button onClick={() => downloadJson('intake-' + intakeFileSlug(engagement) + '.json', buildIntakePayload(engagement, session, defs))} className="text-ink2 hover:text-red">↓ Download a copy (.json)</button>
+              <button onClick={() => window.print()} className="text-ink2 hover:text-red">↓ Print receipt</button>
+            </div>
+            <div className="text-[10px] font-mono uppercase tracking-widest text-ink3 pt-6 mt-8 border-t border-border">Alt Meridian{engagement?.analysis_name ? ' · ' + engagement.analysis_name : ''}</div>
+          </div>
+        </Centered>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
