@@ -10,8 +10,18 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = { theme: { extend: {
-      colors: { bg:'#0e0e0e', surface:'#141414', surface2:'#1a1a1a', border1:'#222', border2:'#2d2d2d', ink:'#e8e8e8', ink2:'#888', ink3:'#444', red:'#d63b2f' },
-      fontFamily: { display:['Syne','sans-serif'], mono:['"DM Mono"','monospace'], sans:['Syne','system-ui','sans-serif'] }
+      colors: {
+        bg:'#0e0e0e', surface:'#141414', surface2:'#1a1a1a',
+        border:'#222222', border2:'#2d2d2d',
+        ink:'#e8e8e8', ink2:'#888888', ink3:'#444444',
+        red:'#d63b2f', 'red-dim':'rgba(214,59,47,0.10)',
+        green:'#2d7d4f', amber:'#b45309', blue:'#1d4ed8', teal:'#0f766e'
+      },
+      fontFamily: {
+        display:['Syne','sans-serif'],
+        mono:['"DM Mono"','monospace'],
+        sans:['Syne','system-ui','sans-serif']
+      }
     } } };
   </script>
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -20,8 +30,9 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     html, body, #root { height: 100%; }
-    body { background: #0e0e0e; color: #e8e8e8; font-family: 'Syne', system-ui, sans-serif; }
+    body { background:#0e0e0e; color:#e8e8e8; font-family:'Syne', system-ui, sans-serif; }
     input, textarea, button, select { font-family: inherit; }
+    input[type=range] { accent-color:#d63b2f; }
   </style>
 </head>
 <body class="bg-bg text-ink">
@@ -36,7 +47,6 @@
     async function sbSelect(table, q) {
       let b = sb.from(table).select('*');
       if (q?.eq) Object.entries(q.eq).forEach(([k, v]) => b = b.eq(k, v));
-      if (q?.in) Object.entries(q.in).forEach(([k, vs]) => b = b.in(k, vs));
       if (q?.limit) b = b.limit(q.limit);
       const { data, error } = await b;
       if (error) throw error;
@@ -97,7 +107,7 @@
     }
 
     /* ---------- FUZZY TOKENIZER (lesson 2026-04-24) ---------- */
-    // length >= 3, stopwords filtered, secondary 'strong' bucket gated at length >= 6
+    // length>=3 + stopwords filter; secondary 'strong' bucket gated at length>=6
     // for categorical fields (mechanism_label + value_theme).
     const STOPWORDS = new Set('the and for with from this that have been into were when what your you are our about over more some most all any can will would could should there their these those'.split(' '));
     function tokensFor(text) {
@@ -141,7 +151,6 @@
       }
       return best.scenario;
     }
-
     const VERDICTS = [
       { key: 'Accept',    color: '#86efac' },
       { key: 'Adjust',    color: '#fbbf24' },
@@ -150,42 +159,51 @@
     ];
     const VERDICT_BY = VERDICTS.reduce((m, v) => (m[v.key] = v, m), {});
     const cycleVerdict = (cur) => { const i = VERDICTS.findIndex(v => v.key === cur); return VERDICTS[(i + 1) % VERDICTS.length].key; };
-
     function VerdictChip({ verdict, onCycle }) {
       const v = VERDICT_BY[verdict] || VERDICTS[1];
       return (
-        <button onClick={onCycle} title="Click to cycle verdict"
+        <button onClick={onCycle} title="Click to cycle"
           className="text-[10px] font-mono uppercase tracking-widest px-2 py-0.5"
-          style={{ background: v.color + '22', color: v.color, border: '1px solid ' + v.color + '55' }}>
-          {v.key}
-        </button>
+          style={{ background: v.color + '22', color: v.color, border: '1px solid ' + v.color + '55' }}>{v.key}</button>
+      );
+    }
+    function ClaimCard({ claim, onCycle }) {
+      const v = VERDICT_BY[claim.verdict] || VERDICTS[1];
+      return (
+        <div className="bg-surface border-l-2 border border-border p-4 transition-colors" style={{ borderLeftColor: v.color }}>
+          <div className="flex items-start justify-between gap-3 mb-2">
+            <div className="font-display text-base text-ink min-w-0 flex-1">{claim.metric}</div>
+            <div className="font-mono text-base text-ink flex-shrink-0">{claim.value}</div>
+          </div>
+          <div className="flex items-center justify-between gap-3 pt-3 border-t border-border">
+            <div className="text-[11px] font-mono text-ink2 truncate min-w-0">{claim.scenario ? '→ ' + (claim.scenario.mechanism_label || claim.scenario.scenario_id) : <span className="text-ink3 italic">no match</span>}</div>
+            <VerdictChip verdict={claim.verdict} onCycle={onCycle} />
+          </div>
+        </div>
       );
     }
 
-    function Step0Import({ s, update, matchPool, setMatchPool, onSkip }) {
+    /* ---------- STEP 0 IMPORT ---------- */
+    function Step0Import({ s, update, matchPool, onSkip }) {
       const [busy, setBusy] = useState(false);
       const extract = async () => {
         if (!s.pasted.trim()) return;
         setBusy(true);
         try {
-          let pool = matchPool;
-          if (!pool) { pool = await loadAllScenarios(); setMatchPool(pool); }
-          const claims = extractClaims(s.pasted).map(c => ({ ...c, scenario: matchClaim(c, pool), verdict: 'Adjust' }));
+          const claims = extractClaims(s.pasted).map(c => ({ ...c, scenario: matchClaim(c, matchPool), verdict: 'Adjust' }));
           update({ claims, extracted: true });
         } finally { setBusy(false); }
       };
-      const cycleClaim = (i) => {
-        update({ claims: s.claims.map((c, idx) => idx === i ? { ...c, verdict: cycleVerdict(c.verdict) } : c) });
-      };
+      const cycleClaim = (i) => update({ claims: s.claims.map((c, idx) => idx === i ? { ...c, verdict: cycleVerdict(c.verdict) } : c) });
       return (
         <div>
-          <div className="text-[12px] text-ink2 mb-3 leading-relaxed">Paste a vendor's ROI claim, case study excerpt, or marketing one-pager. We'll extract the quantitative claims and try to map each to a value mechanism in our framework.</div>
+          <div className="text-[12px] text-ink2 mb-3 leading-relaxed">Paste a vendor's ROI claim, case study excerpt, or marketing one-pager. We'll extract the quantitative claims and try to map each to a value mechanism.</div>
           <textarea value={s.pasted} onChange={e => update({ pasted: e.target.value })}
-            rows={8} placeholder={'e.g. "Customers see 30% reduction in inventory shrinkage and save $400K annually in labor costs by using our RFID solution. Picking accuracy improves to 99.9%."'}
-            className="w-full bg-surface border border-border1 px-3 py-2 text-sm focus:border-red outline-none mb-3" />
+            rows={7} placeholder={'e.g. "Customers see 30% reduction in inventory shrinkage and save $400K annually in labor costs by using our RFID solution. Picking accuracy improves to 99.9%."'}
+            className="w-full bg-surface border border-border px-3 py-2.5 text-sm focus:border-red outline-none mb-3" />
           <div className="flex items-center gap-3 mb-6">
             <button onClick={extract} disabled={busy || !s.pasted.trim()}
-              className="bg-red hover:bg-red/90 disabled:opacity-40 text-white px-4 py-2 text-[11px] font-mono uppercase tracking-widest">{busy ? 'Extracting…' : 'Extract & Map →'}</button>
+              className="bg-red hover:bg-red/90 disabled:opacity-40 text-white px-4 py-2 text-[11px] font-mono uppercase tracking-widest">{busy ? 'Extracting…' : 'Extract & map →'}</button>
             <button onClick={onSkip} className="text-[11px] font-mono text-ink2 hover:text-red uppercase tracking-widest">Skip →</button>
           </div>
           {s.extracted && s.claims.length === 0 && (
@@ -194,17 +212,8 @@
           {s.claims.length > 0 && (
             <div>
               <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-3">{s.claims.length} extracted claims</div>
-              <div className="space-y-2">
-                {s.claims.map((c, i) => (
-                  <div key={i} className="bg-surface border border-border1 px-4 py-3 grid grid-cols-12 gap-3 items-center">
-                    <div className="col-span-6">
-                      <div className="text-sm text-ink truncate">{c.metric}</div>
-                      <div className="text-[10px] font-mono text-ink3 mt-0.5 truncate">{c.scenario ? '→ ' + (c.scenario.mechanism_label || c.scenario.scenario_id) : 'no match'}</div>
-                    </div>
-                    <div className="col-span-3 font-mono text-sm text-ink">{c.value}</div>
-                    <div className="col-span-3 flex justify-end"><VerdictChip verdict={c.verdict} onCycle={() => cycleClaim(i)} /></div>
-                  </div>
-                ))}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {s.claims.map((c, i) => <ClaimCard key={i} claim={c} onCycle={() => cycleClaim(i)} />)}
               </div>
             </div>
           )}
@@ -212,11 +221,11 @@
       );
     }
 
-    /* ---------- STEP 1 — CONTEXT ---------- */
+    /* ---------- STEP 1 CONTEXT ---------- */
     function OutcomeTile({ outcome, selected, onToggle }) {
       return (
         <button onClick={() => onToggle(outcome.key)}
-          className={`text-left p-4 border transition-colors ${selected ? 'border-red bg-red/10' : 'border-border1 bg-surface hover:border-border2'}`}>
+          className={`text-left p-4 border transition-colors ${selected ? 'border-red bg-red/10' : 'border-border bg-surface hover:border-border2'}`}>
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full" style={{ background: outcome.color }} />
             <span className="font-display text-base text-ink">{outcome.key}</span>
@@ -228,7 +237,7 @@
     function DomainTile({ domain, count, selected, onSelect }) {
       return (
         <button onClick={() => onSelect(domain.domain_id)}
-          className={`text-left p-3 border transition-colors ${selected ? 'border-red bg-red/10' : 'border-border1 bg-surface hover:border-border2'}`}>
+          className={`text-left p-3 border transition-colors ${selected ? 'border-red bg-red/10' : 'border-border bg-surface hover:border-border2'}`}>
           <div className="font-display text-sm text-ink truncate">{cleanDomainName(domain.domain_name) || domain.domain_id}</div>
           <div className="flex items-center justify-between mt-2">
             <span className="text-[10px] font-mono uppercase tracking-wider text-ink3">{domain.technology || 'Other'}</span>
@@ -237,19 +246,18 @@
         </button>
       );
     }
-    function Step1Context({ s, update, matchPool, setMatchPool }) {
-      const [domains, setDomains] = useState({});
-      const [domainsLoaded, setDomainsLoaded] = useState(false);
-      useEffect(() => {
-        (async () => {
-          const [doms, pool] = await Promise.all([
-            loadDomains(),
-            matchPool ? Promise.resolve(matchPool) : loadAllScenarios()
-          ]);
-          setDomains(doms); setDomainsLoaded(true);
-          if (!matchPool) setMatchPool(pool);
-        })();
-      }, []);
+    // MetaPills (Rule 1: kill forms — 3 inline placeholder inputs, no labels)
+    function MetaPills({ s, update }) {
+      const cls = "bg-surface border border-border px-3 py-2 text-sm font-mono text-ink placeholder:text-ink3 focus:border-red outline-none";
+      return (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <input value={s.analysis_name} onChange={e => update({ analysis_name: e.target.value })} placeholder="analysis name" className={cls} />
+          <input value={s.customer} onChange={e => update({ customer: e.target.value })} placeholder="customer" className={cls} />
+          <input value={s.vendor} onChange={e => update({ vendor: e.target.value })} placeholder="vendor" className={cls} />
+        </div>
+      );
+    }
+    function Step1Context({ s, update, matchPool, domains }) {
       const scenarioCounts = useMemo(() => {
         const m = {}; (matchPool || []).forEach(sc => { m[sc.domain_id] = (m[sc.domain_id] || 0) + 1; }); return m;
       }, [matchPool]);
@@ -265,80 +273,66 @@
       return (
         <div>
           <div className="text-[12px] text-ink2 mb-4 leading-relaxed">Pick the business outcomes this analysis is targeting. Multi-select.</div>
-          <div className="grid grid-cols-2 gap-3 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
             {OUTCOMES.map(o => <OutcomeTile key={o.key} outcome={o} selected={s.outcomes.includes(o.key)} onToggle={toggleOutcome} />)}
           </div>
           {s.outcomes.length > 0 && (
             <>
               <div className="text-[10px] font-mono uppercase tracking-widest text-red mb-3">Where does this apply?</div>
-              {!domainsLoaded ? (
+              {Object.keys(domains).length === 0 ? (
                 <div className="text-[11px] font-mono text-ink3 italic mb-8">Loading domains…</div>
               ) : filteredDomains.length === 0 ? (
                 <div className="text-[11px] font-mono text-ink3 italic mb-8">No domains match the selected outcomes.</div>
               ) : (
-                <div className="grid grid-cols-3 gap-2 mb-8">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-8">
                   {filteredDomains.map(d => <DomainTile key={d.domain_id} domain={d} count={scenarioCounts[d.domain_id] || 0} selected={s.domain === d.domain_id} onSelect={(id) => update({ domain: id })} />)}
                 </div>
               )}
             </>
           )}
-          <div className="grid grid-cols-3 gap-3 mb-6">
-            <div>
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-ink2 mb-1">Analysis Name</label>
-              <input value={s.analysis_name} onChange={e => update({ analysis_name: e.target.value })}
-                placeholder="e.g. ACME RFID Q1 Analysis" className="w-full bg-surface border border-border1 px-3 py-2 text-sm focus:border-red outline-none" />
-            </div>
-            <div>
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-ink2 mb-1">Customer</label>
-              <input value={s.customer} onChange={e => update({ customer: e.target.value })}
-                placeholder="e.g. ACME Corp" className="w-full bg-surface border border-border1 px-3 py-2 text-sm focus:border-red outline-none" />
-            </div>
-            <div>
-              <label className="block text-[10px] font-mono uppercase tracking-widest text-ink2 mb-1">Vendor</label>
-              <input value={s.vendor} onChange={e => update({ vendor: e.target.value })}
-                placeholder="e.g. Zebra" className="w-full bg-surface border border-border1 px-3 py-2 text-sm focus:border-red outline-none" />
-            </div>
+          <div className="mb-3">
+            <div className="text-[10px] font-mono uppercase tracking-widest text-ink3 mb-2">Tag this analysis</div>
+            <MetaPills s={s} update={update} />
           </div>
-          <div>
-            <button onClick={() => update({ whatToProveOpen: !s.whatToProveOpen })}
-              className="text-[10px] font-mono uppercase tracking-widest text-ink2 hover:text-red flex items-center gap-1.5">
-              <span className="text-ink3">{s.whatToProveOpen ? '▾' : '▸'}</span>
-              {s.whatToProveOpen ? "What we're trying to prove" : 'Add context +'}
-            </button>
-            {s.whatToProveOpen && (
-              <textarea value={s.whatToProve} onChange={e => update({ whatToProve: e.target.value })}
-                rows={3} placeholder="What's the question this analysis needs to answer? (Optional but valuable.)"
-                className="w-full mt-2 bg-surface border border-border1 px-3 py-2 text-sm focus:border-red outline-none" />
-            )}
-          </div>
+          <button onClick={() => update({ whatToProveOpen: !s.whatToProveOpen })}
+            className="text-[10px] font-mono uppercase tracking-widest text-ink2 hover:text-red flex items-center gap-1.5 mt-3">
+            <span className="text-ink3">{s.whatToProveOpen ? '▾' : '▸'}</span>
+            {s.whatToProveOpen ? "What we're trying to prove" : 'Add context +'}
+          </button>
+          {s.whatToProveOpen && (
+            <textarea value={s.whatToProve} onChange={e => update({ whatToProve: e.target.value })}
+              rows={3} placeholder="What's the question this analysis needs to answer?"
+              className="w-full mt-2 bg-surface border border-border px-3 py-2 text-sm focus:border-red outline-none" />
+          )}
         </div>
       );
     }
 
-    /* ---------- STEP 2 — SCENARIOS ---------- */
-    function ScenarioPickCard({ scenario, checked, recommended, matched, onToggle }) {
+    /* ---------- STEP 2 SCENARIOS ---------- */
+    function ScenarioPickRow({ scenario, checked, recommended, matched, onToggle }) {
       const ev = scenario.evidence_strength || 'Moderate';
       const evColor = ev === 'Strong' ? '#86efac' : ev === 'Weak' ? '#f87171' : '#fbbf24';
+      const evPct = ev === 'Strong' ? 100 : ev === 'Weak' ? 30 : 60;
       const themeC = themeColor(scenario.value_theme);
       return (
         <button onClick={() => onToggle(scenario.scenario_id)}
-          className={`w-full text-left p-4 border transition-colors ${checked ? 'border-red bg-red/10' : 'border-border1 bg-surface hover:border-border2'}`}>
-          <div className="flex items-start gap-3">
-            <span className={`mt-1 w-4 h-4 border flex items-center justify-center flex-shrink-0 ${checked ? 'bg-red border-red' : 'border-border2'}`}>
-              {checked && <span className="text-white text-[10px]">✓</span>}
-            </span>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                {scenario.value_theme && <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5" style={{ background: themeC + '22', color: themeC }}>{scenario.value_theme}</span>}
-                {recommended && <span className="text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 bg-green-900/40 text-green-300">Recommended</span>}
-                {matched && <span className="text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 bg-red/20 text-red">Matched</span>}
-              </div>
-              <div className="font-display text-sm text-ink truncate">{scenario.mechanism_label || scenario.scenario_label || 'Untitled'}</div>
-              <div className="text-[11px] text-ink2 mt-1 leading-relaxed">{scenario.one_liner || scenario.scenario_description || ''}</div>
+          className={`w-full text-left grid grid-cols-12 gap-3 items-center p-3 border transition-colors ${checked ? 'bg-red/10 border-red' : 'border-border bg-surface hover:border-border2'}`}>
+          <span className={`col-span-1 w-4 h-4 border flex items-center justify-center flex-shrink-0 ${checked ? 'bg-red border-red' : 'border-border2'}`}>
+            {checked && <span className="text-white text-[10px]">✓</span>}
+          </span>
+          <div className="col-span-7 sm:col-span-6 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              {scenario.value_theme && <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5" style={{ background: themeC + '22', color: themeC }}>{scenario.value_theme}</span>}
+              {recommended && <span className="text-[9px] font-mono uppercase tracking-widest text-green">★ Recommended</span>}
+              {matched && <span className="text-[9px] font-mono uppercase tracking-widest text-red">↳ Matched</span>}
             </div>
-            <div className="flex-shrink-0 text-right">
-              <span className="text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 border" style={{ borderColor: evColor + '55', color: evColor }}>{ev}</span>
+            <div className="text-sm text-ink truncate mt-0.5">{scenario.mechanism_label || scenario.scenario_label || 'Untitled'}</div>
+          </div>
+          <div className="col-span-4 sm:col-span-5 flex items-center gap-2">
+            <div className="flex-1 h-1 bg-surface2 relative">
+              <div className="absolute inset-y-0 left-0" style={{ width: evPct + '%', background: evColor }} />
             </div>
+            <span className="text-[9px] font-mono uppercase tracking-widest flex-shrink-0" style={{ color: evColor }}>{ev}</span>
           </div>
         </button>
       );
@@ -347,7 +341,6 @@
       const pool = useMemo(() => {
         if (!s.domain || !matchPool) return [];
         let list = matchPool.filter(sc => sc.domain_id === s.domain);
-        // RFID fallback baked in: if domain looks RFID-synthetic and has no scenarios, try RFD
         if (!list.length) list = matchPool.filter(sc => sc.domain_id === 'RFD');
         return list;
       }, [matchPool, s.domain]);
@@ -372,13 +365,13 @@
       };
       const selectAll = () => update({ selectedScenarios: new Set(filtered.map(sc => sc.scenario_id)) });
       const clearAll = () => update({ selectedScenarios: new Set() });
-      if (!s.domain) return <div className="text-[12px] font-mono text-ink3 italic">Pick a domain in Step 1 first.</div>;
+      if (!s.domain) return <div className="text-[12px] font-mono text-ink3 italic">Pick a domain in step 1 first.</div>;
       return (
         <div>
-          <div className="text-[12px] text-ink2 mb-4 leading-relaxed">{pool.length} mechanisms in this domain. Pick the ones that fit this customer's situation. The interpretation panel updates as you select.</div>
-          <div className="flex items-center gap-3 mb-3">
+          <div className="text-[12px] text-ink2 mb-4 leading-relaxed">{pool.length} mechanisms available. Pick the ones that fit this customer's situation — the interpretation panel updates live.</div>
+          <div className="flex items-center gap-2 mb-3">
             <input value={s.scenarioSearch} onChange={e => update({ scenarioSearch: e.target.value })}
-              placeholder="Search mechanisms…" className="flex-1 bg-surface border border-border1 px-3 py-2 text-sm focus:border-red outline-none" />
+              placeholder="search mechanisms…" className="flex-1 bg-surface border border-border px-3 py-2 text-sm font-mono text-ink placeholder:text-ink3 focus:border-red outline-none" />
             <button onClick={selectAll} className="text-[10px] font-mono uppercase tracking-widest text-ink2 hover:text-red">Select all</button>
             <button onClick={clearAll} className="text-[10px] font-mono uppercase tracking-widest text-ink2 hover:text-red">Clear</button>
           </div>
@@ -390,18 +383,16 @@
                 return (
                   <button key={t} onClick={() => toggleTheme(t)}
                     className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 transition-colors"
-                    style={{ background: on ? c + '33' : 'transparent', color: on ? c : '#888', border: '1px solid ' + (on ? c : '#222') }}>
-                    {t}
-                  </button>
+                    style={{ background: on ? c + '33' : 'transparent', color: on ? c : '#888', border: '1px solid ' + (on ? c : '#222') }}>{t}</button>
                 );
               })}
             </div>
           )}
-          <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-3">{s.selectedScenarios.size} of {filtered.length} selected</div>
+          <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-2">{s.selectedScenarios.size} of {filtered.length} selected</div>
           <div className="space-y-2 max-h-[640px] overflow-auto pr-1">
             {filtered.length === 0 && <div className="text-[11px] font-mono text-ink3 italic">No mechanisms match the current filters.</div>}
             {filtered.map(sc => (
-              <ScenarioPickCard key={sc.scenario_id} scenario={sc} checked={s.selectedScenarios.has(sc.scenario_id)}
+              <ScenarioPickRow key={sc.scenario_id} scenario={sc} checked={s.selectedScenarios.has(sc.scenario_id)}
                 recommended={!!sc.active_by_default} matched={matchedIds.has(sc.scenario_id)} onToggle={toggle} />
             ))}
           </div>
@@ -409,7 +400,7 @@
       );
     }
 
-    /* ---------- STEP 3 — EVIDENCE & AUDIT ---------- */
+    /* ---------- STEP 3 EVIDENCE ---------- */
     function evidenceStatus(scenario) {
       const ev = scenario.evidence_strength || 'Moderate';
       const ids = String(scenario.evidence_ids || '').split(',').map(x => x.trim()).filter(Boolean);
@@ -419,27 +410,26 @@
       return { label: 'Assumption', color: '#f87171' };
     }
     function EvidenceCoverageTable({ scenarios }) {
-      if (!scenarios.length) return <div className="text-[11px] font-mono text-ink3 italic">Pick at least one scenario in Step 2.</div>;
+      if (!scenarios.length) return <div className="text-[11px] font-mono text-ink3 italic">Pick at least one scenario in step 2.</div>;
       return (
         <table className="w-full">
           <thead>
-            <tr className="border-b border-border1">
-              <th className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">Scenario</th>
-              <th className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">Evidence</th>
-              <th className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">Sources</th>
-              <th className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">Status</th>
+            <tr className="border-b border-border">
+              {['Scenario', 'Evidence', 'Sources', 'Status'].map(h => (
+                <th key={h} className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">{h}</th>
+              ))}
             </tr>
           </thead>
           <tbody>
             {scenarios.map(sc => {
               const ids = String(sc.evidence_ids || '').split(',').map(x => x.trim()).filter(Boolean);
               const ev = sc.evidence_strength || 'Moderate';
-              const evColor = ev === 'Strong' ? '#86efac' : ev === 'Weak' ? '#f87171' : '#fbbf24';
+              const evC = ev === 'Strong' ? '#86efac' : ev === 'Weak' ? '#f87171' : '#fbbf24';
               const st = evidenceStatus(sc);
               return (
-                <tr key={sc.scenario_id} className="border-b border-border1">
+                <tr key={sc.scenario_id} className="border-b border-border">
                   <td className="py-2.5 px-3 text-xs text-ink truncate max-w-[280px]">{sc.mechanism_label || sc.scenario_id}</td>
-                  <td className="py-2.5 px-3"><span className="text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 border" style={{ borderColor: evColor + '55', color: evColor }}>{ev}</span></td>
+                  <td className="py-2.5 px-3"><span className="text-[9px] font-mono uppercase tracking-widest" style={{ color: evC }}>{ev}</span></td>
                   <td className="py-2.5 px-3 text-xs font-mono text-ink2">{ids.length}</td>
                   <td className="py-2.5 px-3"><span className="text-[10px] font-mono" style={{ color: st.color }}>{st.label}</span></td>
                 </tr>
@@ -454,27 +444,26 @@
       if (!used.length) return null;
       return (
         <div className="mt-8">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-red mb-3">Claim audit · {used.length} claims</div>
+          <div className="text-[10px] font-mono uppercase tracking-widest text-red mb-3">Claim audit · {used.length} matched</div>
           <table className="w-full">
             <thead>
-              <tr className="border-b border-border1">
-                <th className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">Vendor claim</th>
-                <th className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">Matched scenario</th>
-                <th className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">Verdict</th>
-                <th className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">AM Range</th>
+              <tr className="border-b border-border">
+                {['Vendor claim', 'Matched scenario', 'Verdict', 'Evidence'].map(h => (
+                  <th key={h} className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {used.map((c, i) => {
                 const v = VERDICT_BY[c.verdict] || VERDICTS[1];
                 const ev = c.scenario?.evidence_strength || 'Moderate';
-                const evColor = ev === 'Strong' ? '#86efac' : ev === 'Weak' ? '#f87171' : '#fbbf24';
+                const evC = ev === 'Strong' ? '#86efac' : ev === 'Weak' ? '#f87171' : '#fbbf24';
                 return (
-                  <tr key={i} className="border-b border-border1">
+                  <tr key={i} className="border-b border-border">
                     <td className="py-2.5 px-3 text-xs text-ink"><span className="font-mono mr-2">{c.value}</span>{c.metric}</td>
                     <td className="py-2.5 px-3 text-xs text-ink2 truncate max-w-[200px]">{c.scenario?.mechanism_label || c.scenario?.scenario_id || '—'}</td>
                     <td className="py-2.5 px-3"><span className="text-[10px] font-mono" style={{ color: v.color }}>{v.key}</span></td>
-                    <td className="py-2.5 px-3"><span className="text-[10px] font-mono" style={{ color: evColor }}>{ev}</span></td>
+                    <td className="py-2.5 px-3"><span className="text-[10px] font-mono" style={{ color: evC }}>{ev}</span></td>
                   </tr>
                 );
               })}
@@ -484,22 +473,20 @@
       );
     }
     function Step3Evidence({ s, update, matchPool, onCreate, busy }) {
-      const selectedScenarios = useMemo(() => {
-        return (matchPool || []).filter(sc => s.selectedScenarios.has(sc.scenario_id));
-      }, [matchPool, s.selectedScenarios]);
+      const selectedScenarios = useMemo(() => (matchPool || []).filter(sc => s.selectedScenarios.has(sc.scenario_id)), [matchPool, s.selectedScenarios]);
       return (
         <div>
-          <div className="text-[12px] text-ink2 mb-4 leading-relaxed">Coverage of evidence across the chosen mechanisms. Anything marked "Needs data" or "Assumption" is fair game for the customer or finance to challenge.</div>
+          <div className="text-[12px] text-ink2 mb-4 leading-relaxed">Coverage of evidence across the chosen mechanisms. "Needs data" or "Assumption" rows are fair game for the customer or finance to challenge.</div>
           <EvidenceCoverageTable scenarios={selectedScenarios} />
           <ClaimAuditTable claims={s.claims} />
           <div className="mt-8">
-            <label className="block text-[10px] font-mono uppercase tracking-widest text-ink2 mb-2">What evidence still needs to be gathered?</label>
+            <div className="text-[10px] font-mono uppercase tracking-widest text-ink3 mb-2">Notes — what evidence still needs to be gathered?</div>
             <textarea value={s.notes} onChange={e => update({ notes: e.target.value })}
-              rows={4} placeholder="Notes on case studies to pull, customer references to talk to, finance proof points to source…"
-              className="w-full bg-surface border border-border1 px-3 py-2 text-sm focus:border-red outline-none" />
+              rows={4} placeholder="case studies to pull, customer references to talk to, finance proof points to source…"
+              className="w-full bg-surface border border-border px-3 py-2 text-sm focus:border-red outline-none" />
           </div>
           <div className="mt-8 flex items-center justify-end gap-4">
-            <span className="text-[10px] font-mono text-ink3">Ready to create the analysis?</span>
+            <span className="text-[10px] font-mono text-ink3">Ready to create?</span>
             <button onClick={onCreate} disabled={busy || s.selectedScenarios.size === 0 || !s.domain}
               className="bg-red hover:bg-red/90 disabled:opacity-40 text-white px-5 py-2.5 text-xs font-display tracking-wide">
               {busy ? 'Creating…' : 'Create Analysis →'}
@@ -513,24 +500,24 @@
     const STEPS = [
       { key: 0, label: 'Import',    title: 'Paste a vendor claim' },
       { key: 1, label: 'Context',   title: 'What are we trying to improve?' },
-      { key: 2, label: 'Scenarios', title: 'Select mechanisms for this analysis' },
-      { key: 3, label: 'Evidence',  title: 'Evidence & audit' }
+      { key: 2, label: 'Scenarios', title: 'Pick the mechanisms that fit' },
+      { key: 3, label: 'Evidence',  title: 'Evidence and audit' }
     ];
 
     function StepIndicator({ step, complete }) {
       return (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {STEPS.map((s, i) => {
             const isDone = complete[s.key];
             const isCurrent = step === s.key;
-            const fillStyle = isDone ? 'bg-red border-red text-white' : isCurrent ? 'bg-bg border-red text-red' : 'bg-bg border-border2 text-ink3';
+            const cls = isDone ? 'bg-red border-red text-white' : isCurrent ? 'bg-bg border-red text-red' : 'bg-bg border-border2 text-ink3';
             return (
               <React.Fragment key={s.key}>
-                <div className="flex items-center gap-2">
-                  <div className={`w-6 h-6 border flex items-center justify-center text-[10px] font-mono ${fillStyle}`}>{i + 1}</div>
-                  <span className={`text-[10px] font-mono uppercase tracking-widest ${isCurrent ? 'text-red' : isDone ? 'text-ink' : 'text-ink3'}`}>{s.label}</span>
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <div className={`w-5 h-5 sm:w-6 sm:h-6 border flex items-center justify-center text-[10px] font-mono ${cls}`}>{i + 1}</div>
+                  <span className={`text-[10px] font-mono uppercase tracking-widest hidden sm:inline ${isCurrent ? 'text-red' : isDone ? 'text-ink' : 'text-ink3'}`}>{s.label}</span>
                 </div>
-                {i < STEPS.length - 1 && <div className={`w-8 h-px ${isDone ? 'bg-red' : 'bg-border1'}`} />}
+                {i < STEPS.length - 1 && <div className={`w-4 sm:w-8 h-px ${isDone ? 'bg-red' : 'bg-border'}`} />}
               </React.Fragment>
             );
           })}
@@ -540,10 +527,10 @@
 
     function Topbar({ step, complete, onCancel }) {
       return (
-        <header className="h-14 px-6 border-b border-border1 bg-surface flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-6">
-            <div className="font-display text-lg tracking-wide"><span className="text-red">ALT</span> <span className="text-ink">MERIDIAN</span></div>
-            <span className="font-mono text-[10px] uppercase tracking-widest text-ink2">VEF Assist</span>
+        <header className="h-12 sm:h-14 px-4 sm:px-6 border-b border-border bg-surface flex items-center justify-between flex-shrink-0 gap-3">
+          <div className="flex items-center gap-3 sm:gap-6">
+            <div className="font-display text-base sm:text-lg tracking-wide"><span className="text-red">ALT</span> <span className="text-ink">MERIDIAN</span></div>
+            <span className="font-mono text-[10px] uppercase tracking-widest text-ink2 hidden sm:inline">VEF Assist</span>
           </div>
           <StepIndicator step={step} complete={complete} />
           <button onClick={onCancel} className="text-[11px] font-mono text-ink2 hover:text-red">Cancel</button>
@@ -551,84 +538,209 @@
       );
     }
 
-    /* ---------- APP STATE ---------- */
-    function makeInitialState() {
-      return {
-        // Step 0
-        pasted: '', claims: [], extracted: false,
-        // Step 1
-        outcomes: [], domain: null,
-        analysis_name: '', customer: '', vendor: '',
-        whatToProve: '', whatToProveOpen: false,
-        // Step 2
-        selectedScenarios: new Set(),
-        scenarioSearch: '', themeFilter: new Set(),
-        // Step 3
-        notes: ''
-      };
+    /* ---------- INTERPRETATION PRIMITIVES (Rules 3, 5, 7) ---------- */
+    function InterpSection({ title, children }) {
+      return (
+        <div className="mb-4">
+          <div className="text-[9px] font-mono uppercase tracking-widest text-red/80 mb-1.5">{title}</div>
+          {children}
+        </div>
+      );
+    }
+    function ChipRow({ items, color = '#888', empty = '—' }) {
+      if (!items?.length) return <div className="text-[11px] font-mono text-ink3 italic">{empty}</div>;
+      return (
+        <div className="flex flex-wrap gap-1.5">
+          {items.slice(0, 8).map(t => <span key={t} className="text-[10px] font-mono px-2 py-0.5" style={{ background: color + '22', color }}>{t}</span>)}
+        </div>
+      );
+    }
+    // OutcomeMatrix — 7 dots, muted if not selected. Always rendered (Rule 3).
+    function OutcomeMatrix({ selected }) {
+      return (
+        <div className="grid grid-cols-7 gap-2">
+          {OUTCOMES.map(o => {
+            const on = selected.includes(o.key);
+            return (
+              <div key={o.key} className="flex flex-col items-center gap-1 min-w-0">
+                <span className="w-3 h-3 rounded-full transition-opacity" style={{ background: o.color, opacity: on ? 1 : 0.2 }} />
+                <span className="text-[8px] font-mono text-center truncate w-full" style={{ color: on ? o.color : '#444' }}>{o.key.slice(0, 4)}</span>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+    // ThemeDonut — inline SVG showing distribution of themes across a scenario pool (Rule 5).
+    function ThemeDonut({ data, size = 80 }) {
+      const total = data.reduce((s, d) => s + d.value, 0);
+      if (total === 0) return null;
+      const r = size / 2 - 6, cx = size / 2, cy = size / 2, C = 2 * Math.PI * r;
+      let offset = 0;
+      return (
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1a1a1a" strokeWidth="8" />
+          {data.map((d, i) => {
+            const len = (d.value / total) * C;
+            const seg = <circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={d.color} strokeWidth="8"
+              strokeDasharray={`${len} ${C - len}`} strokeDashoffset={-offset}
+              transform={`rotate(-90 ${cx} ${cy})`} vectorEffect="non-scaling-stroke" />;
+            offset += len;
+            return seg;
+          })}
+        </svg>
+      );
+    }
+    function EvidenceMixBar({ tally }) {
+      const total = tally.Strong + tally.Moderate + tally.Weak;
+      if (total === 0) return null;
+      return (
+        <div className="space-y-1">
+          <div className="text-[10px] font-mono text-ink2">{tally.Strong} <span style={{ color: '#86efac' }}>Strong</span> · {tally.Moderate} <span style={{ color: '#fbbf24' }}>Moderate</span> · {tally.Weak} <span style={{ color: '#f87171' }}>Weak</span></div>
+          <div className="flex h-1.5 w-full">
+            <div style={{ width: ((tally.Strong / total) * 100) + '%', background: '#86efac' }} />
+            <div style={{ width: ((tally.Moderate / total) * 100) + '%', background: '#fbbf24' }} />
+            <div style={{ width: ((tally.Weak / total) * 100) + '%', background: '#f87171' }} />
+          </div>
+        </div>
+      );
     }
 
-    /* ---------- INTERPRETATION CONTEXT (V8) ---------- */
-    function confidenceFromScenarios(scenarios) {
-      if (!scenarios.length) return { tier: 'EXPLORATORY', pct: 25, color: '#888' };
-      const tally = { Strong: 0, Moderate: 0, Weak: 0 };
-      scenarios.forEach(s => { const e = s.evidence_strength || 'Moderate'; if (tally[e] != null) tally[e]++; });
-      const score = (tally.Strong + tally.Moderate * 0.6 + tally.Weak * 0.3) / scenarios.length;
-      if (score >= 0.75) return { tier: 'STRONG', pct: 90, color: '#86efac' };
-      if (score >= 0.45) return { tier: 'MODERATE', pct: 60, color: '#fbbf24' };
-      return { tier: 'EXPLORATORY', pct: 30, color: '#888' };
-    }
+    /* ---------- INTERPRETATION HOOK + PANEL ---------- */
     function useInterpretation(s, matchPool, domains) {
       const [signals, setSignals] = useState([]);
       const [inputDefs, setInputDefs] = useState([]);
+      // Load per-domain auxiliary data lazily; falls back to empty if unavailable.
       useEffect(() => {
         if (!s.domain) { setSignals([]); setInputDefs([]); return; }
         const dom = domains[s.domain];
-        Promise.all([
-          loadValueSignals(s.domain),
-          loadInputDefinitions(s.domain, dom)
-        ]).then(([sigs, defs]) => { setSignals(sigs); setInputDefs(defs); });
+        Promise.all([loadValueSignals(s.domain), loadInputDefinitions(s.domain, dom)])
+          .then(([sigs, defs]) => { setSignals(sigs); setInputDefs(defs); }).catch(() => {});
       }, [s.domain, domains]);
       return useMemo(() => {
         const dom = s.domain ? domains[s.domain] : null;
-        const domainPool = (matchPool || []).filter(sc => sc.domain_id === s.domain);
-        const themes = Array.from(new Set(domainPool.map(p => p.value_theme).filter(Boolean)));
-        const selectedScenarios = domainPool.filter(sc => s.selectedScenarios.has(sc.scenario_id));
+        // Pre-domain pool: filter by selected outcomes (if any), else full library.
+        const outcomeFiltered = s.outcomes.length === 0
+          ? (matchPool || [])
+          : (matchPool || []).filter(sc => {
+              const sd = domains[sc.domain_id];
+              return sd && s.outcomes.includes(sd.primary_outcome);
+            });
+        const pool = s.domain ? (matchPool || []).filter(sc => sc.domain_id === s.domain) : outcomeFiltered;
+        const themes = Array.from(new Set(pool.map(p => p.value_theme).filter(Boolean)));
+        const themeData = themes.map(t => ({ key: t, label: t, value: pool.filter(p => p.value_theme === t).length, color: themeColor(t) }));
         const tally = { Strong: 0, Moderate: 0, Weak: 0 };
-        domainPool.forEach(sc => { const e = sc.evidence_strength || 'Moderate'; if (tally[e] != null) tally[e]++; });
-        const conf = confidenceFromScenarios(selectedScenarios.length ? selectedScenarios : domainPool);
+        pool.forEach(sc => { const e = sc.evidence_strength || 'Moderate'; if (tally[e] != null) tally[e]++; });
+        const score = pool.length === 0 ? 0 : (tally.Strong + tally.Moderate * 0.6 + tally.Weak * 0.3) / pool.length;
+        const conf = score >= 0.75 ? { tier: 'STRONG', pct: 90, color: '#86efac' }
+                    : score >= 0.45 ? { tier: 'MODERATE', pct: 60, color: '#fbbf24' }
+                    : { tier: 'EXPLORATORY', pct: 30, color: '#888' };
+        const why = !s.domain
+          ? (s.outcomes.length === 0 ? 'Showing the full library. Pick outcomes to narrow.' : `${pool.length} mechanisms across ${s.outcomes.length} outcome${s.outcomes.length > 1 ? 's' : ''}.`)
+          : `${pool.length} mechanisms in ${cleanDomainName(dom?.domain_name) || s.domain}.`;
+        const signalLabels = (signals || []).map(sg => sg.signal_label || sg.signal_name || sg.signal_key).filter(Boolean);
         const missing = (inputDefs || [])
           .filter(d => d.discovery_prompt && d.input_key !== 'implementation_cost')
           .slice(0, 3)
-          .map(d => ({ key: d.input_key, label: d.input_label || d.input_key, discovery: d.discovery_prompt }));
-        const topMini = domainPool.slice().sort((a, b) => (Number(a.print_priority) || 99) - (Number(b.print_priority) || 99)).slice(0, 3);
-        return {
-          signals: (signals || []).map(sg => sg.signal_label || sg.signal_name || sg.signal_key).filter(Boolean),
-          themes,
-          engine: dom ? cleanDomainName(dom.domain_name) || dom.domain_id : null,
-          scenarios: domainPool,
-          tally,
-          confidence: conf,
-          missing,
-          topMini
-        };
-      }, [s.domain, s.selectedScenarios, matchPool, domains, signals, inputDefs]);
+          .map(d => ({ key: d.input_key, label: d.input_label || d.input_key.replace(/_/g, ' '), discovery: d.discovery_prompt }));
+        const topMini = pool.slice().sort((a, b) => (Number(a.print_priority) || 99) - (Number(b.print_priority) || 99)).slice(0, 3);
+        return { engine: dom ? cleanDomainName(dom.domain_name) || dom.domain_id : null, pool, themes, themeData, tally, conf, why, signals: signalLabels, missing, topMini };
+      }, [s.domain, s.outcomes, matchPool, domains, signals, inputDefs]);
+    }
+    function InterpretationPanel({ s, ctx }) {
+      return (
+        <div className="bg-red-dim border border-red/30 p-5 sticky top-4">
+          <div className="flex items-center justify-between mb-4">
+            <div className="font-display text-base text-red">VEF Interpretation</div>
+            <span className="text-[9px] font-mono uppercase tracking-widest text-red/60">live</span>
+          </div>
+          <InterpSection title="Outcomes selected">
+            <OutcomeMatrix selected={s.outcomes} />
+            <div className="text-[10px] font-mono text-ink3 mt-2">{s.outcomes.length === 0 ? 'None yet' : s.outcomes.join(' · ')}</div>
+          </InterpSection>
+          <InterpSection title="Recommended engine">
+            <div className="font-display text-sm text-ink">{ctx.engine || <span className="text-ink3 italic font-mono text-[11px]">Pending domain selection.</span>}</div>
+          </InterpSection>
+          {ctx.themeData.length > 0 && (
+            <InterpSection title="Value themes">
+              <div className="flex items-center gap-3">
+                <ThemeDonut data={ctx.themeData} size={72} />
+                <div className="flex-1 min-w-0 space-y-0.5">
+                  {ctx.themeData.slice(0, 4).map(d => (
+                    <div key={d.key} className="flex items-center gap-1.5 text-[10px]">
+                      <span className="w-2 h-2 flex-shrink-0" style={{ background: d.color }} />
+                      <span className="text-ink truncate">{d.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </InterpSection>
+          )}
+          <InterpSection title="Mechanisms available">
+            <div className="font-display text-base text-ink mb-2">{ctx.pool.length}</div>
+            <EvidenceMixBar tally={ctx.tally} />
+          </InterpSection>
+          <InterpSection title="Confidence preview">
+            <div className="text-[11px] font-mono text-ink mb-1.5">This analysis will be <span style={{ color: ctx.conf.color }}>{ctx.conf.tier}</span>.</div>
+            <div className="h-1.5 bg-surface2 relative">
+              <div className="absolute inset-y-0 left-0" style={{ width: ctx.conf.pct + '%', background: ctx.conf.color }} />
+            </div>
+          </InterpSection>
+          {s.domain && (
+            <>
+              <InterpSection title="Detected signals">
+                <ChipRow items={ctx.signals} color="#fbbf24" empty="No signals registered for this domain." />
+              </InterpSection>
+              {ctx.missing.length > 0 && (
+                <InterpSection title="Missing inputs">
+                  {ctx.missing.map(m => (
+                    <div key={m.key} className="mb-2">
+                      <div className="text-[11px] text-ink">{m.label}</div>
+                      <div className="text-[10px] font-mono text-ink3 italic">Ask: {m.discovery}</div>
+                    </div>
+                  ))}
+                </InterpSection>
+              )}
+              {ctx.topMini.length > 0 && (
+                <InterpSection title="Top mechanisms">
+                  <div className="space-y-1.5">
+                    {ctx.topMini.map(sc => {
+                      const ev = sc.evidence_strength || 'Moderate';
+                      const evC = ev === 'Strong' ? '#86efac' : ev === 'Weak' ? '#f87171' : '#fbbf24';
+                      const evPct = ev === 'Strong' ? 100 : ev === 'Weak' ? 30 : 60;
+                      return (
+                        <div key={sc.scenario_id} className="bg-surface border border-border px-2.5 py-2">
+                          <div className="text-[11px] text-ink truncate">{sc.mechanism_label || sc.scenario_id}</div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <div className="flex-1 h-0.5 bg-surface2 relative"><div className="absolute inset-y-0 left-0" style={{ width: evPct + '%', background: evC }} /></div>
+                            <span className="text-[8px] font-mono uppercase tracking-widest" style={{ color: evC }}>{ev}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </InterpSection>
+              )}
+            </>
+          )}
+          <div className="text-[10px] font-mono text-ink3 italic pt-3 border-t border-red/20">{ctx.why}</div>
+        </div>
+      );
     }
 
-    /* ---------- CREATE HANDLER ---------- */
-    function buildEngagementRow({ s, domains }) {
+    /* ---------- CREATE ANALYSIS ---------- */
+    function buildEngagementRow({ s }) {
       const today = new Date().toISOString().slice(0, 10);
       const id = (crypto && crypto.randomUUID) ? crypto.randomUUID() : 'eng_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
-      // Speculative fields (whatToProve, outcomes, claims summary) are stashed in `notes`
-      // with a labeled prefix per lesson 2026-04-24 — never include speculative columns
-      // on INSERT, they fail-loud against unknown PostgREST schema.
+      // Lesson 2026-04-24 — speculative fields stash into `notes` with labeled prefix.
+      // Never INSERT unknown columns; PostgREST fails loud.
       const claimSummary = (s.claims || []).filter(c => c.scenario && c.verdict !== 'Missing')
         .map(c => `  - "${c.metric}" ${c.value} → ${c.scenario.mechanism_label || c.scenario.scenario_id} [${c.verdict}]`).join('\n');
-      const notesParts = [];
-      if (s.whatToProve) notesParts.push('WHAT WE\'RE TRYING TO PROVE:\n' + s.whatToProve);
-      if (s.outcomes.length) notesParts.push('TARGET OUTCOMES: ' + s.outcomes.join(', '));
-      if (claimSummary) notesParts.push('VENDOR CLAIMS:\n' + claimSummary);
-      if (s.notes) notesParts.push('EVIDENCE NOTES:\n' + s.notes);
+      const parts = [];
+      if (s.whatToProve) parts.push("WHAT WE'RE TRYING TO PROVE:\n" + s.whatToProve);
+      if (s.outcomes.length) parts.push('TARGET OUTCOMES: ' + s.outcomes.join(', '));
+      if (claimSummary) parts.push('VENDOR CLAIMS:\n' + claimSummary);
+      if (s.notes) parts.push('EVIDENCE NOTES:\n' + s.notes);
       return {
         engagement_id: id,
         analysis_name: s.analysis_name || 'Untitled analysis',
@@ -639,12 +751,12 @@
         deal_stage:    'discovery',
         engagement_status: 'Draft',
         phase:         'Discovery',
-        notes:         notesParts.join('\n\n') || null
+        notes:         parts.join('\n\n') || null
       };
     }
-    async function createAnalysis({ s, domains }) {
+    async function createAnalysis(s) {
       if (!s.domain || !s.selectedScenarios.size) throw new Error('Pick a domain and at least one scenario.');
-      const row = buildEngagementRow({ s, domains });
+      const row = buildEngagementRow({ s });
       await sbInsert('vef_engagements', row);
       await Promise.all(Array.from(s.selectedScenarios).map(scenario_id =>
         sbUpsert('vef_scenario_selections', { engagement_id: row.engagement_id, scenario_id, is_active: true }, 'engagement_id,scenario_id')
@@ -652,119 +764,41 @@
       return row.engagement_id;
     }
 
-    /* ---------- LEFT PANEL — step dispatcher ---------- */
-    function LeftPanel({ step, s, update, matchPool, setMatchPool, onSkip, onCreate, busy }) {
-      return (
-        <div>
-          <div className="font-display text-2xl text-ink mb-1">{STEPS[step].title}</div>
-          <div className="text-[11px] font-mono text-ink2 mb-8">Step {step + 1} of {STEPS.length} · {STEPS[step].label}</div>
-          {step === 0 && <Step0Import s={s} update={update} matchPool={matchPool} setMatchPool={setMatchPool} onSkip={onSkip} />}
-          {step === 1 && <Step1Context s={s} update={update} matchPool={matchPool} setMatchPool={setMatchPool} />}
-          {step === 2 && <Step2Scenarios s={s} update={update} matchPool={matchPool} />}
-          {step === 3 && <Step3Evidence s={s} update={update} matchPool={matchPool} onCreate={onCreate} busy={busy} />}
-        </div>
-      );
-    }
-
-    /* ---------- RIGHT PANEL — live interpretation ---------- */
-    function InterpSection({ title, children }) {
-      return (
-        <div className="mb-5">
-          <div className="text-[9px] font-mono uppercase tracking-widest text-red/80 mb-1.5">{title}</div>
-          {children}
-        </div>
-      );
-    }
-    function ChipRow({ items, color = '#888', empty = '—' }) {
-      if (!items?.length) return <div className="text-[11px] font-mono text-ink3 italic">{empty}</div>;
-      return (
-        <div className="flex flex-wrap gap-1.5">
-          {items.map(t => (
-            <span key={t} className="text-[10px] font-mono px-2 py-0.5" style={{ background: color + '22', color }}>{t}</span>
-          ))}
-        </div>
-      );
-    }
-    function RightPanel({ ctx }) {
-      const c = ctx || { signals: [], themes: [], scenarios: [], missing: [], engine: null, tally: { Strong: 0, Moderate: 0, Weak: 0 }, topMini: [], confidence: { tier: 'EXPLORATORY', pct: 25, color: '#888' } };
-      const tot = c.tally.Strong + c.tally.Moderate + c.tally.Weak;
-      return (
-        <aside className="bg-red/5 border border-red/30 p-6 sticky top-6">
-          <div className="flex items-center justify-between mb-5">
-            <div className="font-display text-base text-red">VEF Interpretation</div>
-            <span className="text-[9px] font-mono uppercase tracking-widest text-red/60">live</span>
-          </div>
-          <InterpSection title="Detected Signals">
-            <ChipRow items={c.signals} color="#fbbf24" empty="Pick a domain to load signals." />
-          </InterpSection>
-          <InterpSection title="Value Themes">
-            <ChipRow items={c.themes} color="#93c5fd" empty="—" />
-          </InterpSection>
-          <InterpSection title="Recommended Engine">
-            <div className="font-display text-sm text-ink">{c.engine || <span className="text-ink3 italic font-mono text-[11px]">Pending domain selection.</span>}</div>
-          </InterpSection>
-          <InterpSection title="Scenarios Available">
-            <div className="text-sm font-mono text-ink mb-2">{c.scenarios.length}</div>
-            {tot > 0 && (
-              <>
-                <div className="text-[10px] font-mono text-ink2 mb-1">{c.tally.Strong} <span style={{ color: '#86efac' }}>Strong</span> · {c.tally.Moderate} <span style={{ color: '#fbbf24' }}>Moderate</span> · {c.tally.Weak} <span style={{ color: '#f87171' }}>Weak</span></div>
-                <div className="flex h-1.5 w-full">
-                  <div style={{ width: ((c.tally.Strong / tot) * 100) + '%', background: '#86efac' }} />
-                  <div style={{ width: ((c.tally.Moderate / tot) * 100) + '%', background: '#fbbf24' }} />
-                  <div style={{ width: ((c.tally.Weak / tot) * 100) + '%', background: '#f87171' }} />
-                </div>
-              </>
-            )}
-          </InterpSection>
-          <InterpSection title="Confidence Preview">
-            <div className="text-[11px] font-mono text-ink mb-1">Based on your selections, this analysis will be <span style={{ color: c.confidence.color }}>{c.confidence.tier}</span>.</div>
-            <div className="h-1.5 bg-surface2 relative">
-              <div className="absolute inset-y-0 left-0" style={{ width: c.confidence.pct + '%', background: c.confidence.color }} />
-            </div>
-          </InterpSection>
-          <InterpSection title="Missing Inputs">
-            {c.missing.length === 0
-              ? <div className="text-[11px] font-mono text-ink3 italic">No discovery prompts loaded yet.</div>
-              : c.missing.map(m => (
-                  <div key={m.key} className="mb-2">
-                    <div className="text-[11px] text-ink">{m.label}</div>
-                    {m.discovery && <div className="text-[10px] font-mono text-ink3 italic">Ask: {m.discovery}</div>}
-                  </div>
-                ))}
-          </InterpSection>
-          {c.topMini.length > 0 && (
-            <div className="pt-4 mt-2 border-t border-red/20">
-              <div className="text-[9px] font-mono uppercase tracking-widest text-red/80 mb-2">Top Mechanisms</div>
-              <div className="space-y-2">
-                {c.topMini.map(sc => {
-                  const ev = sc.evidence_strength || 'Moderate';
-                  const evC = ev === 'Strong' ? '#86efac' : ev === 'Weak' ? '#f87171' : '#fbbf24';
-                  const evPct = ev === 'Strong' ? 100 : ev === 'Weak' ? 30 : 60;
-                  return (
-                    <div key={sc.scenario_id} className="bg-surface border border-border1 px-3 py-2">
-                      <div className="text-[11px] text-ink truncate">{sc.mechanism_label || sc.scenario_id}</div>
-                      <div className="flex items-center gap-2 mt-1">
-                        <div className="flex-1 h-1 bg-surface2 relative"><div className="absolute inset-y-0 left-0" style={{ width: evPct + '%', background: evC }} /></div>
-                        <span className="text-[9px] font-mono uppercase tracking-widest" style={{ color: evC }}>{ev}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </aside>
-      );
+    /* ---------- APP STATE ---------- */
+    function makeInitialState() {
+      return {
+        pasted: '', claims: [], extracted: false,
+        outcomes: [], domain: null,
+        analysis_name: '', customer: '', vendor: '',
+        whatToProve: '', whatToProveOpen: false,
+        selectedScenarios: new Set(),
+        scenarioSearch: '', themeFilter: new Set(),
+        notes: ''
+      };
     }
 
     function App() {
       const [step, setStep] = useState(0);
       const [s, setS] = useState(makeInitialState);
-      const [matchPool, setMatchPool] = useState(null);
+      const [matchPool, setMatchPool] = useState([]);
       const [domains, setDomains] = useState({});
       const [busy, setBusy] = useState(false);
       const update = (patch) => setS(prev => ({ ...prev, ...patch }));
-      useEffect(() => { loadDomains().then(setDomains).catch(() => {}); }, []);
+      const onCreate = async () => {
+        setBusy(true);
+        try {
+          const id = await createAnalysis(s);
+          location.href = 'workspace2.html?engagement=' + encodeURIComponent(id);
+        } catch (e) {
+          alert('Create failed: ' + (e.message || e));
+          setBusy(false);
+        }
+      };
+      // Preload library + domains so the interpretation panel is alive from frame 1 (Rule 3).
+      useEffect(() => {
+        loadAllScenarios().then(setMatchPool).catch(() => {});
+        loadDomains().then(setDomains).catch(() => {});
+      }, []);
       const ctx = useInterpretation(s, matchPool, domains);
       const complete = useMemo(() => ({
         0: s.extracted || s.claims.length > 0,
@@ -773,33 +807,28 @@
         3: false
       }), [s]);
       const cancel = () => { if (confirm('Cancel and discard?')) location.href = 'workspace2.html'; };
-      const onCreate = async () => {
-        setBusy(true);
-        try {
-          const id = await createAnalysis({ s, domains });
-          location.href = 'workspace2.html?engagement=' + encodeURIComponent(id);
-        } catch (e) {
-          alert('Create failed: ' + (e.message || e));
-          setBusy(false);
-        }
-      };
       return (
         <div className="h-full flex flex-col bg-bg">
           <Topbar step={step} complete={complete} onCancel={cancel} />
           <main className="flex-1 overflow-auto">
-            <div className="max-w-[1280px] mx-auto px-8 py-8 grid grid-cols-12 gap-8">
-              <div className="col-span-7">
-                <LeftPanel step={step} s={s} update={update} matchPool={matchPool} setMatchPool={setMatchPool} onSkip={() => setStep(p => Math.min(STEPS.length - 1, p + 1))} onCreate={onCreate} busy={busy} />
+            <div className="max-w-[1280px] mx-auto px-4 sm:px-8 py-6 sm:py-10 grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8">
+              <section className="md:col-span-7">
+                <div className="font-display text-xl sm:text-2xl text-ink mb-1">{STEPS[step].title}</div>
+                <div className="text-[11px] font-mono text-ink2 mb-6 sm:mb-8">Step {step + 1} of {STEPS.length} · {STEPS[step].label}</div>
+                {step === 0 && <Step0Import s={s} update={update} matchPool={matchPool} onSkip={() => setStep(1)} />}
+                {step === 1 && <Step1Context s={s} update={update} matchPool={matchPool} domains={domains} />}
+                {step === 2 && <Step2Scenarios s={s} update={update} matchPool={matchPool} />}
+                {step === 3 && <Step3Evidence s={s} update={update} matchPool={matchPool} onCreate={onCreate} busy={busy} />}
                 <div className="mt-12 flex items-center justify-between">
                   <button onClick={() => setStep(p => Math.max(0, p - 1))} disabled={step === 0}
                     className="text-[11px] font-mono uppercase tracking-widest text-ink2 hover:text-red disabled:opacity-30">← Back</button>
                   <button onClick={() => setStep(p => Math.min(STEPS.length - 1, p + 1))} disabled={step === STEPS.length - 1}
                     className="bg-red hover:bg-red/90 disabled:opacity-30 text-white px-4 py-2 text-[11px] font-mono uppercase tracking-widest">Next →</button>
                 </div>
-              </div>
-              <div className="col-span-5">
-                <RightPanel ctx={ctx} />
-              </div>
+              </section>
+              <aside className="md:col-span-5">
+                <InterpretationPanel s={s} ctx={ctx} />
+              </aside>
             </div>
           </main>
         </div>

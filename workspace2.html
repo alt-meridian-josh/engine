@@ -10,8 +10,18 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = { theme: { extend: {
-      colors: { bg:'#0e0e0e', surface:'#141414', surface2:'#1a1a1a', border1:'#222', border2:'#2d2d2d', ink:'#e8e8e8', ink2:'#888', ink3:'#444', red:'#d63b2f' },
-      fontFamily: { display:['Syne','sans-serif'], mono:['"DM Mono"','monospace'], sans:['Syne','system-ui','sans-serif'] }
+      colors: {
+        bg:'#0e0e0e', surface:'#141414', surface2:'#1a1a1a',
+        border:'#222222', border2:'#2d2d2d',
+        ink:'#e8e8e8', ink2:'#888888', ink3:'#444444',
+        red:'#d63b2f', 'red-dim':'rgba(214,59,47,0.10)',
+        green:'#2d7d4f', amber:'#b45309', blue:'#1d4ed8', teal:'#0f766e'
+      },
+      fontFamily: {
+        display:['Syne','sans-serif'],
+        mono:['"DM Mono"','monospace'],
+        sans:['Syne','system-ui','sans-serif']
+      }
     } } };
   </script>
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
@@ -20,9 +30,9 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     html, body, #root { height: 100%; }
-    body { background: #0e0e0e; color: #e8e8e8; font-family: 'Syne', system-ui, sans-serif; }
+    body { background:#0e0e0e; color:#e8e8e8; font-family:'Syne', system-ui, sans-serif; }
     input, textarea, button, select { font-family: inherit; }
-    input[type=range] { accent-color: #d63b2f; }
+    input[type=range] { accent-color:#d63b2f; }
   </style>
 </head>
 <body class="bg-bg text-ink">
@@ -76,14 +86,16 @@
       sbSelect('vef_evidence_registry', { eq: { domain_id: domainId } }).catch(() => []);
     const loadSnapshots = (engId) =>
       sbSelect('vef_output_snapshots', { eq: { engagement_id: engId }, order: ['created_at', false] });
+    const loadAllSnapshots = () =>
+      sbSelect('vef_output_snapshots', { order: ['created_at', false] }).catch(() => []);
     const loadScenarioSelections = (engId) =>
       sbSelect('vef_scenario_selections', { eq: { engagement_id: engId } });
     async function loadInputValues(engId) {
       const arr = await sbSelect('vef_input_values', { eq: { engagement_id: engId } });
       const m = {}; arr.forEach(iv => m[iv.input_key] = iv); return m;
     }
-    // RFID fallback: synthetic domain ids like WH-RFD have no scenarios/inputs of their own;
-    // retry with the canonical 'RFD' bucket. See workspace.html:1340 for original logic.
+    // RFID fallback: synthetic ids like WH-RFD have no scenarios/inputs of their own;
+    // retry against canonical 'RFD'. (Mirrors workspace.html v1 line 1340.)
     async function loadScenariosForDomain(domainId, domain) {
       let scens = await sbSelect('vef_value_scenarios', { eq: { domain_id: domainId } }).catch(() => []);
       if (!scens.length && domain?.technology === 'RFID' && domainId !== 'RFD') {
@@ -96,6 +108,7 @@
       if (!rows.length && domain?.technology === 'RFID' && domainId !== 'RFD') {
         rows = await sbSelect('vef_input_definitions', { eq: { domain_id: 'RFD' } }).catch(() => []);
       }
+      // vef_input_definitions has duplicate input_key rows per domain; dedupe.
       const seen = new Set();
       return rows.filter(r => seen.has(r.input_key) ? false : (seen.add(r.input_key), true));
     }
@@ -118,7 +131,7 @@
     }
 
     /* ---------- FORMULA ENGINE ---------- */
-    const RAMPS = [0.5, 1.0, 1.0];   // Y1 50% ramp, Y2/Y3 full adoption
+    const RAMPS = [0.5, 1.0, 1.0];   // Y1 50% adoption, Y2/Y3 full
     const DISCOUNT = 0.10;
 
     function evalFormula(formula, inputs) {
@@ -135,7 +148,7 @@
       } catch (_) { return null; }
     }
 
-    // Flatten {input_key: {provided_value:N}} → {input_key:N}, fall back to typical/default.
+    // Flatten {input_key:{provided_value:N}} → {input_key:N}; falls back to typical/default.
     function resolvedInputs(inputsMap, inputDefs) {
       const out = {};
       (inputDefs || []).forEach(d => {
@@ -146,7 +159,6 @@
     }
 
     // Pool-share guard: in each value_theme, only the highest-ARV active scenario contributes.
-    // Lower-ARV active scenarios in the same theme are flagged pool_shadow:true and skipped.
     function computeAnalysis(scenarios, inputsMap, inputDefs) {
       const inputs = resolvedInputs(inputsMap, inputDefs);
       const per = (scenarios || []).map(s => {
@@ -160,9 +172,7 @@
       per.forEach(p => { if (p.active && best[p.theme] && best[p.theme].scenario_id !== p.scenario_id) p.pool_shadow = true; });
       const counted = per.filter(p => p.active && !p.pool_shadow);
       const arvFull = counted.reduce((s, p) => s + p.arv, 0);
-      const arvY1 = arvFull * RAMPS[0];
-      const arvY2 = arvFull * RAMPS[1];
-      const arvY3 = arvFull * RAMPS[2];
+      const arvY1 = arvFull * RAMPS[0], arvY2 = arvFull * RAMPS[1], arvY3 = arvFull * RAMPS[2];
       const monthlyDelay = counted.reduce((s, p) => s + p.delay, 0);
       const coi3yr = counted.reduce((s, p) => s + p.coi, 0);
       const impl = Number(inputsMap?.implementation_cost?.provided_value) || 0;
@@ -175,10 +185,10 @@
     /* ---------- FORMAT HELPERS ---------- */
     function fmtMoney(n) {
       if (n == null || !isFinite(n)) return '—';
-      const abs = Math.abs(n);
-      if (abs >= 1e9) return '$' + (n / 1e9).toFixed(1) + 'B';
-      if (abs >= 1e6) return '$' + (n / 1e6).toFixed(1) + 'M';
-      if (abs >= 1e3) return '$' + (n / 1e3).toFixed(0) + 'K';
+      const a = Math.abs(n);
+      if (a >= 1e9) return '$' + (n / 1e9).toFixed(1) + 'B';
+      if (a >= 1e6) return '$' + (n / 1e6).toFixed(1) + 'M';
+      if (a >= 1e3) return '$' + (n / 1e3).toFixed(0) + 'K';
       return '$' + Math.round(n).toLocaleString();
     }
     const fmtPercent = (n, d = 0) => (n == null || !isFinite(n)) ? '—' : (n * 100).toFixed(d) + '%';
@@ -198,156 +208,113 @@
       return Math.floor(ms / 86_400_000) + 'd ago';
     }
 
-    /* ---------- SENSITIVITY + CONFIDENCE ---------- */
-    // Rank input_defs by ARV impact: perturb each input ±20% and measure |ΔarvFull|.
-    function topSensitiveInputs(scenarios, defs, valuesMap, n = 4) {
-      if (!defs?.length || !scenarios?.length) return [];
-      const base = computeAnalysis(scenarios, valuesMap, defs).arvFull;
-      const candidates = defs.filter(d => d.input_key !== 'implementation_cost');
-      const scored = candidates.map(d => {
-        const cur = Number(valuesMap?.[d.input_key]?.provided_value ?? d.typical_value ?? d.default_value ?? 0);
-        const probe = cur === 0 ? 1 : cur * 1.2;
-        const probed = { ...valuesMap, [d.input_key]: { ...(valuesMap?.[d.input_key] || {}), provided_value: probe } };
-        const arv = computeAnalysis(scenarios, probed, defs).arvFull;
-        return { def: d, delta: Math.abs(arv - base) };
-      });
-      return scored.filter(x => x.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, n).map(x => x.def);
+    /* ---------- STAGE + PHASE TRANSLATION (Rule 8: no DB language in UI) ---------- */
+    // DB stage strings are lowercase; map to friendly verb-tense labels with tone.
+    const STAGE_MAP = {
+      'discovery':      { label: 'Discovery',  tone: 'blue'  },
+      'validation':     { label: 'Validating', tone: 'blue'  },
+      'proposal':       { label: 'Proposing',  tone: 'amber' },
+      'finance review': { label: 'In Review',  tone: 'amber' },
+      'closed won':     { label: 'Won',        tone: 'green' },
+      'closed lost':    { label: 'Lost',       tone: 'ink'   }
+    };
+    const friendlyStage = (raw) => STAGE_MAP[(raw || '').toLowerCase()] || { label: raw || 'Draft', tone: 'ink' };
+    // Phase fuzzy-match — DB uses things like "Discovery", "Pilot", "Deployment", "Expansion", "Renewal".
+    function friendlyPhase(raw) {
+      const lc = (raw || '').toLowerCase();
+      if (lc.includes('pilot')) return { label: 'Piloting',  tone: 'amber' };
+      if (lc.includes('deploy')) return { label: 'Deploying', tone: 'blue'  };
+      if (lc.includes('expand')) return { label: 'Expanding', tone: 'green' };
+      if (lc.includes('renew'))  return { label: 'Renewing',  tone: 'green' };
+      if (lc.includes('discover') || lc.includes('explor')) return { label: 'Exploring', tone: 'ink' };
+      return { label: raw || 'Exploring', tone: 'ink' };
     }
+    // Tone → Tailwind class (used by both StageBadge and PhaseBadge in W4+).
+    const TONE_BG = {
+      blue:  'bg-blue/20 text-blue',
+      amber: 'bg-amber/20 text-amber',
+      green: 'bg-green/20 text-green',
+      teal:  'bg-teal/20 text-teal',
+      red:   'bg-red/20 text-red',
+      ink:   'bg-surface2 text-ink2'
+    };
+    const ACTIVE_STAGES   = new Set(['discovery', 'validation', 'proposal', 'finance review']);
+    const PILOT_PHASES    = new Set([]);  // matched via friendlyPhase('Piloting'); see isPilot()
+    const isActive    = (e) => ACTIVE_STAGES.has((e?.deal_stage || '').toLowerCase()) && !((e?.engagement_status || '').toLowerCase().includes('completed'));
+    const isPilot     = (e) => friendlyPhase(e?.phase).label === 'Piloting';
+    const isCompleted = (e) => (e?.engagement_status || '').toLowerCase().includes('completed') || (e?.deal_stage || '').toLowerCase().startsWith('closed');
 
-    function confidenceTier(scenarios) {
-      const active = (scenarios || []).filter(s => s.active);
-      if (!active.length) return { tier: 'EXPLORATORY', pct: 25, color: '#888' };
-      const tally = { Strong: 0, Moderate: 0, Weak: 0 };
-      active.forEach(s => { const e = s.evidence_strength || 'Moderate'; if (tally[e] != null) tally[e]++; });
-      const score = (tally.Strong * 1 + tally.Moderate * 0.6 + tally.Weak * 0.3) / active.length;
-      if (score >= 0.75) return { tier: 'STRONG', pct: 90, color: '#86efac' };
-      if (score >= 0.45) return { tier: 'MODERATE', pct: 60, color: '#fbbf24' };
-      return { tier: 'EXPLORATORY', pct: 30, color: '#888' };
-    }
-
-    /* ---------- SLIDER + SOURCE CHIP ---------- */
-    function Slider({ value, min, max, step, onChange, onCommit }) {
-      const commit = () => onCommit?.(Number(value));
-      return (
-        <input type="range" value={value} min={min} max={max} step={step}
-          onChange={e => onChange(Number(e.target.value))}
-          onMouseUp={commit} onTouchEnd={commit} onKeyUp={commit}
-          className="w-full h-1 accent-red bg-border1 cursor-pointer" />
-      );
-    }
-    function SourceChip({ source }) {
-      const isBuyer = source && source !== 'default';
-      return (
-        <span className={`text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 ${isBuyer ? 'bg-green-900/40 text-green-300' : 'bg-surface2 text-ink3'}`}>
-          {isBuyer ? 'BUYER' : 'DEFAULT'}
-        </span>
-      );
-    }
-
-    /* ---------- LIVE ASSUMPTIONS RAIL ---------- */
-    function LiveAssumptions({ scenarios, defs, values, analysis, onSlide, onCommit }) {
-      const top = useMemo(() => topSensitiveInputs(scenarios, defs, values, 4), [scenarios, defs, values]);
-      const conf = useMemo(() => confidenceTier(scenarios), [scenarios]);
-      if (!top.length) {
-        return <div className="text-[11px] font-mono text-ink3 italic">No sensitivity signal yet.</div>;
-      }
-      return (
-        <div className="space-y-3">
-          {top.map(d => {
-            const iv = values?.[d.input_key];
-            const cur = Number(iv?.provided_value ?? d.typical_value ?? d.default_value ?? 0);
-            const min = Number(d.min_value ?? 0);
-            const max = Number(d.max_value ?? Math.max(cur * 2, 1000));
-            const step = Number(d.step_value ?? Math.max((max - min) / 100, 0.01));
-            return (
-              <div key={d.input_key}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-ink2 truncate">{d.input_label || d.input_key}</span>
-                  <SourceChip source={iv?.value_source} />
-                </div>
-                <Slider value={cur} min={min} max={max} step={step}
-                  onChange={(v) => onSlide(d.input_key, v)}
-                  onCommit={(v) => onCommit(d.input_key, v)} />
-                <div className="text-[11px] font-mono text-ink mt-0.5">{cur.toLocaleString(undefined, { maximumFractionDigits: 2 })} <span className="text-ink3">{d.input_unit || ''}</span></div>
-              </div>
-            );
-          })}
-          <div className="pt-3 mt-3 border-t border-border1">
-            <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mb-1">Live ARV</div>
-            <div className="font-display text-xl text-red leading-none">{fmtMoney(analysis?.arvY1 || 0)}</div>
-            <div className="mt-1.5 inline-flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-widest" style={{ color: conf.color }}>
-              <span className="w-1.5 h-1.5 rounded-full" style={{ background: conf.color }} />{conf.tier}
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    /* ---------- LOGIN SCREEN (fake — no validation) ---------- */
-    function LoginScreen({ onSignIn }) {
+    /* ---------- LOGIN — fake, no validation, no API ---------- */
+    function LoginScreen({ onEnter }) {
       const [email, setEmail] = useState('seller@altmeridian.com');
       const [password, setPassword] = useState('altmeridian2026');
-      const submit = (e) => { e.preventDefault(); onSignIn(); };
+      const submit = (e) => { e.preventDefault(); onEnter(); };
       return (
-        <div className="min-h-full grid place-items-center bg-bg px-4">
-          <form onSubmit={submit} className="w-[380px] bg-surface border border-border1 p-8">
-            <div className="font-display text-2xl tracking-wide mb-1">
+        <div className="min-h-full grid place-items-center bg-bg px-6">
+          <form onSubmit={submit} className="w-full max-w-[360px] bg-surface border border-border p-8">
+            <div className="font-display text-2xl tracking-wide mb-10">
               <span className="text-red">ALT</span> <span className="text-ink">MERIDIAN</span>
             </div>
-            <div className="font-mono text-[10px] text-ink2 uppercase tracking-widest mb-8">
-              Workspace · Sign in
-            </div>
-            <label className="block text-[11px] font-mono uppercase text-ink2 mb-1.5 tracking-wider">Email</label>
             <input type="email" value={email} onChange={e => setEmail(e.target.value)}
-              className="w-full bg-surface2 border border-border1 px-3 py-2 mb-4 text-sm focus:border-red outline-none" />
-            <label className="block text-[11px] font-mono uppercase text-ink2 mb-1.5 tracking-wider">Password</label>
+              placeholder="email"
+              className="w-full bg-surface2 border border-border px-3 py-2.5 mb-3 text-sm font-mono text-ink placeholder:text-ink3 focus:border-red outline-none" />
             <input type="password" value={password} onChange={e => setPassword(e.target.value)}
-              className="w-full bg-surface2 border border-border1 px-3 py-2 mb-6 text-sm focus:border-red outline-none" />
+              placeholder="password"
+              className="w-full bg-surface2 border border-border px-3 py-2.5 mb-6 text-sm font-mono text-ink placeholder:text-ink3 focus:border-red outline-none" />
             <button type="submit"
-              className="w-full bg-red hover:bg-red/90 text-white py-2.5 text-sm font-display tracking-wide transition-colors">
+              className="w-full bg-red hover:bg-red/90 text-white py-2.5 text-sm font-display tracking-wide">
               Enter Workspace →
             </button>
-            <div className="text-[11px] text-ink2 mt-8 italic font-mono leading-relaxed">
-              "Value belongs to mechanisms, not solutions."
+            <div className="text-[11px] font-mono text-ink2 mt-10 italic text-center">
+              Value belongs to mechanisms.
             </div>
           </form>
         </div>
       );
     }
 
-    /* ---------- VOCABULARY ---------- */
+    /* ---------- VOCAB + OUTCOMES ---------- */
     const OUTCOMES = [
-      { key: 'Visibility',   color: '#93c5fd', desc: "Know where things are and what condition they're in" },
-      { key: 'Throughput',   color: '#fbbf24', desc: 'Move things faster through your operation' },
-      { key: 'Compliance',   color: '#c4b5fd', desc: 'Prove what happened and when' },
-      { key: 'Risk',         color: '#f87171', desc: 'Predict and prevent financial exposure' },
-      { key: 'Intelligence', color: '#5eead4', desc: 'Turn data into faster decisions' },
-      { key: 'Performance',  color: '#86efac', desc: 'Get more from equipment and assets' },
-      { key: 'Revenue',      color: '#6ee7b7', desc: "Capture value that's being lost" }
+      { key: 'Visibility',   color: '#93c5fd' },
+      { key: 'Throughput',   color: '#fbbf24' },
+      { key: 'Compliance',   color: '#c4b5fd' },
+      { key: 'Risk',         color: '#f87171' },
+      { key: 'Intelligence', color: '#5eead4' },
+      { key: 'Performance',  color: '#86efac' },
+      { key: 'Revenue',      color: '#6ee7b7' }
     ];
     const OUTCOME_BY = OUTCOMES.reduce((m, o) => (m[o.key] = o, m), {});
     const cleanDomainName = (n) => (n || '').replace(/^[A-Z][A-Z0-9]+\s+—\s+/, '');
-    const isActive = (e) => !(e.deal_stage || '').toLowerCase().includes('closed') && !(e.engagement_status || '').toLowerCase().includes('completed');
-    const isPilot = (e) => (e.phase || '').toLowerCase().includes('pilot');
-    const isCompleted = (e) => (e.engagement_status || '').toLowerCase().includes('completed');
-    const STAGE_TONE = { 'discovery':'blue', 'validation':'blue', 'proposal':'amber', 'finance review':'amber', 'closed won':'green', 'closed lost':'ink' };
-    const TONE_CLASS = { blue:'bg-blue-900/40 text-blue-300', amber:'bg-amber-900/40 text-amber-300', green:'bg-green-900/40 text-green-300', ink:'bg-surface2 text-ink2', grey:'bg-surface2 text-ink2' };
-    const stageTone = (s) => STAGE_TONE[(s || '').toLowerCase()] || 'grey';
 
-    /* ---------- HOME SCREEN ---------- */
-    function OutcomeChip({ outcome }) {
+    /* ---------- SHARED PRIMITIVES ---------- */
+    function OutcomeDot({ outcome, size = 8 }) {
       const o = OUTCOME_BY[outcome];
-      if (!o) return <span className="text-[10px] font-mono uppercase tracking-wider text-ink3">Unmapped</span>;
+      return <span className="inline-block rounded-full" style={{ background: o?.color || '#444', width: size, height: size }} />;
+    }
+    function StageBadge({ stage }) {
+      const s = friendlyStage(stage);
+      return <span className={`text-[10px] font-mono uppercase tracking-wider px-1.5 py-0.5 ${TONE_BG[s.tone]}`}>{s.label}</span>;
+    }
+    // Horizontal bar chart used by PipelineBars and elsewhere — Rule 5.
+    function BarChart({ rows, max, format = (v) => v, height = 8 }) {
+      const m = max || Math.max(...rows.map(r => r.value), 1);
       return (
-        <span title={o.desc} className="inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-wider" style={{ color: o.color }}>
-          <span className="w-1.5 h-1.5 rounded-full" style={{ background: o.color }} />{o.key}
-        </span>
+        <div className="space-y-1.5">
+          {rows.map(r => (
+            <div key={r.key} className="grid grid-cols-12 gap-3 items-center">
+              <div className="col-span-3 text-[10px] font-mono uppercase tracking-wider text-ink2 truncate">{r.label}</div>
+              <div className="col-span-7 bg-surface2 relative" style={{ height }}>
+                <div className="absolute inset-y-0 left-0" style={{ width: ((r.value / m) * 100) + '%', background: r.color || '#d63b2f' }} />
+              </div>
+              <div className="col-span-2 text-right font-mono text-[11px] text-ink">{format(r.value)}</div>
+            </div>
+          ))}
+        </div>
       );
     }
-    function StageChip({ stage }) {
-      return <span className={`px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider ${TONE_CLASS[stageTone(stage)]}`}>{stage || '—'}</span>;
-    }
-    function HomeScreen({ onOpen, onNew, signOut, userEmail }) {
+
+    /* ---------- HOME SCREEN ---------- */
+    function HomeScreen({ onOpen, onNew, signOut }) {
       const [engagements, setEngagements] = useState([]);
       const [domains, setDomains] = useState({});
       const [arvByEng, setArvByEng] = useState({});
@@ -356,11 +323,7 @@
       useEffect(() => {
         (async () => {
           try {
-            const [engs, doms, snaps] = await Promise.all([
-              loadEngagements(),
-              loadDomains(),
-              sbSelect('vef_output_snapshots', { order: ['created_at', false] }).catch(() => [])
-            ]);
+            const [engs, doms, snaps] = await Promise.all([loadEngagements(), loadDomains(), loadAllSnapshots()]);
             setEngagements(engs); setDomains(doms);
             const by = {};
             snaps.forEach(s => { if (!by[s.engagement_id]) by[s.engagement_id] = Number(s.annual_value) || 0; });
@@ -374,72 +337,72 @@
         active: engagements.filter(isActive).length,
         pilot: engagements.filter(isPilot).length
       }), [engagements, arvByEng]);
-      const rows = useMemo(() => {
-        const filtered = engagements.filter(e =>
-          filter === 'all' ? true : filter === 'active' ? isActive(e) : filter === 'pilot' ? isPilot(e) : isCompleted(e)
-        );
-        return filtered.slice().sort((a, b) => (arvByEng[b.engagement_id] || 0) - (arvByEng[a.engagement_id] || 0));
-      }, [engagements, filter, arvByEng]);
-      const counts = { all: engagements.length, active: engagements.filter(isActive).length, pilot: engagements.filter(isPilot).length, completed: engagements.filter(isCompleted).length };
+      // Pipeline distribution: sum ARV per outcome — feeds PipelineBars (Rule 5).
+      const byOutcome = useMemo(() => {
+        const acc = {};
+        engagements.forEach(e => {
+          const oc = domains[e.domain_id]?.primary_outcome;
+          if (!oc) return;
+          acc[oc] = (acc[oc] || 0) + (arvByEng[e.engagement_id] || 0);
+        });
+        return Object.entries(acc).map(([k, v]) => ({ key: k, label: k, value: v, color: OUTCOME_BY[k]?.color || '#888' }))
+          .sort((a, b) => b.value - a.value);
+      }, [engagements, domains, arvByEng]);
+      const counts = { all: engagements.length, active: engagements.filter(isActive).length, pilot: engagements.filter(isPilot).length, complete: engagements.filter(isCompleted).length };
+      const filterFn = { all: () => true, active: isActive, pilot: isPilot, complete: isCompleted }[filter];
+      const rows = useMemo(() => engagements.filter(filterFn).slice().sort((a, b) => (arvByEng[b.engagement_id] || 0) - (arvByEng[a.engagement_id] || 0)), [engagements, filter, arvByEng]);
       return (
         <div className="min-h-full bg-bg">
-          <header className="h-11 px-6 border-b border-border1 flex items-center justify-between bg-surface">
+          <header className="h-12 px-4 sm:px-6 border-b border-border flex items-center justify-between bg-surface">
             <div className="font-display text-lg tracking-wide"><span className="text-red">ALT</span> <span className="text-ink">MERIDIAN</span></div>
-            <div className="flex items-center gap-4">
-              <span className="text-[11px] font-mono text-ink2">{userEmail || ''}</span>
+            <div className="flex items-center gap-3 sm:gap-4">
               <button onClick={onNew} className="bg-red hover:bg-red/90 text-white px-3 py-1.5 text-xs font-display tracking-wide">+ New Analysis</button>
-              <button onClick={signOut} className="text-[11px] font-mono text-ink2 hover:text-red">Sign out</button>
+              <button onClick={signOut} className="text-[11px] font-mono text-ink2 hover:text-red hidden sm:block">Sign out</button>
             </div>
           </header>
-          <main className="max-w-[1200px] mx-auto px-6 py-8">
-            <div className="grid grid-cols-4 gap-4 mb-8">
-              {[
-                { label: 'Total ARV', value: fmtMoney(stats.totalArv), accent: true },
-                { label: 'Analyses', value: stats.total },
-                { label: 'Active', value: stats.active },
-                { label: 'In Pilot', value: stats.pilot }
-              ].map(s => (
-                <div key={s.label} className="bg-surface border border-border1 p-4">
-                  <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-2">{s.label}</div>
-                  <div className={`font-display text-2xl ${s.accent ? 'text-red' : 'text-ink'}`}>{s.value}</div>
-                </div>
-              ))}
+          <main className="max-w-[1200px] mx-auto px-4 sm:px-6 py-8">
+            <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2 mb-10">
+              <div className="font-display font-bold text-red leading-none" style={{ fontSize: '32px' }}>{fmtMoney(stats.totalArv)}</div>
+              <div className="text-[11px] font-mono uppercase tracking-widest text-ink2">portfolio ARV</div>
+              <div className="text-[11px] font-mono uppercase tracking-widest text-ink3">·</div>
+              <div className="text-[11px] font-mono uppercase tracking-widest text-ink2">{stats.total} <span className="text-ink3">analyses</span></div>
+              <div className="text-[11px] font-mono uppercase tracking-widest text-ink2">{stats.active} <span className="text-ink3">active</span></div>
+              <div className="text-[11px] font-mono uppercase tracking-widest text-ink2">{stats.pilot} <span className="text-ink3">in pilot</span></div>
             </div>
-            <div className="flex items-center gap-6 border-b border-border1 mb-1">
-              {['all','active','pilot','completed'].map(t => (
-                <button key={t} onClick={() => setFilter(t)}
-                  className={`pb-2 text-[11px] font-mono uppercase tracking-widest transition-colors border-b-2 -mb-px ${filter === t ? 'text-red border-red' : 'text-ink2 border-transparent hover:text-ink'}`}>
-                  {t} <span className="text-ink3 ml-1">{counts[t]}</span>
+            {byOutcome.length > 0 && (
+              <div className="mb-10">
+                <div className="text-[10px] font-mono uppercase tracking-widest text-ink3 mb-3">Where value sits</div>
+                <BarChart rows={byOutcome} format={fmtMoney} height={10} />
+              </div>
+            )}
+            <div className="flex items-center gap-5 sm:gap-6 border-b border-border mb-3 overflow-x-auto">
+              {[['all','All'],['active','Validating'],['pilot','Piloting'],['complete','Complete']].map(([k, label]) => (
+                <button key={k} onClick={() => setFilter(k)}
+                  className={`pb-2 text-[11px] font-mono uppercase tracking-widest transition-colors border-b-2 -mb-px whitespace-nowrap ${filter === k ? 'text-red border-red' : 'text-ink2 border-transparent hover:text-ink'}`}>
+                  {label} <span className="text-ink3 ml-1">{counts[k]}</span>
                 </button>
               ))}
             </div>
             {loading ? (
-              <div className="py-16 text-center text-ink2 font-mono text-xs">Loading analyses…</div>
+              <div className="py-16 text-center text-ink2 font-mono text-xs">Loading…</div>
             ) : rows.length === 0 ? (
-              <div className="py-16 text-center text-ink2 font-mono text-xs">No analyses match the current filter.</div>
+              <div className="py-16 text-center text-ink2 font-mono text-xs">No analyses match this filter.</div>
             ) : (
               <div>
-                {rows.map((e, i) => {
+                {rows.map(e => {
                   const d = domains[e.domain_id];
                   const arv = arvByEng[e.engagement_id] || 0;
-                  const hero = i === 0;
+                  const stage = friendlyStage(e.deal_stage);
+                  const phase = friendlyPhase(e.phase);
                   return (
                     <button key={e.engagement_id} onClick={() => onOpen(e.engagement_id)}
-                      className={`w-full text-left grid grid-cols-12 gap-4 items-center px-4 ${hero ? 'py-5 border-t-2 border-t-red bg-surface/40' : 'py-3'} border-b border-border1 hover:bg-red/5 transition-colors`}>
-                      <div className="col-span-3">
-                        <OutcomeChip outcome={d?.primary_outcome} />
-                        <div className="text-xs text-ink2 mt-1.5">{cleanDomainName(d?.domain_name) || e.domain_id || '—'}</div>
+                      className="w-full text-left grid grid-cols-12 gap-3 items-center px-3 py-3 border-b border-border border-l-2 border-l-transparent hover:border-l-red hover:bg-red-dim transition-colors">
+                      <div className="col-span-1 sm:col-span-1 flex justify-center"><OutcomeDot outcome={d?.primary_outcome} size={10} /></div>
+                      <div className="col-span-8 sm:col-span-7 min-w-0">
+                        <div className="text-sm text-ink truncate">{e.vendor_name || 'Untitled'} <span className="text-ink3">→</span> {e.prospect_name || '—'}</div>
+                        <div className="text-[11px] font-mono text-ink3 mt-0.5 truncate">{cleanDomainName(d?.domain_name) || '—'} · {stage.label} · {phase.label} · {fmtRelative(e.intake_date)}</div>
                       </div>
-                      <div className="col-span-4">
-                        <div className={`font-display ${hero ? 'text-lg' : 'text-sm'} text-ink`}>{e.analysis_name || e.vendor_name || 'Untitled analysis'}</div>
-                        <div className="text-[11px] font-mono text-ink2 mt-0.5">{e.prospect_name || '—'}</div>
-                      </div>
-                      <div className="col-span-2 flex flex-col gap-1">
-                        <StageChip stage={e.deal_stage} />
-                        <span className="text-[10px] font-mono uppercase tracking-wider text-ink2">{e.phase || '—'}</span>
-                      </div>
-                      <div className={`col-span-2 text-right font-display ${hero ? 'text-2xl' : 'text-base'} ${arv > 0 ? 'text-red' : 'text-ink3'}`}>{arv > 0 ? fmtMoney(arv) : '—'}</div>
-                      <div className="col-span-1 text-right text-[11px] font-mono text-ink2">{fmtRelative(e.intake_date)}</div>
+                      <div className={`col-span-3 sm:col-span-4 text-right font-display font-bold ${arv > 0 ? 'text-red' : 'text-ink3'}`} style={{ fontSize: '18px' }}>{arv > 0 ? fmtMoney(arv) : '—'}</div>
                     </button>
                   );
                 })}
@@ -449,15 +412,8 @@
         </div>
       );
     }
-    /* ---------- ENGAGEMENT SHELL ---------- */
-    const TABS = [
-      { key: 'overview',  label: 'Overview' },
-      { key: 'scenarios', label: 'Scenarios' },
-      { key: 'inputs',    label: 'Inputs' },
-      { key: 'outputs',   label: 'Outputs' },
-      { key: 'snapshots', label: 'Snapshots' }
-    ];
 
+    /* ---------- ANALYSIS HELPERS ---------- */
     function mergeScenarios(scenarios, selections) {
       return (scenarios || []).map(s => {
         const sel = (selections || []).find(x => x.scenario_id === s.scenario_id);
@@ -469,372 +425,304 @@
       const provided = defs.filter(d => values?.[d.input_key]?.provided_value != null).length;
       return Math.round((provided / defs.length) * 100);
     }
-
-    function Topbar({ engagement, onBack, onToggleMeridian, drawerOpen, onSaveSnapshot }) {
-      const [busy, setBusy] = useState(false);
-      const save = async () => { setBusy(true); try { await onSaveSnapshot(); } finally { setBusy(false); } };
-      return (
-        <header className="h-11 px-4 border-b border-border1 bg-surface flex items-center justify-between flex-shrink-0">
-          <div className="flex items-center gap-4">
-            <button onClick={onBack} className="text-ink2 hover:text-red text-xs font-mono">←</button>
-            <div className="font-display text-sm tracking-wide"><span className="text-red">ALT</span> <span className="text-ink">MERIDIAN</span></div>
-            <div className="h-5 w-px bg-border1" />
-            <div className="flex items-center gap-2">
-              <span className="font-display text-sm text-ink">{engagement.analysis_name || engagement.vendor_name || 'Untitled'}</span>
-              <span className="text-ink3">/</span>
-              <span className="font-mono text-[11px] text-ink2">{engagement.prospect_name || '—'}</span>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <StageChip stage={engagement.deal_stage} />
-            <button onClick={onToggleMeridian} className={`px-2.5 py-1 text-[11px] font-mono uppercase tracking-wider border ${drawerOpen ? 'border-red text-red' : 'border-border2 text-ink2 hover:text-ink'}`}>Meridian ◆</button>
-            <button onClick={save} disabled={busy} className="px-2.5 py-1 text-[11px] font-mono uppercase tracking-wider border border-border2 text-ink2 hover:text-ink disabled:opacity-50">{busy ? 'Saving…' : 'Save Snapshot'}</button>
-            <button className="bg-red hover:bg-red/90 text-white px-3 py-1 text-[11px] font-mono uppercase tracking-wider">Generate Report</button>
-          </div>
-        </header>
-      );
+    function confidenceTier(scenarios) {
+      const active = (scenarios || []).filter(s => s.active);
+      if (!active.length) return { tier: 'EXPLORATORY', pct: 25, color: '#888' };
+      const t = { Strong: 0, Moderate: 0, Weak: 0 };
+      active.forEach(s => { const e = s.evidence_strength || 'Moderate'; if (t[e] != null) t[e]++; });
+      const score = (t.Strong + t.Moderate * 0.6 + t.Weak * 0.3) / active.length;
+      if (score >= 0.75) return { tier: 'STRONG', pct: 90, color: '#86efac' };
+      if (score >= 0.45) return { tier: 'MODERATE', pct: 60, color: '#fbbf24' };
+      return { tier: 'EXPLORATORY', pct: 30, color: '#888' };
+    }
+    function topSensitiveInputs(scenarios, defs, valuesMap, n = 3) {
+      if (!defs?.length || !scenarios?.length) return [];
+      const base = computeAnalysis(scenarios, valuesMap, defs).arvFull;
+      return defs.filter(d => d.input_key !== 'implementation_cost').map(d => {
+        const cur = Number(valuesMap?.[d.input_key]?.provided_value ?? d.typical_value ?? d.default_value ?? 0);
+        const probe = cur === 0 ? 1 : cur * 1.2;
+        const probed = { ...valuesMap, [d.input_key]: { ...(valuesMap?.[d.input_key] || {}), provided_value: probe } };
+        return { def: d, delta: Math.abs(computeAnalysis(scenarios, probed, defs).arvFull - base) };
+      }).filter(x => x.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, n).map(x => x.def);
     }
 
-    function ContextBar({ engagement, domain, scenarios, tier, onTierCycle, governed, savedAgo }) {
-      const o = OUTCOME_BY[domain?.primary_outcome];
-      const activeCount = scenarios.filter(s => s.active).length;
+    /* ---------- SLIDER + SOURCE CHIP ---------- */
+    function Slider({ value, min, max, step, onChange, onCommit }) {
+      const commit = () => onCommit?.(Number(value));
       return (
-        <div className="h-8 px-4 bg-surface border-b border-border1 flex items-center gap-3 text-[10px] font-mono uppercase tracking-wider flex-shrink-0">
-          <span className="inline-flex items-center gap-1.5" style={{ color: o?.color || '#888' }}>
-            <span className="w-1.5 h-1.5 rounded-full" style={{ background: o?.color || '#444' }} />
-            {cleanDomainName(domain?.domain_name) || engagement.domain_id || '—'}
-          </span>
-          <span className="text-ink3">·</span>
-          <span className="text-ink2">{activeCount} <span className="text-ink3">scenarios</span></span>
-          <span className="text-ink3">·</span>
-          <button onClick={onTierCycle} title="Cycle assumption tier" className="text-ink hover:text-red">{tier}</button>
-          <span className="text-ink3">·</span>
-          <span className="text-ink2">{governed}% <span className="text-ink3">governed</span></span>
-          <span className="text-ink3">·</span>
-          <span className="text-ink2">{savedAgo}</span>
+        <input type="range" value={value} min={min} max={max} step={step}
+          onChange={e => onChange(Number(e.target.value))}
+          onMouseUp={commit} onTouchEnd={commit} onKeyUp={commit}
+          className="w-full h-1 accent-red bg-border cursor-pointer" />
+      );
+    }
+    function SourceDot({ source }) {
+      const isBuyer = source && source !== 'default';
+      return <span className="inline-block w-1.5 h-1.5 rounded-full" title={isBuyer ? 'Buyer-confirmed' : 'Default'} style={{ background: isBuyer ? '#86efac' : '#444' }} />;
+    }
+
+    /* ---------- LIVE ASSUMPTIONS RAIL ---------- */
+    function LiveAssumptions({ scenarios, defs, values, analysis, onSlide, onCommit }) {
+      const top = useMemo(() => topSensitiveInputs(scenarios, defs, values, 3), [scenarios, defs, values]);
+      const conf = useMemo(() => confidenceTier(scenarios), [scenarios]);
+      return (
+        <div className="px-4 py-4 border-t border-border">
+          <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mb-3">Live Assumptions</div>
+          {top.length === 0 ? (
+            <div className="text-[11px] font-mono text-ink3 italic">No sensitivity signal yet.</div>
+          ) : (
+            <div className="space-y-3">
+              {top.map(d => {
+                const iv = values?.[d.input_key];
+                const cur = Number(iv?.provided_value ?? d.typical_value ?? d.default_value ?? 0);
+                const min = Number(d.min_value ?? 0);
+                const max = Number(d.max_value ?? Math.max(cur * 2, 1000));
+                const step = Number(d.step_value ?? Math.max((max - min) / 100, 0.01));
+                return (
+                  <div key={d.input_key}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-[10px] text-ink2 truncate">{d.input_label || d.input_key.replace(/_/g, ' ')}</span>
+                      <SourceDot source={iv?.value_source} />
+                    </div>
+                    <Slider value={cur} min={min} max={max} step={step}
+                      onChange={(v) => onSlide(d.input_key, v)} onCommit={(v) => onCommit(d.input_key, v)} />
+                    <div className="text-[11px] font-mono text-ink mt-0.5">{cur.toLocaleString(undefined, { maximumFractionDigits: 2 })}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div className="pt-3 mt-4 border-t border-border">
+            <div className="font-display font-bold text-red leading-none" style={{ fontSize: '24px' }}>{fmtMoney(analysis?.arvY1 || 0)}</div>
+            <div className="mt-1.5 inline-flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-widest" style={{ color: conf.color }}>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: conf.color }} />{conf.tier}
+            </div>
+          </div>
         </div>
       );
     }
 
-    function LeftRail({ tab, onTab, scenarios, defs, values, analysis, onSlide, onCommit }) {
-      return (
-        <aside className="w-[200px] bg-surface border-r border-border1 flex flex-col flex-shrink-0 overflow-hidden">
-          <nav className="py-3 flex-shrink-0">
-            {TABS.map(t => (
-              <button key={t.key} onClick={() => onTab(t.key)}
-                className={`w-full text-left px-4 py-2 text-[11px] font-mono uppercase tracking-widest border-l-2 transition-colors ${tab === t.key ? 'border-red text-red bg-red/5' : 'border-transparent text-ink2 hover:text-ink'}`}>
-                {t.label}
-              </button>
-            ))}
-          </nav>
-          <div className="mt-auto px-4 py-4 border-t border-border1 overflow-y-auto">
-            <div className="text-[10px] font-mono uppercase tracking-widest text-ink3 mb-3">Live Assumptions</div>
-            <LiveAssumptions scenarios={scenarios} defs={defs} values={values} analysis={analysis} onSlide={onSlide} onCommit={onCommit} />
-          </div>
-        </aside>
-      );
-    }
-
-    /* ---------- THEME COLORS for value_theme chips/bars ---------- */
-    const THEME_COLORS = {
-      'Operational Efficiency': '#fbbf24',
-      'Compliance & Risk': '#c4b5fd',
-      'Asset Performance': '#86efac',
-      'Inventory Accuracy': '#93c5fd',
-      'Throughput': '#f59e0b',
-      'Visibility': '#60a5fa',
-      'Revenue': '#6ee7b7',
-      'Labor Productivity': '#5eead4'
-    };
-    const themeColor = (t) => THEME_COLORS[t] || '#888';
-
+    /* ---------- OVERVIEW TAB ---------- */
     function priorityAction({ governed, scenarios, snapshots, conf }) {
       const active = scenarios.filter(s => s.active);
-      if (governed < 40) return { headline: 'Gather buyer inputs', body: `Only ${governed}% of assumptions are buyer-confirmed. The analysis is mostly running on defaults.`, cta: 'Open Inputs' };
-      if (!active.length) return { headline: 'Activate at least one scenario', body: 'No mechanisms are active — ARV is $0 by definition.', cta: 'Open Scenarios' };
+      if (governed < 40) return { headline: 'Gather buyer inputs', body: `Only ${governed}% of assumptions are buyer-confirmed. The analysis is mostly running on defaults.`, cta: 'Open Inputs', target: 'inputs' };
+      if (!active.length) return { headline: 'Activate a mechanism', body: 'No mechanisms are active — ARV is $0 by definition. Pick at least one scenario that fits this customer.', cta: 'Open Scenarios', target: 'scenarios' };
       const weak = active.filter(s => (s.evidence_strength || '') === 'Weak').length;
-      if (weak > 0) return { headline: 'Strengthen weak evidence', body: `${weak} active scenario${weak > 1 ? 's are' : ' is'} resting on weak proof. Pull case studies or proof points before the CFO sees this.`, cta: 'Open Scenarios' };
-      if (!snapshots?.length) return { headline: 'Save the baseline snapshot', body: 'Capture this state so changes from here have a reference point.', cta: 'Save Snapshot' };
-      return { headline: 'Schedule customer review', body: `Analysis is at ${conf.tier} confidence. Time to walk it through with the customer.`, cta: 'Generate Report' };
+      if (weak > 0) return { headline: 'Strengthen weak evidence', body: `${weak} active scenario${weak > 1 ? 's are' : ' is'} resting on weak proof. Pull case studies or proof points before the CFO sees this.`, cta: 'Open Scenarios', target: 'scenarios' };
+      if (!snapshots?.length) return { headline: 'Save the baseline snapshot', body: 'Capture this state so changes from here have a reference point.', cta: 'Save Snapshot', target: 'snapshots' };
+      return { headline: 'Schedule customer review', body: `Analysis is at ${conf.tier} confidence. Time to walk it through with the customer.`, cta: 'Open Outputs', target: 'outputs' };
     }
-
-    /* ---------- OUTPUTS TAB (top) ---------- */
-    function BigTierToggle({ tier, onPreset }) {
-      const tiers = [
-        { key: 'conservative', label: 'Conservative', sub: 'cautious' },
-        { key: 'typical',      label: 'Typical',      sub: 'realistic' },
-        { key: 'aggressive',   label: 'Aggressive',   sub: 'best case' }
-      ];
+    function MechanismRow({ scenario, perScenario }) {
+      const glyph = !scenario.active ? { icon: '○', color: '#444' } : perScenario?.pool_shadow ? { icon: '◐', color: '#888' } : { icon: '✓', color: '#86efac' };
       return (
-        <div className="grid grid-cols-3 gap-0 border border-border1">
-          {tiers.map(t => (
-            <button key={t.key} onClick={() => onPreset(t.key)}
-              className={`px-4 py-3 text-left transition-colors border-r last:border-r-0 border-border1 ${tier === t.key ? 'bg-red text-white' : 'text-ink hover:bg-surface'}`}>
-              <div className="font-display text-sm tracking-wide">{t.label}</div>
-              <div className="text-[10px] font-mono uppercase tracking-widest opacity-70 mt-0.5">{t.sub}</div>
-            </button>
-          ))}
+        <div className="flex items-center justify-between py-1.5 text-sm">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="font-mono flex-shrink-0" style={{ color: glyph.color }}>{glyph.icon}</span>
+            <span className={`truncate ${scenario.active ? 'text-ink' : 'text-ink3'}`}>{scenario.mechanism_label || scenario.scenario_label || scenario.scenario_id}</span>
+          </div>
+          <span className={`font-mono text-xs flex-shrink-0 ml-3 ${scenario.active && !perScenario?.pool_shadow ? 'text-red' : 'text-ink3'}`}>{fmtMoney(perScenario?.arv || 0)}</span>
         </div>
       );
     }
-    function ValueOfActingCard({ analysis }) {
-      const max = Math.max(analysis?.arvY1 || 0, analysis?.arvY2 || 0, analysis?.arvY3 || 0, 1);
-      const rows = [{ k: 'Y1', v: analysis?.arvY1 || 0 }, { k: 'Y2', v: analysis?.arvY2 || 0 }, { k: 'Y3', v: analysis?.arvY3 || 0 }];
+    function HealthBar({ governed, evMix, snapshots, scenarios }) {
+      const total = evMix.Strong + evMix.Moderate + evMix.Weak;
       return (
-        <div className="bg-surface border border-border1 p-5">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-3">Value of Acting</div>
-          <div className="font-display text-2xl text-red mb-4">{fmtMoney(analysis?.arvFull || 0)}<span className="text-ink3 text-sm font-mono"> /yr</span></div>
-          <div className="space-y-2">
-            {rows.map(r => (
-              <div key={r.k} className="flex items-center gap-3">
-                <span className="font-mono text-[10px] uppercase tracking-widest text-ink3 w-6">{r.k}</span>
-                <div className="flex-1 h-2 bg-surface2 relative">
-                  <div className="absolute inset-y-0 left-0 bg-red" style={{ width: ((r.v / max) * 100) + '%' }} />
-                </div>
-                <span className="font-mono text-[11px] text-ink w-20 text-right">{fmtMoney(r.v)}</span>
-              </div>
-            ))}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 pt-6 border-t border-border">
+          <div>
+            <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mb-2">Completeness</div>
+            <div className="font-display text-base text-ink mb-1">{governed}%</div>
+            <div className="h-1 bg-surface2 relative"><div className="absolute inset-y-0 left-0 bg-red" style={{ width: governed + '%' }} /></div>
           </div>
-          <div className="text-[10px] font-mono text-ink3 mt-3">Y1 ramps at 50%; Y2/Y3 full adoption.</div>
-        </div>
-      );
-    }
-    function CostOfDelayCard({ analysis }) {
-      const monthly = analysis?.monthlyDelay || 0;
-      // Each segment = one month of delay; opacity ramps to suggest escalation
-      return (
-        <div className="bg-surface border border-border1 p-5">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-3">Cost of Delay</div>
-          <div className="font-display text-2xl text-red mb-1">{fmtMoney(monthly)}<span className="text-ink3 text-sm font-mono"> /mo</span></div>
-          <div className="text-[11px] font-mono text-ink2 mb-4">12-mo: {fmtMoney(monthly * 12)}</div>
-          <div className="grid grid-cols-12 gap-0.5">
-            {Array.from({ length: 12 }, (_, i) => (
-              <div key={i} className="h-6 bg-red" style={{ opacity: 0.25 + (i / 11) * 0.7 }} title={`Month ${i + 1}: ${fmtMoney(monthly * (i + 1))} cumulative`} />
-            ))}
-          </div>
-          <div className="flex justify-between text-[9px] font-mono text-ink3 mt-1.5"><span>Mo 1</span><span>Mo 12</span></div>
-        </div>
-      );
-    }
-    function CostOfDoingNothingCard({ analysis }) {
-      const coi = analysis?.coi3yr || 0;
-      const arvCap = (analysis?.arvFull || 0) * 3 || 1;
-      const pct = Math.min(100, Math.round((coi / arvCap) * 100));
-      return (
-        <div className="bg-surface border border-border1 p-5">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-3">Cost of Doing Nothing</div>
-          <div className="font-display text-2xl text-red mb-1">{fmtMoney(coi)}</div>
-          <div className="text-[11px] font-mono text-ink2 mb-4">3-yr value-at-risk</div>
-          <div className="h-3 bg-surface2 relative">
-            <div className="absolute inset-y-0 left-0 bg-red" style={{ width: pct + '%' }} />
-          </div>
-          <div className="flex justify-between text-[9px] font-mono text-ink3 mt-1.5">
-            <span>0</span>
-            <span>{pct}% of 3yr ARV ceiling</span>
-            <span>{fmtMoney(arvCap)}</span>
-          </div>
-        </div>
-      );
-    }
-    /* ---------- SNAPSHOTS TAB ---------- */
-    const SNAP_INTENTS = [
-      { key: 'convince', label: 'Convince' },
-      { key: 'measure',  label: 'Measure' },
-      { key: 'justify',  label: 'Justify' },
-      { key: 'track',    label: 'Track' }
-    ];
-    function buildSnapshotRow({ engagementId, label, intent, analysis, defs, values, scenarios, engagement }) {
-      const inputSnap = {};
-      (defs || []).forEach(d => { inputSnap[d.input_key] = values?.[d.input_key]?.provided_value ?? d.typical_value ?? d.default_value ?? null; });
-      // Stash auxiliary fields in JSON sidecar (lesson 2026-04-24): stage/phase at time of snapshot
-      // aren't guaranteed columns; tuck them into input_snapshot._meta to survive any tenant schema.
-      inputSnap._meta = {
-        stage_at_snapshot: engagement?.deal_stage || null,
-        phase_at_snapshot: engagement?.phase || null,
-        active_scenario_count: scenarios.filter(s => s.active).length,
-        arv_full: analysis?.arvFull || 0,
-        npv: analysis?.npv ?? null
-      };
-      return {
-        engagement_id: engagementId,
-        snapshot_label: label,
-        intent: (intent || 'track').toLowerCase(),  // CHECK constraint requires lowercase per BUG-004
-        annual_value: analysis?.arvY1 || 0,
-        input_snapshot: inputSnap,
-        notes: ''
-      };
-    }
-    function SnapshotCard({ snapshot }) {
-      const meta = snapshot.input_snapshot?._meta || {};
-      return (
-        <div className="bg-surface border border-border1 p-4">
-          <div className="flex items-center justify-between mb-2">
-            <div className="font-display text-sm text-ink">{snapshot.snapshot_label || '(unlabeled)'}</div>
-            <span className="text-[10px] font-mono uppercase tracking-widest px-1.5 py-0.5 bg-surface2 text-ink2">{snapshot.intent || 'track'}</span>
-          </div>
-          <div className="text-[11px] font-mono text-ink2 mb-3">{fmtDate(snapshot.created_at)} · {fmtRelative(snapshot.created_at)}</div>
-          <div className="grid grid-cols-3 gap-3 pt-3 border-t border-border1">
-            <div><div className="text-[9px] font-mono uppercase tracking-widest text-ink3">Y1 ARV</div><div className="text-sm font-display text-red mt-0.5">{fmtMoney(snapshot.annual_value)}</div></div>
-            <div><div className="text-[9px] font-mono uppercase tracking-widest text-ink3">Full ARV</div><div className="text-sm font-mono text-ink mt-0.5">{fmtMoney(meta.arv_full)}</div></div>
-            <div><div className="text-[9px] font-mono uppercase tracking-widest text-ink3">Stage</div><div className="text-sm font-mono text-ink mt-0.5">{meta.stage_at_snapshot || '—'}</div></div>
-          </div>
-        </div>
-      );
-    }
-    function SnapshotsTab({ snapshots, onSave }) {
-      const [busy, setBusy] = useState(false);
-      const save = async () => {
-        setBusy(true);
-        try { await onSave(); } finally { setBusy(false); }
-      };
-      return (
-        <main className="flex-1 overflow-auto">
-          <div className="max-w-[720px] mx-auto px-8 py-8">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <div className="font-display text-xl text-ink">Snapshots</div>
-                <div className="text-[11px] font-mono text-ink2 mt-1">{snapshots.length} captured</div>
-              </div>
-              <button onClick={save} disabled={busy} className="bg-red hover:bg-red/90 disabled:opacity-50 text-white px-4 py-2 text-xs font-display tracking-wide">{busy ? 'Saving…' : '+ Save Snapshot'}</button>
-            </div>
-            {snapshots.length === 0 ? (
-              <div className="py-16 text-center text-ink3 font-mono text-xs">No snapshots yet. Save the first one to capture this baseline.</div>
-            ) : (
-              <div className="relative pl-6 space-y-4">
-                <div className="absolute left-2 top-1 bottom-1 w-px bg-border1" />
-                {snapshots.map(s => (
-                  <div key={s.snapshot_id || s.created_at} className="relative">
-                    <span className="absolute -left-[20px] top-3 w-2 h-2 rounded-full bg-red" />
-                    <SnapshotCard snapshot={s} />
-                  </div>
-                ))}
+          <div>
+            <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mb-2">Evidence mix</div>
+            <div className="font-display text-base text-ink mb-1">{evMix.Strong}<span className="text-ink3">/</span>{evMix.Moderate}<span className="text-ink3">/</span>{evMix.Weak}</div>
+            {total > 0 && (
+              <div className="flex h-1 w-full">
+                <div style={{ width: ((evMix.Strong / total) * 100) + '%', background: '#86efac' }} />
+                <div style={{ width: ((evMix.Moderate / total) * 100) + '%', background: '#fbbf24' }} />
+                <div style={{ width: ((evMix.Weak / total) * 100) + '%', background: '#f87171' }} />
               </div>
             )}
           </div>
-        </main>
+          <div>
+            <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mb-2">Last snapshot</div>
+            <div className="font-display text-base text-ink">{snapshots?.[0] ? fmtRelative(snapshots[0].created_at) : 'never'}</div>
+          </div>
+          <div>
+            <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mb-2">Mechanisms</div>
+            <div className="font-display text-base text-ink">{scenarios.filter(s => s.active).length}<span className="text-ink3">/{scenarios.length}</span></div>
+          </div>
+        </div>
       );
     }
-
-    /* ---------- OUTPUTS TAB (bottom: waterfall + DCF + table) ---------- */
-    function ScenarioWaterfall({ scenarios, analysis }) {
-      const active = scenarios.filter(s => s.active).map(s => {
-        const per = analysis?.perScenario?.find(p => p.scenario_id === s.scenario_id);
-        return { name: s.mechanism_label || s.scenario_id, theme: s.value_theme, arv: per?.arv || 0, shadow: per?.pool_shadow };
-      }).sort((a, b) => b.arv - a.arv);
-      const max = Math.max(...active.map(a => a.arv), analysis?.arvFull || 0, 1);
+    function OverviewTab({ bundle, scenarios, analysis, governed, onTab }) {
+      const conf = useMemo(() => confidenceTier(scenarios), [scenarios]);
+      const next = useMemo(() => priorityAction({ governed, scenarios, snapshots: bundle.snapshots, conf }), [governed, scenarios, bundle.snapshots, conf]);
+      const evMix = useMemo(() => {
+        const t = { Strong: 0, Moderate: 0, Weak: 0 };
+        scenarios.filter(s => s.active).forEach(s => { const k = s.evidence_strength || 'Moderate'; if (t[k] != null) t[k]++; });
+        return t;
+      }, [scenarios]);
+      const arv = analysis?.arvY1 || 0;
+      const outcome = bundle.domain?.primary_outcome;
+      // Rule 6 — language adapts to selected outcome.
+      const heroSub = outcome ? `${outcome.toLowerCase()} value at stake annually` : 'annual value at stake';
       return (
-        <div className="bg-surface border border-border1 p-5">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-4">Scenario Waterfall</div>
-          {active.length === 0 && <div className="text-[11px] font-mono text-ink3 italic">No active scenarios.</div>}
-          <div className="space-y-1.5">
-            {active.map(a => (
-              <div key={a.name} className="flex items-center gap-3">
-                <span className="text-[11px] text-ink truncate w-44">{a.name}</span>
-                <div className="flex-1 h-5 bg-surface2 relative">
-                  <div className="absolute inset-y-0 left-0" style={{ width: ((a.arv / max) * 100) + '%', background: themeColor(a.theme), opacity: a.shadow ? 0.25 : 0.85 }} />
-                </div>
-                <span className={`font-mono text-[11px] w-20 text-right ${a.shadow ? 'text-ink3' : 'text-ink'}`}>{fmtMoney(a.arv)}</span>
+        <div className="max-w-[920px] mx-auto px-6 sm:px-10 py-10">
+          <div className="text-center mb-10">
+            <div className={`font-display font-bold leading-none ${arv > 0 ? 'text-red' : 'text-ink3'}`} style={{ fontSize: '64px' }}>{fmtMoney(arv)}</div>
+            <div className="text-[11px] font-mono uppercase tracking-widest text-ink2 mt-3">{heroSub}</div>
+            <div className="mt-4 inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest" style={{ color: conf.color }}>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: conf.color }} />{conf.tier} confidence
+            </div>
+          </div>
+          <div className="grid grid-cols-3 gap-3 sm:gap-6 mb-10">
+            {[
+              { label: 'Cost of delay', value: fmtMoney(analysis?.monthlyDelay || 0), unit: '/mo' },
+              { label: 'Payback',       value: fmtMonths(analysis?.payback),         unit: '' },
+              { label: 'BCR',           value: fmtMultiple(analysis?.bcr),            unit: '' }
+            ].map(s => (
+              <div key={s.label} className="text-center">
+                <div className="font-display text-xl sm:text-2xl text-ink">{s.value}<span className="text-ink3 text-sm font-mono">{s.unit}</span></div>
+                <div className="text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-ink2 mt-1">{s.label}</div>
               </div>
             ))}
           </div>
-          <div className="mt-3 pt-3 border-t border-border1 flex items-center gap-3">
-            <span className="text-[10px] font-mono uppercase tracking-widest text-red w-44">Total ARV (full year)</span>
-            <div className="flex-1 h-5 bg-surface2 relative">
-              <div className="absolute inset-y-0 left-0 bg-red" style={{ width: '100%' }} />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+            <div>
+              <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mb-3">Active mechanisms</div>
+              {scenarios.length === 0 ? <div className="text-[11px] font-mono text-ink3 italic">No mechanisms loaded.</div> :
+                scenarios.map(s => <MechanismRow key={s.scenario_id} scenario={s} perScenario={analysis?.perScenario?.find(p => p.scenario_id === s.scenario_id)} />)}
             </div>
-            <span className="font-mono text-[11px] text-red w-20 text-right">{fmtMoney(analysis?.arvFull || 0)}</span>
+            <div>
+              <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mb-3">What to do next</div>
+              <div className="border-l-2 border-red bg-surface p-4">
+                <div className="font-display text-base text-ink mb-1.5">{next.headline}</div>
+                <div className="text-[12px] text-ink2 mb-3 leading-relaxed">{next.body}</div>
+                <button onClick={() => onTab(next.target)} className="bg-red hover:bg-red/90 text-white px-3 py-1.5 text-[11px] font-mono uppercase tracking-wider">{next.cta}</button>
+              </div>
+            </div>
+          </div>
+          <HealthBar governed={governed} evMix={evMix} snapshots={bundle.snapshots} scenarios={scenarios} />
+        </div>
+      );
+    }
+    /* ---------- SCENARIOS TAB ---------- */
+    const THEME_COLORS = {
+      'Operational Efficiency':'#fbbf24', 'Compliance & Risk':'#c4b5fd', 'Asset Performance':'#86efac',
+      'Inventory Accuracy':'#93c5fd', 'Throughput':'#f59e0b', 'Visibility':'#60a5fa',
+      'Revenue':'#6ee7b7', 'Labor Productivity':'#5eead4'
+    };
+    const themeColor = (t) => THEME_COLORS[t] || '#888';
+    function evidenceMeta(s) {
+      if (s === 'Strong') return { pct: 100, color: '#86efac' };
+      if (s === 'Weak')   return { pct: 30,  color: '#f87171' };
+      return { pct: 60, color: '#fbbf24' };
+    }
+    // Inline SVG donut for value-theme distribution (Rule 5).
+    function ThemeDonut({ data, size = 96 }) {
+      const total = data.reduce((s, d) => s + d.value, 0);
+      if (total === 0) return null;
+      const r = size / 2 - 8, cx = size / 2, cy = size / 2, C = 2 * Math.PI * r;
+      let offset = 0;
+      return (
+        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke="#1a1a1a" strokeWidth="10" />
+          {data.map((d, i) => {
+            const len = (d.value / total) * C;
+            const seg = <circle key={i} cx={cx} cy={cy} r={r} fill="none" stroke={d.color} strokeWidth="10"
+              strokeDasharray={`${len} ${C - len}`} strokeDashoffset={-offset}
+              transform={`rotate(-90 ${cx} ${cy})`} vectorEffect="non-scaling-stroke" />;
+            offset += len;
+            return seg;
+          })}
+        </svg>
+      );
+    }
+    function ToggleSwitch({ on, onChange }) {
+      return (
+        <button onClick={() => onChange(!on)} aria-pressed={on}
+          className={`relative w-10 h-5 transition-colors ${on ? 'bg-red' : 'bg-surface2 border border-border2'}`}>
+          <span className={`absolute top-0.5 ${on ? 'left-[22px]' : 'left-0.5'} w-4 h-4 bg-white transition-all`} />
+        </button>
+      );
+    }
+    function ScenarioCard({ scenario, perScenario, onToggle }) {
+      const [openCfo, setOpenCfo] = useState(false);
+      const ev = evidenceMeta(scenario.evidence_strength);
+      const arv = perScenario?.arv || 0;
+      const shadow = perScenario?.pool_shadow;
+      const themeC = themeColor(scenario.value_theme);
+      return (
+        <div className={`bg-surface border border-border p-4 sm:p-5 transition-opacity ${scenario.active ? '' : 'opacity-60'}`}>
+          <div className="flex items-start justify-between gap-3 mb-2">
+            <div className="flex-1 min-w-0">
+              {scenario.value_theme && <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5" style={{ background: themeC + '22', color: themeC }}>{scenario.value_theme}</span>}
+              <div className="font-display text-base sm:text-lg text-ink mt-2">{scenario.mechanism_label || scenario.scenario_label || 'Untitled'}</div>
+              <div className="text-xs text-ink2 mt-1 leading-relaxed">{scenario.one_liner || scenario.scenario_description || ''}</div>
+            </div>
+            <div className="text-right flex-shrink-0">
+              <div className={`font-display text-lg sm:text-xl ${scenario.active && !shadow ? 'text-red' : 'text-ink3'}`}>{fmtMoney(arv)}</div>
+              {shadow && <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mt-0.5">shadowed</div>}
+            </div>
+          </div>
+          <div className="flex items-center gap-3 mt-3">
+            <span className="text-[9px] font-mono uppercase tracking-widest" style={{ color: ev.color }}>{scenario.evidence_strength || 'Moderate'}</span>
+            <div className="flex-1 h-1 bg-surface2 relative">
+              <div className="absolute inset-y-0 left-0" style={{ width: ev.pct + '%', background: ev.color }} />
+            </div>
+            <span className="text-[10px] font-mono text-ink3">{ev.pct}%</span>
+          </div>
+          {scenario.cfo_objection && (
+            <div className="mt-4 border-t border-border pt-3">
+              <button onClick={() => setOpenCfo(o => !o)} className="text-[10px] font-mono uppercase tracking-widest text-ink2 hover:text-ink flex items-center gap-1.5">
+                <span className="text-ink3">{openCfo ? '▾' : '▸'}</span>CFO objection
+              </button>
+              {openCfo && <div className="text-xs text-ink2 mt-2 leading-relaxed italic">"{scenario.cfo_objection}"</div>}
+            </div>
+          )}
+          <div className="flex items-center justify-between mt-4 pt-3 border-t border-border">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-ink2">{scenario.active ? 'Active' : 'Inactive'}</span>
+            <ToggleSwitch on={scenario.active} onChange={() => onToggle(scenario.scenario_id, !scenario.active)} />
           </div>
         </div>
       );
     }
-    function DCFCurve({ analysis }) {
-      const monthly = (analysis?.arvFull || 0) / 12;
-      const impl = analysis?.impl || 0;
-      // 36-month cumulative cashflow with Y1 ramp = 50%, Y2/Y3 = 100%
-      const points = [];
-      let cum = -impl;
-      points.push({ m: 0, c: cum });
-      for (let m = 1; m <= 36; m++) {
-        const yearMul = m <= 12 ? RAMPS[0] : m <= 24 ? RAMPS[1] : RAMPS[2];
-        cum += monthly * yearMul;
-        points.push({ m, c: cum });
-      }
-      const ymin = Math.min(...points.map(p => p.c));
-      const ymax = Math.max(...points.map(p => p.c));
-      const range = ymax - ymin || 1;
-      const W = 360, H = 80;
-      const xOf = m => (m / 36) * W;
-      const yOf = c => H - ((c - ymin) / range) * H;
-      const path = points.map((p, i) => (i === 0 ? 'M' : 'L') + xOf(p.m).toFixed(1) + ' ' + yOf(p.c).toFixed(1)).join(' ');
-      const zeroY = yOf(0);
-      let paybackM = null;
-      for (let i = 1; i < points.length; i++) {
-        if (points[i - 1].c < 0 && points[i].c >= 0) { paybackM = points[i].m; break; }
-      }
+    function ScenariosTab({ scenarios, analysis, onToggle }) {
+      const themeData = useMemo(() => {
+        const byTheme = {};
+        scenarios.filter(s => s.active).forEach(s => {
+          const per = analysis?.perScenario?.find(p => p.scenario_id === s.scenario_id);
+          const t = s.value_theme || 'Other';
+          byTheme[t] = (byTheme[t] || 0) + (per?.arv || 0);
+        });
+        return Object.entries(byTheme).filter(([_, v]) => v > 0).map(([k, v]) => ({ key: k, label: k, value: v, color: themeColor(k) })).sort((a, b) => b.value - a.value);
+      }, [scenarios, analysis]);
+      if (!scenarios.length) return <div className="p-8 font-mono text-xs text-ink3">No scenarios loaded for this domain.</div>;
       return (
-        <div className="bg-surface border border-border1 p-5">
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-[10px] font-mono uppercase tracking-widest text-ink2">36-month cumulative cash flow</div>
-            <div className="text-[11px] font-mono text-ink2">Payback: <span className="text-red">{paybackM ? paybackM + ' mo' : '—'}</span></div>
+        <div className="max-w-[960px] mx-auto px-4 sm:px-8 py-8">
+          {themeData.length > 0 && (
+            <div className="bg-surface border border-border p-4 sm:p-5 mb-6 flex items-center gap-5">
+              <ThemeDonut data={themeData} size={88} />
+              <div className="flex-1 min-w-0">
+                <div className="text-[10px] font-mono uppercase tracking-widest text-ink3 mb-2">Value by theme</div>
+                <div className="space-y-1">
+                  {themeData.slice(0, 4).map(d => (
+                    <div key={d.key} className="flex items-center gap-2 text-[11px]">
+                      <span className="w-2 h-2 flex-shrink-0" style={{ background: d.color }} />
+                      <span className="text-ink truncate flex-1">{d.label}</span>
+                      <span className="font-mono text-ink2">{fmtMoney(d.value)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+          <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-3">{scenarios.filter(s => s.active).length} of {scenarios.length} mechanisms active</div>
+          <div className="space-y-3">
+            {scenarios.map(s => <ScenarioCard key={s.scenario_id} scenario={s} perScenario={analysis?.perScenario?.find(p => p.scenario_id === s.scenario_id)} onToggle={onToggle} />)}
           </div>
-          <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" width="100%" height={H} className="block">
-            <line x1="0" y1={zeroY} x2={W} y2={zeroY} stroke="#444" strokeWidth="1" strokeDasharray="2 3" vectorEffect="non-scaling-stroke" />
-            {paybackM && <line x1={xOf(paybackM)} y1="0" x2={xOf(paybackM)} y2={H} stroke="#d63b2f" strokeWidth="1" strokeDasharray="2 3" vectorEffect="non-scaling-stroke" />}
-            <path d={path} fill="none" stroke="#d63b2f" strokeWidth="2" vectorEffect="non-scaling-stroke" />
-          </svg>
-          <div className="flex justify-between text-[9px] font-mono text-ink3 mt-1"><span>Mo 0 ({fmtMoney(-impl)})</span><span>Mo 36 ({fmtMoney(cum)})</span></div>
         </div>
-      );
-    }
-    function FinancialTable({ analysis }) {
-      const a = analysis || {};
-      const rows = [
-        ['Y1 Realized Value', fmtMoney(a.arvY1), 'Y1 ramps to 50% adoption.'],
-        ['Y2 Realized Value', fmtMoney(a.arvY2), 'Full adoption.'],
-        ['Y3 Realized Value', fmtMoney(a.arvY3), 'Full adoption.'],
-        ['3-Year Total', fmtMoney((a.arvY1 || 0) + (a.arvY2 || 0) + (a.arvY3 || 0)), 'Sum, no discounting.'],
-        ['NPV (10% discount, Y1 face)', a.npv != null ? fmtMoney(a.npv) : '—', 'Y1 face, Y2/Y3 discounted at 10%.'],
-        ['Payback', a.payback != null ? fmtMonths(a.payback) : '—', 'impl ÷ (Y1 ARV / 12).'],
-        ['BCR', a.bcr != null ? fmtMultiple(a.bcr) : '—', '3-year benefit ÷ implementation cost.'],
-        ['Implementation Cost', a.impl ? fmtMoney(a.impl) : '—', 'From inputs.implementation_cost.']
-      ];
-      return (
-        <div className="bg-surface border border-border1">
-          <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 px-5 py-3 border-b border-border1">Financial Summary</div>
-          <table className="w-full">
-            <tbody>
-              {rows.map((r, i) => (
-                <tr key={i} className={i === 3 || i === 6 ? 'border-t border-border1' : ''}>
-                  <td className="px-5 py-2 text-xs text-ink">{r[0]}</td>
-                  <td className="px-5 py-2 text-xs font-mono text-right text-ink">{r[1]}</td>
-                  <td className="px-5 py-2 text-[10px] font-mono text-ink3">{r[2]}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      );
-    }
-    function OutputsTab({ scenarios, analysis, tier, onPreset }) {
-      return (
-        <main className="flex-1 overflow-auto">
-          <div className="max-w-[1080px] mx-auto px-8 py-8">
-            <div className="mb-6">
-              <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-2">Assumption Tier</div>
-              <BigTierToggle tier={tier} onPreset={onPreset} />
-            </div>
-            <div className="grid grid-cols-3 gap-4 mb-8">
-              <ValueOfActingCard analysis={analysis} />
-              <CostOfDelayCard analysis={analysis} />
-              <CostOfDoingNothingCard analysis={analysis} />
-            </div>
-            <div className="space-y-4">
-              <ScenarioWaterfall scenarios={scenarios} analysis={analysis} />
-              <DCFCurve analysis={analysis} />
-              <FinancialTable analysis={analysis} />
-            </div>
-          </div>
-        </main>
       );
     }
 
@@ -843,8 +731,7 @@
     function extractKeys(formula, knownKeys) {
       if (!formula) return new Set();
       const set = new Set();
-      const matches = formula.match(FORMULA_KEY_RE) || [];
-      matches.forEach(m => { if (knownKeys.has(m)) set.add(m); });
+      (formula.match(FORMULA_KEY_RE) || []).forEach(m => { if (knownKeys.has(m)) set.add(m); });
       return set;
     }
     function groupInputsByScenario(scenarios, defs) {
@@ -865,284 +752,386 @@
       if (impl.length) groups.push({ name: 'Implementation', defs: impl });
       return groups;
     }
-    function InputRow({ def, iv, onSlide, onCommit }) {
-      const cur = Number(iv?.provided_value ?? def.typical_value ?? def.default_value ?? 0);
-      const min = Number(def.min_value ?? 0);
-      const max = Number(def.max_value ?? Math.max(cur * 2, 1000));
-      const step = Number(def.step_value ?? Math.max((max - min) / 100, 0.01));
+    function PresetStrip({ tier, onPreset }) {
+      const tiers = [
+        { key: 'conservative', label: 'Conservative' },
+        { key: 'typical',      label: 'Typical' },
+        { key: 'aggressive',   label: 'Aggressive' }
+      ];
       return (
-        <div className="grid grid-cols-12 gap-3 items-center py-2">
-          <div className="col-span-4">
-            <div className="flex items-center gap-1.5">
-              <span className="text-xs text-ink truncate">{def.input_label || def.input_key}</span>
-              {def.discovery_prompt && (
-                <span title={def.discovery_prompt} className="text-[10px] text-ink3 cursor-help">ⓘ</span>
-              )}
-            </div>
-            <div className="text-[10px] font-mono text-ink3 mt-0.5">{def.input_key}</div>
-          </div>
-          <div className="col-span-5">
-            <Slider value={cur} min={min} max={max} step={step}
-              onChange={v => onSlide(def.input_key, v)} onCommit={v => onCommit(def.input_key, v)} />
-          </div>
-          <div className="col-span-2 text-right font-mono text-xs text-ink">{cur.toLocaleString(undefined, { maximumFractionDigits: 2 })} <span className="text-ink3">{def.input_unit || ''}</span></div>
-          <div className="col-span-1 flex justify-end"><SourceChip source={iv?.value_source} /></div>
-        </div>
-      );
-    }
-    function PresetButtons({ tier, onPreset }) {
-      const tiers = ['conservative', 'typical', 'aggressive'];
-      return (
-        <div className="flex border border-border1">
+        <div className="grid grid-cols-3 border border-border">
           {tiers.map(t => (
-            <button key={t} onClick={() => onPreset(t)}
-              className={`px-3 py-1.5 text-[10px] font-mono uppercase tracking-widest transition-colors ${tier === t ? 'bg-red text-white' : 'text-ink2 hover:text-ink hover:bg-surface'}`}>
-              {t}
+            <button key={t.key} onClick={() => onPreset(t.key)}
+              className={`py-2 text-[10px] font-mono uppercase tracking-widest border-r last:border-r-0 border-border transition-colors ${tier === t.key ? 'bg-red text-white' : 'text-ink2 hover:text-ink hover:bg-surface'}`}>
+              {t.label}
             </button>
           ))}
         </div>
       );
     }
-    function InputsTab({ scenarios, defs, values, tier, onSlide, onCommit, onPreset }) {
-      const groups = useMemo(() => groupInputsByScenario(scenarios, defs), [scenarios, defs]);
-      if (!defs?.length) return <main className="flex-1 overflow-auto p-8 font-mono text-xs text-ink2">No inputs defined for this domain.</main>;
+    function InputRow({ def, iv, onSlide, onCommit }) {
+      const cur = Number(iv?.provided_value ?? def.typical_value ?? def.default_value ?? 0);
+      const min = Number(def.min_value ?? 0);
+      const max = Number(def.max_value ?? Math.max(cur * 2, 1000));
+      const step = Number(def.step_value ?? Math.max((max - min) / 100, 0.01));
+      // Rule 1: no labels above. Label sits inline left; slider is the affordance.
       return (
-        <main className="flex-1 overflow-auto">
-          <div className="max-w-[960px] mx-auto px-8 py-8">
-            <div className="flex items-center justify-between mb-6">
-              <div className="text-[10px] font-mono uppercase tracking-widest text-ink2">{defs.length} inputs · {Object.keys(values).length} provided</div>
-              <PresetButtons tier={tier} onPreset={onPreset} />
-            </div>
-            <div className="space-y-8">
-              {groups.map(g => (
-                <div key={g.name}>
-                  <div className="text-[10px] font-mono uppercase tracking-widest text-red mb-3 pb-2 border-b border-border1">{g.name}</div>
-                  <div>{g.defs.map(d => <InputRow key={d.input_key} def={d} iv={values[d.input_key]} onSlide={onSlide} onCommit={onCommit} />)}</div>
-                </div>
-              ))}
-            </div>
+        <div className="grid grid-cols-12 gap-3 items-center py-2.5 border-b border-border">
+          <div className="col-span-12 sm:col-span-4 flex items-center gap-2 min-w-0">
+            <SourceDot source={iv?.value_source} />
+            <span className="text-xs text-ink truncate">{def.input_label || def.input_key.replace(/_/g, ' ')}</span>
+            {def.discovery_prompt && <span title={def.discovery_prompt} className="text-[10px] text-ink3 cursor-help">ⓘ</span>}
           </div>
-        </main>
-      );
-    }
-
-    /* ---------- SCENARIOS TAB ---------- */
-    function evidenceMeta(strength) {
-      if (strength === 'Strong')   return { pct: 100, color: '#86efac', label: 'Strong' };
-      if (strength === 'Weak')     return { pct: 30,  color: '#f87171', label: 'Weak' };
-      return { pct: 60, color: '#fbbf24', label: 'Moderate' };
-    }
-    function ThemeChip({ theme }) {
-      if (!theme) return null;
-      const c = themeColor(theme);
-      return <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5" style={{ background: c + '22', color: c }}>{theme}</span>;
-    }
-    function EvidenceBadge({ strength }) {
-      const m = evidenceMeta(strength);
-      return <span className="text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 border" style={{ borderColor: m.color + '55', color: m.color }}>{m.label}</span>;
-    }
-    function ToggleSwitch({ on, onChange }) {
-      return (
-        <button onClick={() => onChange(!on)} aria-pressed={on}
-          className={`relative w-11 h-6 transition-colors ${on ? 'bg-red' : 'bg-surface2 border border-border2'}`}>
-          <span className={`absolute top-0.5 ${on ? 'left-[22px]' : 'left-0.5'} w-5 h-5 bg-white transition-all`} />
-        </button>
-      );
-    }
-    function ScenarioCard({ scenario, perScenario, onToggle }) {
-      const [openCfo, setOpenCfo] = useState(false);
-      const ev = evidenceMeta(scenario.evidence_strength);
-      const arv = perScenario?.arv || 0;
-      const shadow = perScenario?.pool_shadow;
-      return (
-        <div className={`bg-surface border border-border1 p-5 transition-opacity ${scenario.active ? '' : 'opacity-60'}`}>
-          <div className="flex items-start justify-between gap-4 mb-2">
-            <div className="flex-1 min-w-0">
-              <ThemeChip theme={scenario.value_theme} />
-              <div className="font-display text-lg text-ink mt-2">{scenario.mechanism_label || scenario.scenario_label || 'Untitled mechanism'}</div>
-              <div className="text-xs text-ink2 mt-1 leading-relaxed">{scenario.one_liner || scenario.scenario_description || ''}</div>
-            </div>
-            <div className="text-right flex-shrink-0">
-              <div className={`font-display text-xl ${scenario.active && !shadow ? 'text-red' : 'text-ink3'}`}>{fmtMoney(arv)}</div>
-              {shadow && <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mt-0.5">pool-shadowed</div>}
-            </div>
+          <div className="col-span-8 sm:col-span-6">
+            <Slider value={cur} min={min} max={max} step={step}
+              onChange={v => onSlide(def.input_key, v)} onCommit={v => onCommit(def.input_key, v)} />
           </div>
-          <div className="flex items-center gap-3 mt-3">
-            <EvidenceBadge strength={scenario.evidence_strength} />
-            <div className="flex-1 h-1 bg-surface2 relative">
-              <div className="absolute inset-y-0 left-0" style={{ width: ev.pct + '%', background: ev.color }} />
-            </div>
-            <span className="text-[10px] font-mono text-ink3 uppercase tracking-widest">{ev.pct}%</span>
-          </div>
-          {scenario.cfo_objection && (
-            <div className="mt-4 border-t border-border1 pt-3">
-              <button onClick={() => setOpenCfo(o => !o)} className="text-[10px] font-mono uppercase tracking-widest text-ink2 hover:text-ink flex items-center gap-1.5">
-                <span className="text-ink3">{openCfo ? '▾' : '▸'}</span>CFO Objection
-              </button>
-              {openCfo && <div className="text-xs text-ink2 mt-2 leading-relaxed italic">"{scenario.cfo_objection}"</div>}
-            </div>
-          )}
-          <div className="flex items-center justify-between mt-4 pt-3 border-t border-border1">
-            <span className="text-[10px] font-mono uppercase tracking-widest text-ink2">{scenario.active ? 'Active' : 'Inactive'}</span>
-            <ToggleSwitch on={scenario.active} onChange={() => onToggle(scenario.scenario_id, !scenario.active)} />
+          <div className="col-span-4 sm:col-span-2 text-right font-mono text-xs text-ink">
+            {cur.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            {def.input_unit && <span className="text-ink3 ml-1">{def.input_unit}</span>}
           </div>
         </div>
       );
     }
-    function ScenariosTab({ scenarios, analysis, onToggle }) {
-      if (!scenarios.length) return <main className="flex-1 overflow-auto p-8 font-mono text-xs text-ink2">No scenarios loaded for this domain.</main>;
+    function InputsTab({ scenarios, defs, values, tier, onSlide, onCommit, onPreset }) {
+      const groups = useMemo(() => groupInputsByScenario(scenarios, defs), [scenarios, defs]);
+      if (!defs?.length) return <div className="p-8 font-mono text-xs text-ink3">No inputs defined for this domain.</div>;
       return (
-        <main className="flex-1 overflow-auto">
-          <div className="max-w-[960px] mx-auto px-8 py-8 space-y-4">
-            <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-2">{scenarios.filter(s => s.active).length} of {scenarios.length} mechanisms active</div>
-            {scenarios.map(s => (
-              <ScenarioCard key={s.scenario_id} scenario={s} perScenario={analysis?.perScenario?.find(p => p.scenario_id === s.scenario_id)} onToggle={onToggle} />
+        <div className="max-w-[920px] mx-auto px-4 sm:px-8 py-8">
+          <div className="flex items-center justify-between mb-6 gap-4">
+            <div className="text-[10px] font-mono uppercase tracking-widest text-ink2">{defs.length} inputs · {Object.keys(values).filter(k => values[k]?.provided_value != null).length} provided</div>
+            <PresetStrip tier={tier} onPreset={onPreset} />
+          </div>
+          <div className="space-y-8">
+            {groups.map(g => (
+              <div key={g.name}>
+                <div className="text-[10px] font-mono uppercase tracking-widest text-red mb-2 pb-2 border-b border-border">{g.name}</div>
+                {g.defs.map(d => <InputRow key={d.input_key} def={d} iv={values[d.input_key]} onSlide={onSlide} onCommit={onCommit} />)}
+              </div>
             ))}
           </div>
-        </main>
+        </div>
       );
     }
 
-    /* ---------- OVERVIEW TAB ---------- */
-    function OverviewTab({ bundle, scenarios, analysis, governed }) {
-      const conf = useMemo(() => confidenceTier(scenarios), [scenarios]);
-      const next = useMemo(() => priorityAction({ governed, scenarios, snapshots: bundle.snapshots, conf }), [governed, scenarios, bundle.snapshots, conf]);
-      const evMix = useMemo(() => {
-        const t = { Strong: 0, Moderate: 0, Weak: 0 };
-        scenarios.filter(s => s.active).forEach(s => { const k = s.evidence_strength || 'Moderate'; if (t[k] != null) t[k]++; });
-        return t;
-      }, [scenarios]);
-      const arv = analysis?.arvY1 || 0;
+    /* ---------- OUTPUTS TAB (top: tier toggle + 3 micro-visual cards) ---------- */
+    function BigTierToggle({ tier, onPreset }) {
+      const tiers = [
+        { key: 'conservative', label: 'Conservative', sub: 'cautious' },
+        { key: 'typical',      label: 'Typical',      sub: 'realistic' },
+        { key: 'aggressive',   label: 'Aggressive',   sub: 'best case' }
+      ];
       return (
-        <main className="flex-1 overflow-auto">
-          <div className="max-w-[960px] mx-auto px-8 py-10">
-            <div className="text-center mb-10">
-              <div className={`font-display font-bold leading-none ${arv > 0 ? 'text-red' : 'text-ink3'}`} style={{ fontSize: '64px' }}>{fmtMoney(arv)}</div>
-              <div className="text-[11px] font-mono uppercase tracking-widest text-ink2 mt-3">annual value at stake</div>
-              <div className="mt-4 inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest" style={{ color: conf.color }}>
-                <span className="w-1.5 h-1.5 rounded-full" style={{ background: conf.color }} />{conf.tier} confidence
+        <div className="grid grid-cols-3 border border-border">
+          {tiers.map(t => (
+            <button key={t.key} onClick={() => onPreset(t.key)}
+              className={`px-3 sm:px-4 py-3 text-left transition-colors border-r last:border-r-0 border-border ${tier === t.key ? 'bg-red text-white' : 'text-ink hover:bg-surface'}`}>
+              <div className="font-display text-sm tracking-wide">{t.label}</div>
+              <div className="text-[10px] font-mono uppercase tracking-widest opacity-70 mt-0.5">{t.sub}</div>
+            </button>
+          ))}
+        </div>
+      );
+    }
+    function ValueOfActingCard({ analysis }) {
+      const max = Math.max(analysis?.arvY1 || 0, analysis?.arvY2 || 0, analysis?.arvY3 || 0, 1);
+      const rows = [{ k: 'Y1', v: analysis?.arvY1 || 0 }, { k: 'Y2', v: analysis?.arvY2 || 0 }, { k: 'Y3', v: analysis?.arvY3 || 0 }];
+      return (
+        <div className="bg-surface border border-border p-5">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-3">Value of acting</div>
+          <div className="font-display text-xl sm:text-2xl text-red mb-4">{fmtMoney(analysis?.arvFull || 0)}<span className="text-ink3 text-sm font-mono"> /yr</span></div>
+          <div className="space-y-2">
+            {rows.map(r => (
+              <div key={r.k} className="flex items-center gap-3">
+                <span className="font-mono text-[10px] uppercase tracking-widest text-ink3 w-6">{r.k}</span>
+                <div className="flex-1 h-2 bg-surface2 relative">
+                  <div className="absolute inset-y-0 left-0 bg-red" style={{ width: ((r.v / max) * 100) + '%' }} />
+                </div>
+                <span className="font-mono text-[11px] text-ink w-16 text-right">{fmtMoney(r.v)}</span>
               </div>
+            ))}
+          </div>
+          <div className="text-[10px] font-mono text-ink3 mt-3">Y1 ramps at 50%; Y2/Y3 full adoption.</div>
+        </div>
+      );
+    }
+    function CostOfDelayCard({ analysis }) {
+      const monthly = analysis?.monthlyDelay || 0;
+      return (
+        <div className="bg-surface border border-border p-5">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-3">Cost of delay</div>
+          <div className="font-display text-xl sm:text-2xl text-red mb-1">{fmtMoney(monthly)}<span className="text-ink3 text-sm font-mono"> /mo</span></div>
+          <div className="text-[11px] font-mono text-ink2 mb-4">12-mo: {fmtMoney(monthly * 12)}</div>
+          <div className="grid grid-cols-12 gap-0.5">
+            {Array.from({ length: 12 }, (_, i) => (
+              <div key={i} className="h-6 bg-red" style={{ opacity: 0.25 + (i / 11) * 0.7 }} title={`Month ${i + 1}: ${fmtMoney(monthly * (i + 1))} cumulative`} />
+            ))}
+          </div>
+          <div className="flex justify-between text-[9px] font-mono text-ink3 mt-1.5"><span>Mo 1</span><span>Mo 12</span></div>
+        </div>
+      );
+    }
+    function CostOfDoingNothingCard({ analysis }) {
+      const coi = analysis?.coi3yr || 0;
+      const arvCap = (analysis?.arvFull || 0) * 3 || 1;
+      const pct = Math.min(100, Math.round((coi / arvCap) * 100));
+      return (
+        <div className="bg-surface border border-border p-5">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-3">Cost of doing nothing</div>
+          <div className="font-display text-xl sm:text-2xl text-red mb-1">{fmtMoney(coi)}</div>
+          <div className="text-[11px] font-mono text-ink2 mb-4">3-yr value-at-risk</div>
+          <div className="h-3 bg-surface2 relative">
+            <div className="absolute inset-y-0 left-0 bg-red" style={{ width: pct + '%' }} />
+          </div>
+          <div className="flex justify-between text-[9px] font-mono text-ink3 mt-1.5">
+            <span>0</span>
+            <span>{pct}% of 3yr ARV ceiling</span>
+            <span>{fmtMoney(arvCap)}</span>
+          </div>
+        </div>
+      );
+    }
+    function ScenarioWaterfall({ scenarios, analysis }) {
+      const active = scenarios.filter(s => s.active).map(s => {
+        const per = analysis?.perScenario?.find(p => p.scenario_id === s.scenario_id);
+        return { name: s.mechanism_label || s.scenario_id, theme: s.value_theme, arv: per?.arv || 0, shadow: per?.pool_shadow };
+      }).sort((a, b) => b.arv - a.arv);
+      const max = Math.max(...active.map(a => a.arv), analysis?.arvFull || 0, 1);
+      return (
+        <div className="bg-surface border border-border p-5">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-4">Scenario waterfall</div>
+          {active.length === 0 && <div className="text-[11px] font-mono text-ink3 italic">No active scenarios.</div>}
+          <div className="space-y-1.5">
+            {active.map(a => (
+              <div key={a.name} className="grid grid-cols-12 gap-2 sm:gap-3 items-center">
+                <span className="col-span-5 sm:col-span-4 text-[11px] text-ink truncate">{a.name}</span>
+                <div className="col-span-4 sm:col-span-6 h-5 bg-surface2 relative">
+                  <div className="absolute inset-y-0 left-0" style={{ width: ((a.arv / max) * 100) + '%', background: themeColor(a.theme), opacity: a.shadow ? 0.25 : 0.85 }} />
+                </div>
+                <span className={`col-span-3 sm:col-span-2 font-mono text-[11px] text-right ${a.shadow ? 'text-ink3' : 'text-ink'}`}>{fmtMoney(a.arv)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 pt-3 border-t border-border grid grid-cols-12 gap-2 sm:gap-3 items-center">
+            <span className="col-span-5 sm:col-span-4 text-[10px] font-mono uppercase tracking-widest text-red">Total ARV</span>
+            <div className="col-span-4 sm:col-span-6 h-5 bg-red" />
+            <span className="col-span-3 sm:col-span-2 font-mono text-[11px] text-red text-right">{fmtMoney(analysis?.arvFull || 0)}</span>
+          </div>
+        </div>
+      );
+    }
+    function DCFCurve({ analysis }) {
+      const monthly = (analysis?.arvFull || 0) / 12;
+      const impl = analysis?.impl || 0;
+      const points = [{ m: 0, c: -impl }];
+      let cum = -impl;
+      for (let m = 1; m <= 36; m++) {
+        const yearMul = m <= 12 ? RAMPS[0] : m <= 24 ? RAMPS[1] : RAMPS[2];
+        cum += monthly * yearMul;
+        points.push({ m, c: cum });
+      }
+      const ymin = Math.min(...points.map(p => p.c));
+      const ymax = Math.max(...points.map(p => p.c));
+      const range = ymax - ymin || 1;
+      const W = 360, H = 80;
+      const xOf = m => (m / 36) * W;
+      const yOf = c => H - ((c - ymin) / range) * H;
+      const path = points.map((p, i) => (i === 0 ? 'M' : 'L') + xOf(p.m).toFixed(1) + ' ' + yOf(p.c).toFixed(1)).join(' ');
+      const zeroY = yOf(0);
+      let paybackM = null;
+      for (let i = 1; i < points.length; i++) { if (points[i - 1].c < 0 && points[i].c >= 0) { paybackM = points[i].m; break; } }
+      return (
+        <div className="bg-surface border border-border p-5">
+          <div className="flex items-center justify-between mb-3 gap-3">
+            <div className="text-[10px] font-mono uppercase tracking-widest text-ink2">36-month cumulative cash flow</div>
+            <div className="text-[11px] font-mono text-ink2">Payback: <span className="text-red">{paybackM ? paybackM + ' mo' : '—'}</span></div>
+          </div>
+          <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" width="100%" height={H} className="block">
+            <line x1="0" y1={zeroY} x2={W} y2={zeroY} stroke="#444" strokeWidth="1" strokeDasharray="2 3" vectorEffect="non-scaling-stroke" />
+            {paybackM && <line x1={xOf(paybackM)} y1="0" x2={xOf(paybackM)} y2={H} stroke="#d63b2f" strokeWidth="1" strokeDasharray="2 3" vectorEffect="non-scaling-stroke" />}
+            <path d={path} fill="none" stroke="#d63b2f" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+          </svg>
+          <div className="flex justify-between text-[9px] font-mono text-ink3 mt-1"><span>Mo 0 ({fmtMoney(-impl)})</span><span>Mo 36 ({fmtMoney(cum)})</span></div>
+        </div>
+      );
+    }
+    function FinancialTable({ analysis }) {
+      const a = analysis || {};
+      const rows = [
+        ['Y1 Realized Value', fmtMoney(a.arvY1), 'Y1 ramps to 50% adoption.'],
+        ['Y2 Realized Value', fmtMoney(a.arvY2), 'Full adoption.'],
+        ['Y3 Realized Value', fmtMoney(a.arvY3), 'Full adoption.'],
+        ['3-Year Total', fmtMoney((a.arvY1 || 0) + (a.arvY2 || 0) + (a.arvY3 || 0)), 'Sum, no discounting.'],
+        ['NPV (10% discount)', a.npv != null ? fmtMoney(a.npv) : '—', 'Y1 face, Y2/Y3 discounted.'],
+        ['Payback', a.payback != null ? fmtMonths(a.payback) : '—', 'impl ÷ (Y1 ARV / 12).'],
+        ['BCR', a.bcr != null ? fmtMultiple(a.bcr) : '—', '3yr benefit ÷ implementation.'],
+        ['Implementation', a.impl ? fmtMoney(a.impl) : '—', 'From inputs.implementation_cost.']
+      ];
+      return (
+        <div className="bg-surface border border-border">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 px-5 py-3 border-b border-border">Financial summary</div>
+          <table className="w-full">
+            <tbody>{rows.map((r, i) => (
+              <tr key={i} className={i === 3 || i === 6 ? 'border-t border-border' : ''}>
+                <td className="px-5 py-2 text-xs text-ink">{r[0]}</td>
+                <td className="px-3 py-2 text-xs font-mono text-right text-ink">{r[1]}</td>
+                <td className="px-5 py-2 text-[10px] font-mono text-ink3 hidden sm:table-cell">{r[2]}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      );
+    }
+    function OutputsTab({ scenarios, analysis, tier, onPreset }) {
+      return (
+        <div className="max-w-[1080px] mx-auto px-4 sm:px-8 py-8">
+          <div className="mb-6">
+            <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-2">Assumption tier</div>
+            <BigTierToggle tier={tier} onPreset={onPreset} />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <ValueOfActingCard analysis={analysis} />
+            <CostOfDelayCard analysis={analysis} />
+            <CostOfDoingNothingCard analysis={analysis} />
+          </div>
+          <div className="space-y-4">
+            <ScenarioWaterfall scenarios={scenarios} analysis={analysis} />
+            <DCFCurve analysis={analysis} />
+            <FinancialTable analysis={analysis} />
+          </div>
+        </div>
+      );
+    }
+
+    /* ---------- SNAPSHOTS TAB ---------- */
+    function buildSnapshotRow({ engagementId, label, intent, analysis, defs, values, scenarios, engagement }) {
+      const inputSnap = {};
+      (defs || []).forEach(d => { inputSnap[d.input_key] = values?.[d.input_key]?.provided_value ?? d.typical_value ?? d.default_value ?? null; });
+      // Lesson 2026-04-24: stash speculative fields in JSON sidecar; never INSERT
+      // unknown columns. stage/phase at snapshot live here in case the columns
+      // don't exist on every tenant schema.
+      inputSnap._meta = {
+        stage_at_snapshot: engagement?.deal_stage || null,
+        phase_at_snapshot: engagement?.phase || null,
+        active_scenario_count: scenarios.filter(s => s.active).length,
+        arv_full: analysis?.arvFull || 0,
+        npv: analysis?.npv ?? null
+      };
+      return {
+        engagement_id: engagementId,
+        snapshot_label: label,
+        intent: (intent || 'track').toLowerCase(),  // BUG-004 — DB CHECK constraint requires lowercase
+        annual_value: analysis?.arvY1 || 0,
+        input_snapshot: inputSnap,
+        notes: ''
+      };
+    }
+    function SnapshotCard({ snapshot }) {
+      const meta = snapshot.input_snapshot?._meta || {};
+      const stage = friendlyStage(meta.stage_at_snapshot);
+      return (
+        <div className="bg-surface border border-border p-4">
+          <div className="flex items-center justify-between mb-2 gap-3">
+            <div className="font-display text-sm text-ink truncate">{snapshot.snapshot_label || '(unlabeled)'}</div>
+            <span className="text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 bg-surface2 text-ink2 flex-shrink-0">{snapshot.intent || 'track'}</span>
+          </div>
+          <div className="text-[11px] font-mono text-ink2 mb-3">{fmtDate(snapshot.created_at)} · {fmtRelative(snapshot.created_at)}</div>
+          <div className="grid grid-cols-3 gap-3 pt-3 border-t border-border">
+            <div><div className="text-[9px] font-mono uppercase tracking-widest text-ink3">Y1 ARV</div><div className="text-sm font-display text-red mt-0.5">{fmtMoney(snapshot.annual_value)}</div></div>
+            <div><div className="text-[9px] font-mono uppercase tracking-widest text-ink3">Full ARV</div><div className="text-sm font-mono text-ink mt-0.5">{fmtMoney(meta.arv_full)}</div></div>
+            <div><div className="text-[9px] font-mono uppercase tracking-widest text-ink3">Stage</div><div className="text-sm font-mono text-ink mt-0.5">{stage.label}</div></div>
+          </div>
+        </div>
+      );
+    }
+    function SnapshotsTab({ snapshots, onSave }) {
+      const [busy, setBusy] = useState(false);
+      const save = async () => { setBusy(true); try { await onSave(); } finally { setBusy(false); } };
+      return (
+        <div className="max-w-[720px] mx-auto px-4 sm:px-8 py-8">
+          <div className="flex items-center justify-between mb-6 gap-3">
+            <div>
+              <div className="font-display text-xl text-ink">Snapshots</div>
+              <div className="text-[11px] font-mono text-ink2 mt-1">{snapshots.length} captured</div>
             </div>
-            <div className="grid grid-cols-3 gap-6 mb-12">
-              {[
-                { label: 'Cost of Delay', value: fmtMoney(analysis?.monthlyDelay || 0) + '/mo' },
-                { label: 'Payback', value: fmtMonths(analysis?.payback) },
-                { label: 'BCR', value: fmtMultiple(analysis?.bcr) }
-              ].map(s => (
-                <div key={s.label} className="text-center">
-                  <div className="font-display text-2xl text-ink">{s.value}</div>
-                  <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mt-1">{s.label}</div>
+            <button onClick={save} disabled={busy} className="bg-red hover:bg-red/90 disabled:opacity-50 text-white px-4 py-2 text-xs font-display tracking-wide">{busy ? 'Saving…' : '+ Save Snapshot'}</button>
+          </div>
+          {snapshots.length === 0 ? (
+            <div className="py-16 text-center text-ink3 font-mono text-xs">No snapshots yet. Save the first one to capture this baseline.</div>
+          ) : (
+            <div className="relative pl-6 space-y-4">
+              <div className="absolute left-2 top-1 bottom-1 w-px bg-border" />
+              {snapshots.map(s => (
+                <div key={s.snapshot_id || s.created_at} className="relative">
+                  <span className="absolute -left-[20px] top-3 w-2 h-2 rounded-full bg-red" />
+                  <SnapshotCard snapshot={s} />
                 </div>
               ))}
             </div>
-            <div className="grid grid-cols-2 gap-6 mb-10">
-              <div>
-                <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-3">What's working</div>
-                <div className="space-y-2">
-                  {scenarios.length === 0 && <div className="text-[11px] font-mono text-ink3 italic">No mechanisms loaded.</div>}
-                  {scenarios.map(s => {
-                    const per = analysis?.perScenario?.find(p => p.scenario_id === s.scenario_id);
-                    const glyph = !s.active ? { icon: '○', color: '#444' } : per?.pool_shadow ? { icon: '◐', color: '#888' } : { icon: '✓', color: '#86efac' };
-                    return (
-                      <div key={s.scenario_id} className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2 truncate">
-                          <span style={{ color: glyph.color }}>{glyph.icon}</span>
-                          <span className={s.active ? 'text-ink' : 'text-ink3'}>{s.mechanism_label || s.scenario_label || s.scenario_id}</span>
-                        </div>
-                        <span className={`font-mono text-xs ${s.active && !per?.pool_shadow ? 'text-red' : 'text-ink3'}`}>{fmtMoney(per?.arv || 0)}</span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-              <div>
-                <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-3">What to do next</div>
-                <div className="border-l-2 border-red bg-surface p-4">
-                  <div className="font-display text-base text-ink mb-1">{next.headline}</div>
-                  <div className="text-[12px] text-ink2 mb-3 leading-relaxed">{next.body}</div>
-                  <button className="bg-red hover:bg-red/90 text-white px-3 py-1.5 text-[11px] font-mono uppercase tracking-wider">{next.cta}</button>
-                </div>
-              </div>
-            </div>
-            <div className="grid grid-cols-4 gap-4 pt-6 border-t border-border1 text-center">
-              <div><div className="font-display text-lg text-ink">{governed}%</div><div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mt-1">Completeness</div></div>
-              <div><div className="font-display text-sm text-ink">{evMix.Strong}<span className="text-ink3">/</span>{evMix.Moderate}<span className="text-ink3">/</span>{evMix.Weak}</div><div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mt-1">Strong / Mod / Weak</div></div>
-              <div><div className="font-display text-sm text-ink">{bundle.snapshots?.[0] ? fmtRelative(bundle.snapshots[0].created_at) : 'never'}</div><div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mt-1">Last Snapshot</div></div>
-              <div><div className="font-display text-lg text-ink">{scenarios.filter(s => s.active).length}<span className="text-ink3">/{scenarios.length}</span></div><div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mt-1">Scenarios</div></div>
-            </div>
-          </div>
-        </main>
+          )}
+        </div>
       );
-    }
-
-    function CenterSurface({ tab, bundle, scenarios, analysis, governed, tier, values, onToggleScenario, onSlide, onCommit, onPreset, onSaveSnapshot }) {
-      if (tab === 'overview')  return <OverviewTab bundle={bundle} scenarios={scenarios} analysis={analysis} governed={governed} />;
-      if (tab === 'scenarios') return <ScenariosTab scenarios={scenarios} analysis={analysis} onToggle={onToggleScenario} />;
-      if (tab === 'inputs')    return <InputsTab scenarios={scenarios} defs={bundle.defs} values={values} tier={tier} onSlide={onSlide} onCommit={onCommit} onPreset={onPreset} />;
-      if (tab === 'outputs')   return <OutputsTab scenarios={scenarios} analysis={analysis} tier={tier} onPreset={onPreset} />;
-      if (tab === 'snapshots') return <SnapshotsTab snapshots={bundle.snapshots || []} onSave={onSaveSnapshot} />;
-      return null;
     }
 
     /* ---------- MERIDIAN DRAWER (Anthropic chat) ---------- */
     const MERIDIAN_MODEL = 'claude-sonnet-4-5';
-    const MERIDIAN_LABEL = 'claude-sonnet-4-5';
     const QUICK_PROMPTS = {
-      overview:  ['Weakest assumption?', 'Draft a CFO narrative for this analysis.'],
-      scenarios: ['Which scenario is most likely to be challenged?', 'What evidence would harden the weakest one?'],
+      overview:  ['Weakest assumption?', 'Draft a CFO narrative.'],
+      scenarios: ['Which scenario gets challenged?', 'What evidence hardens the weak ones?'],
       inputs:    ['What am I missing?', 'Which inputs would the buyer push back on?'],
-      outputs:   ['Is this defensible to a finance reviewer?', 'How would procurement attack the BCR?'],
-      snapshots: ['Compare the most recent two snapshots.', 'What changed since the last snapshot?']
+      outputs:   ['Is this defensible to finance?', 'How would procurement attack the BCR?'],
+      snapshots: ['Compare the last two snapshots.', 'What changed since the last snapshot?']
     };
     function meridianSystemPrompt({ engagement, domain, scenarios, analysis, tab }) {
       const active = scenarios.filter(s => s.active);
-      const lines = [
+      const stage = friendlyStage(engagement.deal_stage);
+      const phase = friendlyPhase(engagement.phase);
+      return [
         'You are Meridian, a value-engineering analyst copilot inside the Alt Meridian workspace.',
-        'Be concise, specific, and write like a senior consultant briefing a deal team. No filler, no hedging.',
+        'Be concise and specific — write like a senior consultant briefing a deal team. No filler, no hedging.',
         '',
         '# Current analysis',
         `Customer: ${engagement.prospect_name || '—'}`,
         `Vendor: ${engagement.vendor_name || '—'}`,
-        `Domain: ${cleanDomainName(domain?.domain_name) || engagement.domain_id} (${domain?.primary_outcome || 'unmapped outcome'})`,
-        `Stage: ${engagement.deal_stage || '—'} · Phase: ${engagement.phase || '—'}`,
+        `Domain: ${cleanDomainName(domain?.domain_name) || engagement.domain_id} (${domain?.primary_outcome || 'unmapped'})`,
+        `Stage: ${stage.label} · Phase: ${phase.label}`,
         '',
         '# Computed numbers',
         `Y1 ARV: ${fmtMoney(analysis?.arvY1)} · Full ARV: ${fmtMoney(analysis?.arvFull)} · NPV: ${analysis?.npv != null ? fmtMoney(analysis.npv) : 'N/A'} · Payback: ${analysis?.payback != null ? fmtMonths(analysis.payback) : 'N/A'} · BCR: ${analysis?.bcr != null ? fmtMultiple(analysis.bcr) : 'N/A'}`,
         '',
-        '# Active scenarios',
+        '# Active mechanisms',
         ...active.map(s => `- ${s.mechanism_label || s.scenario_id} (${s.value_theme || 'untyped'}, evidence: ${s.evidence_strength || 'Moderate'})`),
         '',
-        `User is currently on the ${tab.toUpperCase()} tab.`
-      ];
-      return lines.join('\n');
+        `User is on the ${tab.toUpperCase()} tab.`
+      ].join('\n');
     }
     function getMeridianKey() {
       let k = localStorage.getItem('anthropic_api_key');
       if (!k) {
-        k = prompt('Enter your Anthropic API key (stored in localStorage on this device):');
+        k = prompt('Enter your Anthropic API key (stored in localStorage):');
         if (k) localStorage.setItem('anthropic_api_key', k.trim());
       }
       return k;
     }
     async function callMeridian(messages, system) {
       const key = getMeridianKey();
-      if (!key) throw new Error('No API key provided.');
+      if (!key) throw new Error('No API key.');
       const resp = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
           'x-api-key': key,
           'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
+          'anthropic-dangerous-direct-browser-access': 'true'  // Lesson 2026-04-24 — required for browser CORS
         },
         body: JSON.stringify({ model: MERIDIAN_MODEL, max_tokens: 1024, system, messages })
       });
-      if (!resp.ok) throw new Error('Meridian API ' + resp.status + ': ' + await resp.text());
+      if (!resp.ok) throw new Error('Meridian ' + resp.status + ': ' + await resp.text());
       const data = await resp.json();
       return data.content?.map(c => c.text).join('') || '';
     }
     function ChatBubble({ role, text }) {
-      const cls = role === 'user' ? 'bg-red/15 border-red/40 text-ink' : role === 'error' ? 'bg-red/10 border-red text-red' : 'bg-surface2 border-border1 text-ink';
+      const cls = role === 'user' ? 'bg-red/15 border-red/40 text-ink' : role === 'error' ? 'bg-red/10 border-red text-red' : 'bg-surface2 border-border text-ink';
       return (
         <div className="mb-3">
           <div className="text-[8px] font-mono uppercase tracking-widest text-ink3 mb-1">{role === 'user' ? 'You' : role === 'error' ? 'Error' : 'Assistant'}</div>
@@ -1171,17 +1160,17 @@
       };
       const prompts = QUICK_PROMPTS[tab] || QUICK_PROMPTS.overview;
       return (
-        <aside className="w-[300px] bg-surface border-l border-border1 flex flex-col flex-shrink-0">
-          <div className="h-11 px-4 border-b border-border1 flex items-center justify-between flex-shrink-0">
-            <div className="font-mono text-[10px] uppercase tracking-widest text-ink2">Meridian · {MERIDIAN_LABEL}</div>
-            <button onClick={onClose} className="text-ink3 hover:text-red text-sm leading-none">×</button>
+        <aside className="fixed inset-0 z-20 md:relative md:inset-auto md:z-auto md:w-[320px] bg-surface md:border-l md:border-border flex flex-col flex-shrink-0">
+          <div className="h-12 px-4 border-b border-border flex items-center justify-between flex-shrink-0">
+            <div className="font-mono text-[10px] uppercase tracking-widest text-ink2">Meridian · {MERIDIAN_MODEL}</div>
+            <button onClick={onClose} className="text-ink3 hover:text-red text-base leading-none">×</button>
           </div>
           {messages.length === 0 && (
             <div className="px-4 pt-4 flex-shrink-0">
               <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mb-2">Quick prompts · {tab}</div>
               <div className="space-y-1.5">
                 {prompts.map(p => (
-                  <button key={p} onClick={() => send(p)} className="block w-full text-left text-[11px] text-ink2 hover:text-red border border-border1 hover:border-red/50 px-2.5 py-1.5">{p}</button>
+                  <button key={p} onClick={() => send(p)} className="block w-full text-left text-[11px] text-ink2 hover:text-red border border-border hover:border-red/50 px-2.5 py-1.5">{p}</button>
                 ))}
               </div>
             </div>
@@ -1190,34 +1179,37 @@
             {messages.map((m, i) => <ChatBubble key={i} role={m.role === 'error' ? 'error' : m.role} text={m.content} />)}
             {busy && <div className="text-[10px] font-mono text-ink3 italic">thinking…</div>}
           </div>
-          <div className="border-t border-border1 p-3 flex-shrink-0">
+          <div className="border-t border-border p-3 flex-shrink-0">
             <textarea value={input} onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-              rows={2} placeholder="Ask Meridian…" className="w-full bg-surface2 border border-border1 px-2 py-1.5 text-[12px] resize-none focus:border-red outline-none" />
+              rows={2} placeholder="Ask Meridian…" className="w-full bg-surface2 border border-border px-2 py-1.5 text-[12px] resize-none focus:border-red outline-none" />
             <button onClick={() => send()} disabled={busy} className="w-full mt-2 bg-red hover:bg-red/90 disabled:opacity-50 text-white py-1.5 text-[11px] font-mono uppercase tracking-wider">Send</button>
           </div>
         </aside>
       );
     }
-    function RightDrawer({ open, onClose, tab, context }) {
-      if (!open) return null;
-      return <MeridianDrawer onClose={onClose} tab={tab} context={context} />;
-    }
 
-    function EngagementShell({ engagementId, onBack }) {
+    /* ---------- ANALYSIS SHELL ---------- */
+    const NAV = [
+      { key: 'overview',  label: 'Overview' },
+      { key: 'scenarios', label: 'Scenarios' },
+      { key: 'inputs',    label: 'Inputs' },
+      { key: 'outputs',   label: 'Outputs' },
+      { key: 'snapshots', label: 'Snapshots' }
+    ];
+
+    function AnalysisShell({ engagementId, onBack }) {
       const [bundle, setBundle] = useState(null);
+      const [err, setErr] = useState('');
+      const [tab, setTab] = useState('overview');
       const [overrides, setOverrides] = useState({});
       const [activeOverrides, setActiveOverrides] = useState({});
-      const [tab, setTab] = useState('overview');
-      const [tier, setTier] = useState('typical');
+      const [navOpen, setNavOpen] = useState(false);
       const [drawerOpen, setDrawerOpen] = useState(false);
-      const [err, setErr] = useState('');
+      const [tier, setTier] = useState('typical');
       useEffect(() => {
         setBundle(null); setOverrides({}); setActiveOverrides({}); setErr('');
-        loadEngagementBundle(engagementId).then(b => {
-          if (!b) setErr('Engagement not found');
-          else setBundle(b);
-        }).catch(e => setErr(e.message || 'Failed to load engagement'));
+        loadEngagementBundle(engagementId).then(b => b ? setBundle(b) : setErr('Engagement not found')).catch(e => setErr(e.message || 'Failed to load'));
       }, [engagementId]);
       const values = useMemo(() => ({ ...(bundle?.values || {}), ...overrides }), [bundle, overrides]);
       const scenarios = useMemo(() => {
@@ -1225,56 +1217,79 @@
         return merged.map(s => activeOverrides[s.scenario_id] != null ? { ...s, active: activeOverrides[s.scenario_id] } : s);
       }, [bundle, activeOverrides]);
       const analysis = useMemo(() => bundle ? computeAnalysis(scenarios, values, bundle.defs) : null, [bundle, scenarios, values]);
-      const governed = useMemo(() => bundle ? governedPct(values, bundle.defs) : 0, [bundle, values]);
-      const savedAgo = useMemo(() => bundle ? 'saved ' + fmtRelative(bundle.snapshots?.[0]?.created_at || bundle.engagement?.intake_date) : '', [bundle]);
       const slideInput = (key, val) => setOverrides(p => ({ ...p, [key]: { ...(p[key] || bundle.values?.[key] || {}), engagement_id: engagementId, input_key: key, provided_value: val, value_source: 'buyer' } }));
-      const commitInput = async (key, val) => {
-        try { await sbUpsert('vef_input_values', { engagement_id: engagementId, input_key: key, provided_value: val, value_source: 'buyer' }, 'engagement_id,input_key'); }
-        catch (e) { console.error('input persist failed', e); }
-      };
-      const cycleTier = () => setTier(t => t === 'conservative' ? 'typical' : t === 'typical' ? 'aggressive' : 'conservative');
-      const toggleScenario = async (scenarioId, isActive) => {
+      const commitInput = (key, val) => sbUpsert('vef_input_values', { engagement_id: engagementId, input_key: key, provided_value: val, value_source: 'buyer' }, 'engagement_id,input_key').catch(() => {});
+      const toggleScenario = (scenarioId, isActive) => {
         setActiveOverrides(p => ({ ...p, [scenarioId]: isActive }));
-        try { await sbUpsert('vef_scenario_selections', { engagement_id: engagementId, scenario_id: scenarioId, is_active: isActive }, 'engagement_id,scenario_id'); }
-        catch (e) { console.error('scenario toggle persist failed', e); }
+        sbUpsert('vef_scenario_selections', { engagement_id: engagementId, scenario_id: scenarioId, is_active: isActive }, 'engagement_id,scenario_id').catch(() => {});
       };
       const refreshSnapshots = async () => {
         const snaps = await loadSnapshots(engagementId).catch(() => []);
         setBundle(b => b ? { ...b, snapshots: snaps } : b);
       };
-      const saveSnapshot = async (label, intent) => {
+      const saveSnapshot = async () => {
         const today = new Date().toISOString().slice(0, 10);
         const row = buildSnapshotRow({
-          engagementId, label: label || `Snapshot ${today}`, intent: intent || 'track',
+          engagementId, label: `Snapshot ${today}`, intent: 'track',
           analysis, defs: bundle.defs, values, scenarios, engagement: bundle.engagement
         });
         await sbInsert('vef_output_snapshots', row);
         await refreshSnapshots();
       };
-      const applyPreset = async (newTier) => {
+      const applyPreset = (newTier) => {
         if (!bundle?.defs) return;
         setTier(newTier);
-        const tierKey = newTier === 'conservative' ? 'conservative_value' : newTier === 'aggressive' ? 'aggressive_value' : 'typical_value';
+        const tk = newTier === 'conservative' ? 'conservative_value' : newTier === 'aggressive' ? 'aggressive_value' : 'typical_value';
         const next = {};
         bundle.defs.forEach(d => {
-          const v = d[tierKey] ?? d.typical_value ?? d.default_value;
+          const v = d[tk] ?? d.typical_value ?? d.default_value;
           if (v != null) next[d.input_key] = { engagement_id: engagementId, input_key: d.input_key, provided_value: Number(v), value_source: 'preset:' + newTier };
         });
         setOverrides(next);
-        try {
-          await Promise.all(Object.values(next).map(row => sbUpsert('vef_input_values', row, 'engagement_id,input_key')));
-        } catch (e) { console.error('preset persist failed', e); }
+        Promise.all(Object.values(next).map(row => sbUpsert('vef_input_values', row, 'engagement_id,input_key'))).catch(() => {});
       };
+      const governed = useMemo(() => bundle ? governedPct(values, bundle.defs) : 0, [bundle, values]);
       if (err) return <div className="p-12 font-mono text-xs text-red">{err} <button onClick={onBack} className="ml-4 text-ink2 hover:text-red">← Back</button></div>;
-      if (!bundle) return <div className="min-h-full grid place-items-center text-ink2 font-mono text-xs">Loading engagement…</div>;
+      if (!bundle) return <div className="min-h-full grid place-items-center text-ink2 font-mono text-xs">Loading…</div>;
+      const stage = friendlyStage(bundle.engagement.deal_stage);
       return (
         <div className="h-full flex flex-col bg-bg">
-          <Topbar engagement={bundle.engagement} onBack={onBack} onToggleMeridian={() => setDrawerOpen(o => !o)} drawerOpen={drawerOpen} onSaveSnapshot={saveSnapshot} />
-          <ContextBar engagement={bundle.engagement} domain={bundle.domain} scenarios={scenarios} tier={tier} onTierCycle={cycleTier} governed={governed} savedAgo={savedAgo} />
+          <header className="h-12 px-3 sm:px-4 border-b border-border bg-surface flex items-center justify-between flex-shrink-0 gap-3">
+            <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+              <button onClick={onBack} className="text-ink2 hover:text-red text-sm font-mono flex-shrink-0">←</button>
+              <button onClick={() => setNavOpen(o => !o)} className="md:hidden text-ink2 hover:text-red text-sm font-mono flex-shrink-0">☰</button>
+              <div className="font-display text-sm tracking-wide"><span className="text-red">ALT</span> <span className="text-ink">MERIDIAN</span></div>
+            </div>
+            <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+              <StageBadge stage={bundle.engagement.deal_stage} />
+              <button onClick={() => setDrawerOpen(o => !o)} className={`px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider border ${drawerOpen ? 'border-red text-red' : 'border-border2 text-ink2 hover:text-ink'}`}>Meridian ◆</button>
+              <button className="hidden sm:block bg-red hover:bg-red/90 text-white px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider">Report</button>
+            </div>
+          </header>
           <div className="flex-1 flex min-h-0">
-            <LeftRail tab={tab} onTab={setTab} scenarios={scenarios} defs={bundle.defs} values={values} analysis={analysis} onSlide={slideInput} onCommit={commitInput} />
-            <CenterSurface tab={tab} bundle={bundle} scenarios={scenarios} analysis={analysis} governed={governed} tier={tier} values={values} onToggleScenario={toggleScenario} onSlide={slideInput} onCommit={commitInput} onPreset={applyPreset} onSaveSnapshot={saveSnapshot} />
-            <RightDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} tab={tab} context={{ engagement: bundle.engagement, domain: bundle.domain, scenarios, analysis }} />
+            <aside className={`${navOpen ? 'absolute inset-0 z-10 flex' : 'hidden'} md:relative md:flex md:w-[220px] bg-surface border-r border-border flex-col flex-shrink-0`}>
+              <div className="px-4 py-4 border-b border-border">
+                <div className="font-display text-sm text-ink truncate">{bundle.engagement.analysis_name || bundle.engagement.vendor_name || 'Untitled'}</div>
+                <div className="font-mono text-[10px] text-ink3 truncate mt-0.5">{bundle.engagement.prospect_name || '—'}</div>
+              </div>
+              <nav className="py-2 flex-shrink-0">
+                {NAV.map(t => (
+                  <button key={t.key} onClick={() => { setTab(t.key); setNavOpen(false); }}
+                    className={`w-full text-left px-4 py-2 text-[11px] font-mono uppercase tracking-widest border-l-2 transition-colors ${tab === t.key ? 'border-red text-red bg-red-dim' : 'border-transparent text-ink2 hover:text-ink'}`}>
+                    {t.label}
+                  </button>
+                ))}
+              </nav>
+              <LiveAssumptions scenarios={scenarios} defs={bundle.defs} values={values} analysis={analysis} onSlide={slideInput} onCommit={commitInput} />
+            </aside>
+            <main className="flex-1 overflow-auto">
+              {tab === 'overview' ? <OverviewTab bundle={bundle} scenarios={scenarios} analysis={analysis} governed={governed} onTab={setTab} />
+                : tab === 'scenarios' ? <ScenariosTab scenarios={scenarios} analysis={analysis} onToggle={toggleScenario} />
+                : tab === 'inputs' ? <InputsTab scenarios={scenarios} defs={bundle.defs} values={values} tier={tier} onSlide={slideInput} onCommit={commitInput} onPreset={applyPreset} />
+                : tab === 'outputs' ? <OutputsTab scenarios={scenarios} analysis={analysis} tier={tier} onPreset={applyPreset} />
+                : <SnapshotsTab snapshots={bundle.snapshots || []} onSave={saveSnapshot} />}
+            </main>
+            {drawerOpen && <MeridianDrawer onClose={() => setDrawerOpen(false)} tab={tab} context={{ engagement: bundle.engagement, domain: bundle.domain, scenarios, analysis }} />}
           </div>
         </div>
       );
@@ -1288,9 +1303,9 @@
         const eng = new URLSearchParams(location.search).get('engagement');
         if (eng) { setSignedIn(true); setActiveId(eng); }
       }, []);
-      if (!signedIn) return <LoginScreen onSignIn={() => setSignedIn(true)} />;
-      if (activeId) return <EngagementShell engagementId={activeId} onBack={() => setActiveId(null)} />;
-      return <HomeScreen onOpen={setActiveId} onNew={() => { location.href = 'vef2.html'; }} signOut={() => setSignedIn(false)} userEmail="seller@altmeridian.com" />;
+      if (!signedIn) return <LoginScreen onEnter={() => setSignedIn(true)} />;
+      if (activeId) return <AnalysisShell engagementId={activeId} onBack={() => setActiveId(null)} />;
+      return <HomeScreen onOpen={setActiveId} onNew={() => { location.href = 'vef2.html'; }} signOut={() => setSignedIn(false)} />;
     }
 
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
