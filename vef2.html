@@ -132,6 +132,72 @@
       }
       return null;
     }
+    // Rank score: outcome overlap = 3 each, tag overlap = 2 each. 0 = no overlap.
+    function patternScore(pattern, outcomes, tags) {
+      let s = 0;
+      pattern.outcomes.forEach(o => { if (outcomes.includes(o)) s += 3; });
+      pattern.tags.forEach(t => { if (tags.has(t)) s += 2; });
+      return s;
+    }
+
+    /* ---------- TAG BEHAVIOR ENGINE (kept in sync with workspace2.html) ---------- */
+    // Tag → behavior config. Precedence Buyer lens > Motion > Environment.
+    // Each tag declares only the slots it influences; resolveTagBehavior merges them.
+    const TAG_BEHAVIOR = {
+      finance_led:       { group: 'Buyer lens', tone: 'conservative', tierDefault: 'conservative', signalEmphasis: 'NPV',    signalSecondary: 'BCR',          rankBy: 'bcr' },
+      ops_led:           { group: 'Buyer lens', tone: 'operational',  tierDefault: 'typical',      signalEmphasis: 'Y1 ARV', signalSecondary: 'Throughput',   rankBy: 'arv' },
+      risk_led:          { group: 'Buyer lens', tone: 'conservative', tierDefault: 'conservative', signalEmphasis: 'CoI',    signalSecondary: 'Evidence',     rankBy: 'evidence' },
+      rescue:            { group: 'Motion',     tone: 'urgent',       signalEmphasis: 'CoD',       rankBy: 'delay',          overrides: ['tone', 'signalEmphasis'] },
+      new_footprint:     { group: 'Motion',     weakLast: true },
+      compliance_driven: { group: 'Motion',     tierDefault: 'conservative', themeBias: ['Compliance & Risk'], autoActiveThemes: ['Compliance & Risk'], hideNonBiasedWeak: true },
+      expansion:         { group: 'Motion' },
+      physical_network:  { group: 'Environment', themeBias: ['Operational Efficiency', 'Inventory Accuracy', 'Throughput'] },
+      field_fleet:       { group: 'Environment', themeBias: ['Asset Performance', 'Operational Efficiency'] },
+      digital_platform:  { group: 'Environment', themeBias: ['Visibility', 'Intelligence'], deprioritize: ['Throughput', 'Operational Efficiency'] }
+    };
+    const TAG_PRECEDENCE = ['Buyer lens', 'Motion', 'Environment'];
+    const TAG_SCALAR_FIELDS = ['tone', 'tierDefault', 'signalEmphasis', 'signalSecondary', 'rankBy'];
+    const TAG_LIST_FIELDS   = ['themeBias', 'autoActiveThemes', 'deprioritize'];
+    const TAG_BOOL_FIELDS   = ['weakLast', 'hideNonBiasedWeak'];
+
+    // Merge selected tags into a single behavior object honoring precedence + overrides.
+    function resolveTagBehavior(tagsSet) {
+      const tags = [...(tagsSet || [])]
+        .map(k => ({ key: k, ...(TAG_BEHAVIOR[k] || {}) }))
+        .filter(t => t.group)
+        .sort((a, b) => TAG_PRECEDENCE.indexOf(a.group) - TAG_PRECEDENCE.indexOf(b.group));
+      const out = {};
+      tags.forEach(t => TAG_SCALAR_FIELDS.forEach(f => { if (t[f] != null && out[f] == null) out[f] = t[f]; }));
+      tags.forEach(t => (t.overrides || []).forEach(f => { if (t[f] != null) out[f] = t[f]; }));
+      TAG_LIST_FIELDS.forEach(f => {
+        const set = new Set();
+        tags.forEach(t => (t[f] || []).forEach(v => set.add(v)));
+        if (set.size) out[f] = [...set];
+      });
+      TAG_BOOL_FIELDS.forEach(f => { if (tags.some(t => t[f])) out[f] = true; });
+      return out;
+    }
+    const getTone = (behavior) => behavior?.tone || 'operational';
+
+    /* ---------- TONE_COPY — three tones, three surfaces ---------- */
+    const TONE_COPY = {
+      conservative: {
+        heroSubtitle:    (outcome) => (outcome ? outcome.toLowerCase() + ' value' : 'Annual value') + ' defensible at NPV review',
+        confidenceVerb:  'Defensible',
+        nextActionVerbs: { send: 'send', schedule: 'schedule', strengthen: 'tighten' }
+      },
+      operational: {
+        heroSubtitle:    (outcome) => (outcome ? outcome.toLowerCase() + ' value' : 'Value') + ' unlocked annually',
+        confidenceVerb:  'Shippable',
+        nextActionVerbs: { send: 'walk through', schedule: 'book', strengthen: 'firm up' }
+      },
+      urgent: {
+        heroSubtitle:    () => 'Value at risk every month of delay',
+        confidenceVerb:  'Ready',
+        nextActionVerbs: { send: 'get to', schedule: 'set', strengthen: 'lock in' }
+      }
+    };
+
     const THEME_COLORS = {
       'Operational Efficiency':'#fbbf24', 'Compliance & Risk':'#c4b5fd', 'Asset Performance':'#86efac',
       'Inventory Accuracy':'#93c5fd', 'Throughput':'#f59e0b', 'Visibility':'#60a5fa',
@@ -305,12 +371,15 @@
         </div>
       );
     }
-    function SolutionPatternTile({ pattern, resolvable, selected, onSelect }) {
+    function SolutionPatternTile({ pattern, resolvable, selected, recommended, onSelect }) {
       const disabled = !resolvable;
       return (
         <button onClick={() => !disabled && onSelect(pattern.key)} disabled={disabled}
-          className={`text-left p-3 border transition-colors ${disabled ? 'border-border bg-bg opacity-40 cursor-not-allowed' : selected ? 'border-red bg-red/10' : 'border-border bg-surface hover:border-border2'}`}>
-          <div className="font-display text-sm text-ink">{pattern.label}</div>
+          className={`text-left p-3 border transition-colors relative ${disabled ? 'border-border bg-bg opacity-40 cursor-not-allowed' : selected ? 'border-red bg-red/10' : 'border-border bg-surface hover:border-border2'}`}>
+          {recommended && !disabled && (
+            <span className="absolute top-2 right-2 text-[8px] font-mono uppercase tracking-widest px-1.5 py-0.5 bg-red/20 text-red border border-red/40">Recommended</span>
+          )}
+          <div className="font-display text-sm text-ink pr-20">{pattern.label}</div>
           <div className="text-[11px] text-ink2 mt-1 leading-relaxed">{pattern.desc}</div>
           {disabled && <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mt-1.5">No matching engine in library</div>}
         </button>
@@ -332,13 +401,19 @@
         );
         update({ dealTags: next, ...(stillValid ? {} : { pattern: null, domain: null }) });
       };
-      const visiblePatterns = useMemo(() => {
+      const rankedPatterns = useMemo(() => {
         if (s.outcomes.length === 0 && s.dealTags.size === 0) return [];
-        return SOLUTION_PATTERNS.filter(p =>
-          (s.outcomes.length > 0 && p.outcomes.some(o => s.outcomes.includes(o))) ||
-          (s.dealTags.size > 0 && p.tags.some(t => s.dealTags.has(t)))
-        );
+        const ctxSize = s.outcomes.length + s.dealTags.size;
+        const scored = SOLUTION_PATTERNS
+          .map(p => ({ pattern: p, score: patternScore(p, s.outcomes, s.dealTags) }))
+          .filter(x => x.score > 0)
+          .sort((a, b) => b.score - a.score);
+        // Visibility floor: at rich context (>=3 picks), drop weakest single-tag matches
+        // so the recommended set stays 4-8 tight.
+        const floor = ctxSize >= 3 ? Math.max(scored[0]?.score - 4, 2) : 0;
+        return scored.filter(x => x.score >= floor).slice(0, 8);
       }, [s.outcomes, s.dealTags]);
+      const topScore = rankedPatterns[0]?.score || 0;
       const pickPattern = (key) => {
         const p = SOLUTION_PATTERNS.find(x => x.key === key);
         const did = p ? resolvePatternDomain(p, domains) : null;
@@ -367,14 +442,15 @@
               <div className="text-[11px] font-mono text-red mt-3 border-l-2 border-red bg-red/5 px-3 py-2">Pick at least one outcome or tag so we can narrow the right engines.</div>
             )}
           </div>
-          {visiblePatterns.length > 0 && (
+          {rankedPatterns.length > 0 && (
             <div className="mb-8">
               <div className="text-[10px] font-mono uppercase tracking-widest text-red mb-3">Solution pattern</div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {visiblePatterns.map(p => (
-                  <SolutionPatternTile key={p.key} pattern={p}
-                    resolvable={!!resolvePatternDomain(p, domains)}
-                    selected={s.pattern === p.key}
+                {rankedPatterns.map(({ pattern, score }) => (
+                  <SolutionPatternTile key={pattern.key} pattern={pattern}
+                    resolvable={!!resolvePatternDomain(pattern, domains)}
+                    selected={s.pattern === pattern.key}
+                    recommended={score === topScore && score > 0}
                     onSelect={pickPattern} />
                 ))}
               </div>
@@ -696,6 +772,46 @@
       );
     }
 
+    /* ---------- INTERPRETATION ADAPTERS (A4) ---------- */
+    // Re-sort themeData so biased themes come first; report which theme to badge as Top.
+    function applyThemeBias(themeData, biasArr) {
+      if (!biasArr?.length || !themeData?.length) return { data: themeData || [], topTheme: null, biasUnmatched: !!biasArr?.length };
+      const biased = [], rest = [];
+      themeData.forEach(d => biasArr.includes(d.key) ? biased.push(d) : rest.push(d));
+      return { data: [...biased, ...rest], topTheme: biased[0]?.label || null, biasUnmatched: biased.length === 0 };
+    }
+    // Pre-engagement scenarios don't have computed values; only `evidence` rank is meaningful here.
+    // Workspace2 supports the full bcr/delay/arv set.
+    function rankScenariosForVef(scenarios, rankBy) {
+      if (!scenarios?.length) return [];
+      const sorted = scenarios.slice();
+      if (rankBy === 'evidence') {
+        const order = { Strong: 0, Moderate: 1, Weak: 2 };
+        sorted.sort((a, b) => (order[a.evidence_strength] ?? 1) - (order[b.evidence_strength] ?? 1));
+      } else {
+        sorted.sort((a, b) => (Number(a.print_priority) || 99) - (Number(b.print_priority) || 99));
+      }
+      return sorted;
+    }
+    const RANK_CAPTION = { bcr: 'Ranked by BCR', delay: 'Ranked by Cost of Delay', evidence: 'Ranked by evidence', arv: 'Ranked by Y1 ARV' };
+    function humanTagLabel(key) {
+      for (const g of DEAL_TAGS) { const item = g.items.find(i => i.key === key); if (item) return item.label; }
+      return key;
+    }
+    function interpHeadline(tagsSet, tone) {
+      const tags = [...(tagsSet || [])].filter(k => TAG_BEHAVIOR[k]);
+      if (!tags.length) return null;
+      const labels = tags.map(humanTagLabel);
+      const tagText = labels.length === 1 ? labels[0] : labels.slice(0, -1).join(', ') + ' + ' + labels[labels.length - 1];
+      if (tone === 'urgent')       return `${tagText} → surface fastest realized value first.`;
+      if (tone === 'conservative') return `${tagText} → defend NPV with strong evidence.`;
+      return `${tagText} → focus on operational ARV.`;
+    }
+    function toneConfidenceLine(conf, tone) {
+      const verb = TONE_COPY[tone]?.confidenceVerb;
+      return verb ? `${verb} — ${conf.tier}.` : `Confidence: ${conf.tier}.`;
+    }
+
     /* ---------- INTERPRETATION HOOK + PANEL ---------- */
     function useInterpretation(s, matchPool, domains) {
       const [signals, setSignals] = useState([]);
@@ -725,7 +841,7 @@
         const conf = score >= 0.75 ? { tier: 'STRONG', pct: 90, color: '#86efac' }
                     : score >= 0.45 ? { tier: 'MODERATE', pct: 60, color: '#fbbf24' }
                     : { tier: 'EXPLORATORY', pct: 30, color: '#888' };
-        const why = !s.domain
+        const baseWhy = !s.domain
           ? (s.outcomes.length === 0 ? 'Showing the full library. Pick outcomes to narrow.' : `${pool.length} mechanisms across ${s.outcomes.length} outcome${s.outcomes.length > 1 ? 's' : ''}.`)
           : `${pool.length} mechanisms in ${cleanDomainName(dom?.domain_name) || s.domain}.`;
         const signalLabels = (signals || []).map(sg => sg.signal_label || sg.signal_name || sg.signal_key).filter(Boolean);
@@ -733,9 +849,23 @@
           .filter(d => d.discovery_prompt && d.input_key !== 'implementation_cost')
           .slice(0, 3)
           .map(d => ({ key: d.input_key, label: d.input_label || d.input_key.replace(/_/g, ' '), discovery: d.discovery_prompt }));
-        const topMini = pool.slice().sort((a, b) => (Number(a.print_priority) || 99) - (Number(b.print_priority) || 99)).slice(0, 3);
-        return { engine: dom ? cleanDomainName(dom.domain_name) || dom.domain_id : null, pool, themes, themeData, tally, conf, why, signals: signalLabels, missing, topMini };
-      }, [s.domain, s.outcomes, matchPool, domains, signals, inputDefs]);
+        // Tag-aware overlays
+        const behavior = resolveTagBehavior(s.dealTags);
+        const tone = getTone(behavior);
+        const { data: themeDataSorted, topTheme, biasUnmatched } = applyThemeBias(themeData, behavior.themeBias);
+        const topMini = rankScenariosForVef(pool, behavior.rankBy).slice(0, 3);
+        const rankCaption = (behavior.rankBy === 'evidence') ? RANK_CAPTION.evidence : null;
+        const headline = interpHeadline(s.dealTags, tone);
+        const confidenceLine = toneConfidenceLine(conf, tone);
+        // Why: keep one sentence; append tag-driven clause when relevant.
+        const why = behavior.rankBy
+          ? `${baseWhy} Surfacing ${RANK_CAPTION[behavior.rankBy]?.toLowerCase().replace('ranked by ', '') || 'top picks'} first.`
+          : baseWhy;
+        return { engine: dom ? cleanDomainName(dom.domain_name) || dom.domain_id : null, pool, themes,
+                 themeData: themeDataSorted, topTheme, biasUnmatched, biasArr: behavior.themeBias || [],
+                 tally, conf, confidenceLine, why, headline, behavior, tone, rankCaption,
+                 signals: signalLabels, missing, topMini };
+      }, [s.domain, s.outcomes, s.dealTags, matchPool, domains, signals, inputDefs]);
     }
     function InterpretationPanel({ s, ctx }) {
       return (
@@ -744,6 +874,9 @@
             <div className="font-display text-base text-red">VEF Interpretation</div>
             <span className="text-[9px] font-mono uppercase tracking-widest text-red/60">live</span>
           </div>
+          {ctx.headline && (
+            <div className="text-[12px] text-ink leading-snug border-l-2 border-red pl-3 py-1 mb-4">{ctx.headline}</div>
+          )}
           <InterpSection title="Outcomes selected">
             <OutcomeMatrix selected={s.outcomes} />
             <div className="text-[10px] font-mono text-ink3 mt-2">{s.outcomes.length === 0 ? 'None yet' : s.outcomes.join(' · ')}</div>
@@ -753,6 +886,12 @@
           </InterpSection>
           {ctx.themeData.length > 0 && (
             <InterpSection title="Value themes">
+              {ctx.topTheme && (
+                <div className="text-[10px] font-mono text-red mb-2">Top theme · {ctx.topTheme}</div>
+              )}
+              {ctx.biasUnmatched && (
+                <div className="text-[10px] font-mono text-ink3 italic mb-2">Tag bias finds no matching theme — using ARV ordering.</div>
+              )}
               <div className="flex items-center gap-3">
                 <ThemeDonut data={ctx.themeData} size={72} />
                 <div className="flex-1 min-w-0 space-y-0.5">
@@ -760,6 +899,7 @@
                     <div key={d.key} className="flex items-center gap-1.5 text-[10px]">
                       <span className="w-2 h-2 flex-shrink-0" style={{ background: d.color }} />
                       <span className="text-ink truncate">{d.label}</span>
+                      {ctx.biasArr.includes(d.key) && <span className="text-[8px] font-mono text-red flex-shrink-0">★</span>}
                     </div>
                   ))}
                 </div>
@@ -771,7 +911,7 @@
             <EvidenceMixBar tally={ctx.tally} />
           </InterpSection>
           <InterpSection title="Confidence preview">
-            <div className="text-[11px] font-mono text-ink mb-1.5">This analysis will be <span style={{ color: ctx.conf.color }}>{ctx.conf.tier}</span>.</div>
+            <div className="text-[11px] font-mono text-ink mb-1.5">{ctx.confidenceLine}</div>
             <div className="h-1.5 bg-surface2 relative">
               <div className="absolute inset-y-0 left-0" style={{ width: ctx.conf.pct + '%', background: ctx.conf.color }} />
             </div>
@@ -793,6 +933,9 @@
               )}
               {ctx.topMini.length > 0 && (
                 <InterpSection title="Top mechanisms">
+                  {ctx.rankCaption && (
+                    <div className="text-[9px] font-mono uppercase tracking-widest text-red/80 mb-2">{ctx.rankCaption}</div>
+                  )}
                   <div className="space-y-1.5">
                     {ctx.topMini.map(sc => {
                       const ev = sc.evidence_strength || 'Moderate';
@@ -827,6 +970,8 @@
       const claimSummary = (s.claims || []).filter(c => c.scenario && c.verdict !== 'Missing')
         .map(c => `  - "${c.metric}" ${c.value} → ${c.scenario.mechanism_label || c.scenario.scenario_id} [${c.verdict}]`).join('\n');
       const parts = [];
+      // TAGS line goes first so the workspace2 parser finds it without scanning the whole notes blob.
+      if (s.dealTags && s.dealTags.size) parts.push('TAGS: ' + [...s.dealTags].join(', '));
       if (s.whatToProve) parts.push("WHAT WE'RE TRYING TO PROVE:\n" + s.whatToProve);
       if (s.outcomes.length) parts.push('TARGET OUTCOMES: ' + s.outcomes.join(', '));
       if (claimSummary) parts.push('VENDOR CLAIMS:\n' + claimSummary);

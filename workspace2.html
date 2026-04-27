@@ -244,6 +244,81 @@
     const isPilot     = (e) => friendlyPhase(e?.phase).label === 'Piloting';
     const isCompleted = (e) => (e?.engagement_status || '').toLowerCase().includes('completed') || (e?.deal_stage || '').toLowerCase().startsWith('closed');
 
+    /* ---------- TAG BEHAVIOR ENGINE (kept in sync with vef2.html) ---------- */
+    // Tag → behavior config. Precedence Buyer lens > Motion > Environment.
+    // Each tag declares only the slots it influences; resolveTagBehavior merges them.
+    const TAG_BEHAVIOR = {
+      finance_led:       { group: 'Buyer lens', tone: 'conservative', tierDefault: 'conservative', signalEmphasis: 'NPV',    signalSecondary: 'BCR',          rankBy: 'bcr' },
+      ops_led:           { group: 'Buyer lens', tone: 'operational',  tierDefault: 'typical',      signalEmphasis: 'Y1 ARV', signalSecondary: 'Throughput',   rankBy: 'arv' },
+      risk_led:          { group: 'Buyer lens', tone: 'conservative', tierDefault: 'conservative', signalEmphasis: 'CoI',    signalSecondary: 'Evidence',     rankBy: 'evidence' },
+      rescue:            { group: 'Motion',     tone: 'urgent',       signalEmphasis: 'CoD',       rankBy: 'delay',          overrides: ['tone', 'signalEmphasis'] },
+      new_footprint:     { group: 'Motion',     weakLast: true },
+      compliance_driven: { group: 'Motion',     tierDefault: 'conservative', themeBias: ['Compliance & Risk'], autoActiveThemes: ['Compliance & Risk'], hideNonBiasedWeak: true },
+      expansion:         { group: 'Motion' },
+      physical_network:  { group: 'Environment', themeBias: ['Operational Efficiency', 'Inventory Accuracy', 'Throughput'] },
+      field_fleet:       { group: 'Environment', themeBias: ['Asset Performance', 'Operational Efficiency'] },
+      digital_platform:  { group: 'Environment', themeBias: ['Visibility', 'Intelligence'], deprioritize: ['Throughput', 'Operational Efficiency'] }
+    };
+    const TAG_PRECEDENCE = ['Buyer lens', 'Motion', 'Environment'];
+    const TAG_SCALAR_FIELDS = ['tone', 'tierDefault', 'signalEmphasis', 'signalSecondary', 'rankBy'];
+    const TAG_LIST_FIELDS   = ['themeBias', 'autoActiveThemes', 'deprioritize'];
+    const TAG_BOOL_FIELDS   = ['weakLast', 'hideNonBiasedWeak'];
+
+    // Merge selected tags into a single behavior object honoring precedence + overrides.
+    // - scalar fields: highest-precedence tag's value wins; tags listing the field in
+    //   `overrides` always replace regardless of precedence
+    // - list fields: union, deduped
+    // - boolean fields: OR
+    function resolveTagBehavior(tagsSet) {
+      const tags = [...(tagsSet || [])]
+        .map(k => ({ key: k, ...(TAG_BEHAVIOR[k] || {}) }))
+        .filter(t => t.group)
+        .sort((a, b) => TAG_PRECEDENCE.indexOf(a.group) - TAG_PRECEDENCE.indexOf(b.group));
+      const out = {};
+      tags.forEach(t => TAG_SCALAR_FIELDS.forEach(f => { if (t[f] != null && out[f] == null) out[f] = t[f]; }));
+      tags.forEach(t => (t.overrides || []).forEach(f => { if (t[f] != null) out[f] = t[f]; }));
+      TAG_LIST_FIELDS.forEach(f => {
+        const set = new Set();
+        tags.forEach(t => (t[f] || []).forEach(v => set.add(v)));
+        if (set.size) out[f] = [...set];
+      });
+      TAG_BOOL_FIELDS.forEach(f => { if (tags.some(t => t[f])) out[f] = true; });
+      return out;
+    }
+    const getTone = (behavior) => behavior?.tone || 'operational';
+
+    /* ---------- TONE_COPY — three tones, three surfaces ---------- */
+    const TONE_COPY = {
+      conservative: {
+        heroSubtitle:    (outcome) => (outcome ? outcome.toLowerCase() + ' value' : 'Annual value') + ' defensible at NPV review',
+        confidenceVerb:  'Defensible',
+        nextActionVerbs: { send: 'send', schedule: 'schedule', strengthen: 'tighten' }
+      },
+      operational: {
+        heroSubtitle:    (outcome) => (outcome ? outcome.toLowerCase() + ' value' : 'Value') + ' unlocked annually',
+        confidenceVerb:  'Shippable',
+        nextActionVerbs: { send: 'walk through', schedule: 'book', strengthen: 'firm up' }
+      },
+      urgent: {
+        heroSubtitle:    () => 'Value at risk every month of delay',
+        confidenceVerb:  'Ready',
+        nextActionVerbs: { send: 'get to', schedule: 'set', strengthen: 'lock in' }
+      }
+    };
+
+    // Parses 'TAGS: a, b, c' line stashed by vef2 createAnalysis (lesson 2026-04-24
+    // — speculative fields stash into notes with labeled prefix). Returns a Set of
+    // tag keys; gracefully empty when no line found.
+    function parseTagsFromNotes(notes) {
+      const set = new Set();
+      const m = String(notes || '').match(/^TAGS:\s*(.+)$/m);
+      if (!m) return set;
+      m[1].split(',').map(t => t.trim()).filter(Boolean).forEach(t => {
+        if (TAG_BEHAVIOR[t]) set.add(t);  // ignore unknown keys defensively
+      });
+      return set;
+    }
+
     /* ---------- LOGIN — fake, no validation, no API ---------- */
     function LoginScreen({ onEnter }) {
       const [email, setEmail] = useState('seller@altmeridian.com');
@@ -462,7 +537,7 @@
     }
 
     /* ---------- LIVE ASSUMPTIONS RAIL ---------- */
-    function LiveAssumptions({ scenarios, defs, values, analysis, onSlide, onCommit }) {
+    function LiveAssumptions({ scenarios, defs, values, analysis, onSlide, onCommit, tone }) {
       const top = useMemo(() => topSensitiveInputs(scenarios, defs, values, 3), [scenarios, defs, values]);
       const conf = useMemo(() => confidenceTier(scenarios), [scenarios]);
       return (
@@ -495,7 +570,7 @@
           <div className="pt-3 mt-4 border-t border-border">
             <div className="font-display font-bold text-red leading-none" style={{ fontSize: '24px' }}>{fmtMoney(analysis?.arvY1 || 0)}</div>
             <div className="mt-1.5 inline-flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-widest" style={{ color: conf.color }}>
-              <span className="w-1.5 h-1.5 rounded-full" style={{ background: conf.color }} />{conf.tier}
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: conf.color }} />{TONE_COPY[tone || 'operational'].confidenceVerb} · {conf.tier}
             </div>
           </div>
         </div>
@@ -503,14 +578,55 @@
     }
 
     /* ---------- OVERVIEW TAB ---------- */
-    function priorityAction({ governed, scenarios, snapshots, conf }) {
-      const active = scenarios.filter(s => s.active);
-      if (governed < 40) return { headline: 'Gather buyer inputs', body: `Only ${governed}% of assumptions are buyer-confirmed. The analysis is mostly running on defaults.`, cta: 'Open Inputs', target: 'inputs' };
-      if (!active.length) return { headline: 'Activate a mechanism', body: 'No mechanisms are active — ARV is $0 by definition. Pick at least one scenario that fits this customer.', cta: 'Open Scenarios', target: 'scenarios' };
-      const weak = active.filter(s => (s.evidence_strength || '') === 'Weak').length;
-      if (weak > 0) return { headline: 'Strengthen weak evidence', body: `${weak} active scenario${weak > 1 ? 's are' : ' is'} resting on weak proof. Pull case studies or proof points before the CFO sees this.`, cta: 'Open Scenarios', target: 'scenarios' };
-      if (!snapshots?.length) return { headline: 'Save the baseline snapshot', body: 'Capture this state so changes from here have a reference point.', cta: 'Save Snapshot', target: 'snapshots' };
-      return { headline: 'Schedule customer review', body: `Analysis is at ${conf.tier} confidence. Time to walk it through with the customer.`, cta: 'Open Outputs', target: 'outputs' };
+    /* ---------- NEXT ACTION RULES (A6) ---------- */
+    // Each rule may produce 0-1 actions; pickNextActions returns top N by priority,
+    // deduped by target tab so we never stack two "Open Outputs" cards back to back.
+    const NEXT_ACTION_RULES = [
+      // Tag-driven (highest)
+      { id: 'rescue-quantify-delay', priority: 100,
+        when: ({ tags }) => tags.has('rescue'),
+        build: ({ analysis }) => ({ headline: 'Quantify cost of delay this quarter', body: `Every month costs ${fmtMoney(analysis?.monthlyDelay || 0)}.`, cta: 'Open Outputs', target: 'outputs' })
+      },
+      { id: 'finance-validating-npv', priority: 90,
+        when: ({ tags, stage }) => tags.has('finance_led') && stage === 'validation',
+        build: ({ analysis, engagement }) => ({ headline: 'Send NPV sensitivity', body: engagement.champion_email ? `Walk ${engagement.champion_email} through the ${fmtMoney(analysis?.npv)} NPV.` : `Surface NPV swing under each tier.`, cta: 'Open Outputs', target: 'outputs' })
+      },
+      { id: 'risk-proposing-objections', priority: 88,
+        when: ({ tags, stage }) => tags.has('risk_led') && stage === 'proposal',
+        build: () => ({ headline: 'Add objection responses', body: 'CFO hits on the weakest scenarios first.', cta: 'Open Scenarios', target: 'scenarios' })
+      },
+      { id: 'compliance-confirm-scope', priority: 85,
+        when: ({ tags }) => tags.has('compliance_driven'),
+        build: () => ({ headline: 'Confirm regulatory scope', body: 'Lock the rule set before pricing the engine.', cta: 'Open Inputs', target: 'inputs' })
+      },
+      // ARV-banded
+      { id: 'arv-exec-sponsor', priority: 78,
+        when: ({ analysis }) => (analysis?.arvY1 || 0) > 5_000_000,
+        build: () => ({ headline: 'Recommend exec sponsor', body: '>$5M Y1 ARV — exec sign-off shortens the path.', cta: 'Open Outputs', target: 'outputs' })
+      },
+      { id: 'arv-confirm-scope', priority: 75,
+        when: ({ analysis }) => { const v = analysis?.arvY1 || 0; return v > 0 && v < 250_000; },
+        build: () => ({ headline: 'Confirm scope', body: 'Y1 ARV under $250K — small ARV may not warrant the full engine.', cta: 'Open Scenarios', target: 'scenarios' })
+      },
+      // Stage defaults
+      { id: 'stage-discovery',  priority: 60, when: ({ stage }) => stage === 'discovery',     build: () => ({ headline: 'Gather buyer inputs',       body: 'Discovery — capture buyer assumptions before they go stale.', cta: 'Open Inputs',    target: 'inputs' }) },
+      { id: 'stage-validating', priority: 60, when: ({ stage }) => stage === 'validation',    build: () => ({ headline: 'Strengthen assumptions',    body: 'Validating — pressure-test the inputs that move ARV most.',  cta: 'Open Inputs',    target: 'inputs' }) },
+      { id: 'stage-proposing',  priority: 60, when: ({ stage }) => stage === 'proposal',      build: () => ({ headline: 'Prepare the value story',   body: 'Proposing — shortlist the strongest 3 mechanisms.',          cta: 'Open Scenarios', target: 'scenarios' }) },
+      { id: 'stage-review',     priority: 60, when: ({ stage }) => stage === 'finance review',build: () => ({ headline: 'Defend the financial case', body: 'In review — line up objection responses + NPV.',             cta: 'Open Outputs',   target: 'outputs' }) },
+      { id: 'stage-won',        priority: 60, when: ({ stage }) => stage === 'closed won',    build: () => ({ headline: 'Save baseline snapshot',     body: 'Won — capture the as-sold state for renewals.',              cta: 'Save Snapshot',  target: 'snapshots' }) },
+      { id: 'stage-lost',       priority: 60, when: ({ stage }) => stage === 'closed lost',   build: () => ({ headline: 'Capture the loss reason',   body: 'Lost — archive what to do differently next time.',           cta: 'Save Snapshot',  target: 'snapshots' }) },
+      // Existing fallbacks
+      { id: 'low-completeness', priority: 50, when: ({ governed }) => governed < 40,                          build: ({ governed }) => ({ headline: 'Gather buyer inputs', body: `Only ${governed}% buyer-confirmed.`,                                            cta: 'Open Inputs',    target: 'inputs' }) },
+      { id: 'no-active',        priority: 48, when: ({ scenarios }) => !scenarios.some(s => s.active),         build: () => ({ headline: 'Activate a mechanism', body: 'No mechanisms active — ARV is $0.',                                                       cta: 'Open Scenarios', target: 'scenarios' }) },
+      { id: 'weak-evidence',    priority: 45, when: ({ scenarios }) => scenarios.some(s => s.active && (s.evidence_strength || '') === 'Weak'),
+                                              build: ({ scenarios }) => ({ headline: 'Strengthen weak evidence', body: `${scenarios.filter(s => s.active && s.evidence_strength === 'Weak').length} active on weak proof.`, cta: 'Open Scenarios', target: 'scenarios' }) },
+      { id: 'no-snapshots',     priority: 40, when: ({ snapshots }) => !snapshots?.length,                    build: () => ({ headline: 'Save the baseline snapshot', body: 'Capture this state as a reference point.',                                          cta: 'Save Snapshot',  target: 'snapshots' }) }
+    ];
+    function pickNextActions(ctx, n = 3) {
+      const fired = NEXT_ACTION_RULES.filter(r => r.when(ctx));
+      const sorted = fired.sort((a, b) => b.priority - a.priority).map(r => ({ id: r.id, ...r.build(ctx) }));
+      const seenTarget = new Set();
+      return sorted.filter(a => seenTarget.has(a.target) ? false : (seenTarget.add(a.target), true)).slice(0, n);
     }
     function MechanismRow({ scenario, perScenario }) {
       const glyph = !scenario.active ? { icon: '○', color: '#444' } : perScenario?.pool_shadow ? { icon: '◐', color: '#888' } : { icon: '✓', color: '#86efac' };
@@ -555,9 +671,29 @@
         </div>
       );
     }
-    function OverviewTab({ bundle, scenarios, analysis, governed, onTab }) {
+    // Signal slot definitions; reordered per behavior.signalEmphasis.
+    const OVERVIEW_SIGNALS = {
+      'CoD':    (a) => ({ label: 'Cost of delay', value: fmtMoney(a?.monthlyDelay || 0), unit: '/mo' }),
+      'NPV':    (a) => ({ label: 'NPV (10% discount)', value: a?.npv != null ? fmtMoney(a.npv) : '—', unit: '' }),
+      'BCR':    (a) => ({ label: 'BCR', value: fmtMultiple(a?.bcr), unit: '' }),
+      'Y1 ARV': (a) => ({ label: 'Y1 realized', value: fmtMoney(a?.arvY1 || 0), unit: '' }),
+      'CoI':    (a) => ({ label: 'Cost of doing nothing (3yr)', value: fmtMoney(a?.coi3yr || 0), unit: '' }),
+      'Payback':    (a) => ({ label: 'Payback', value: fmtMonths(a?.payback), unit: '' }),
+      'Throughput': (a) => ({ label: 'BCR', value: fmtMultiple(a?.bcr), unit: '' }),  // throughput-as-secondary uses BCR proxy until throughput field exists
+      'Evidence':   (a) => ({ label: 'BCR', value: fmtMultiple(a?.bcr), unit: '' })
+    };
+    function orderedSignals(behavior) {
+      const seen = new Set();
+      const seq = [behavior.signalEmphasis, behavior.signalSecondary, 'Payback', 'BCR', 'CoD']
+        .filter(k => k && OVERVIEW_SIGNALS[k] && !seen.has(k) && (seen.add(k), true));
+      return seq.slice(0, 3);
+    }
+    function OverviewTab({ bundle, scenarios, analysis, governed, onTab, tags, behavior, tone }) {
       const conf = useMemo(() => confidenceTier(scenarios), [scenarios]);
-      const next = useMemo(() => priorityAction({ governed, scenarios, snapshots: bundle.snapshots, conf }), [governed, scenarios, bundle.snapshots, conf]);
+      const stage = (bundle.engagement?.deal_stage || '').toLowerCase();
+      const actions = useMemo(() => pickNextActions({ governed, scenarios, snapshots: bundle.snapshots, conf, analysis, engagement: bundle.engagement, tags, stage }, 3),
+                              [governed, scenarios, bundle.snapshots, bundle.engagement, conf, analysis, tags, stage]);
+      const top = actions[0], rest = actions.slice(1);
       const evMix = useMemo(() => {
         const t = { Strong: 0, Moderate: 0, Weak: 0 };
         scenarios.filter(s => s.active).forEach(s => { const k = s.evidence_strength || 'Moderate'; if (t[k] != null) t[k]++; });
@@ -565,28 +701,28 @@
       }, [scenarios]);
       const arv = analysis?.arvY1 || 0;
       const outcome = bundle.domain?.primary_outcome;
-      // Rule 6 — language adapts to selected outcome.
-      const heroSub = outcome ? `${outcome.toLowerCase()} value at stake annually` : 'annual value at stake';
+      const heroSub = TONE_COPY[tone].heroSubtitle(outcome);
+      const confLine = TONE_COPY[tone].confidenceVerb;
+      const signalKeys = orderedSignals(behavior);
       return (
         <div className="max-w-[920px] mx-auto px-6 sm:px-10 py-10">
           <div className="text-center mb-10">
             <div className={`font-display font-bold leading-none ${arv > 0 ? 'text-red' : 'text-ink3'}`} style={{ fontSize: '64px' }}>{fmtMoney(arv)}</div>
             <div className="text-[11px] font-mono uppercase tracking-widest text-ink2 mt-3">{heroSub}</div>
             <div className="mt-4 inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest" style={{ color: conf.color }}>
-              <span className="w-1.5 h-1.5 rounded-full" style={{ background: conf.color }} />{conf.tier} confidence
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: conf.color }} />{confLine} — {conf.tier}
             </div>
           </div>
           <div className="grid grid-cols-3 gap-3 sm:gap-6 mb-10">
-            {[
-              { label: 'Cost of delay', value: fmtMoney(analysis?.monthlyDelay || 0), unit: '/mo' },
-              { label: 'Payback',       value: fmtMonths(analysis?.payback),         unit: '' },
-              { label: 'BCR',           value: fmtMultiple(analysis?.bcr),            unit: '' }
-            ].map(s => (
-              <div key={s.label} className="text-center">
-                <div className="font-display text-xl sm:text-2xl text-ink">{s.value}<span className="text-ink3 text-sm font-mono">{s.unit}</span></div>
-                <div className="text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-ink2 mt-1">{s.label}</div>
-              </div>
-            ))}
+            {signalKeys.map(k => {
+              const s = OVERVIEW_SIGNALS[k](analysis);
+              return (
+                <div key={k} className="text-center">
+                  <div className="font-display text-xl sm:text-2xl text-ink">{s.value}<span className="text-ink3 text-sm font-mono">{s.unit}</span></div>
+                  <div className="text-[9px] sm:text-[10px] font-mono uppercase tracking-widest text-ink2 mt-1">{s.label}</div>
+                </div>
+              );
+            })}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
             <div>
@@ -596,11 +732,26 @@
             </div>
             <div>
               <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mb-3">What to do next</div>
-              <div className="border-l-2 border-red bg-surface p-4">
-                <div className="font-display text-base text-ink mb-1.5">{next.headline}</div>
-                <div className="text-[12px] text-ink2 mb-3 leading-relaxed">{next.body}</div>
-                <button onClick={() => onTab(next.target)} className="bg-red hover:bg-red/90 text-white px-3 py-1.5 text-[11px] font-mono uppercase tracking-wider">{next.cta}</button>
-              </div>
+              {top ? (
+                <>
+                  <div className="border-l-2 border-red bg-surface p-4">
+                    <div className="font-display text-base text-ink mb-1.5">{top.headline}</div>
+                    <div className="text-[12px] text-ink2 mb-3 leading-relaxed">{top.body}</div>
+                    <button onClick={() => onTab(top.target)} className="bg-red hover:bg-red/90 text-white px-3 py-1.5 text-[11px] font-mono uppercase tracking-wider">{top.cta}</button>
+                  </div>
+                  {rest.length > 0 && (
+                    <div className="mt-3 space-y-1">
+                      {rest.map(a => (
+                        <button key={a.id} onClick={() => onTab(a.target)} className="w-full flex items-center gap-2 text-left px-3 py-2 border border-border bg-surface/50 hover:border-red/40 hover:bg-red-dim transition-colors">
+                          <span className="w-1.5 h-1.5 rounded-full bg-red flex-shrink-0" />
+                          <span className="text-[12px] text-ink truncate flex-1">{a.headline}</span>
+                          <span className="text-ink3 text-xs flex-shrink-0">›</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : <div className="text-[11px] font-mono text-ink3 italic">No actions surfaced.</div>}
             </div>
           </div>
           <HealthBar governed={governed} evMix={evMix} snapshots={bundle.snapshots} scenarios={scenarios} />
@@ -688,7 +839,30 @@
         </div>
       );
     }
-    function ScenariosTab({ scenarios, analysis, onToggle }) {
+    /* ---------- BIAS + RANK HELPERS (A7) ---------- */
+    const RANK_CAPTION = { bcr: 'Ranked by BCR', delay: 'Ranked by Cost of Delay', evidence: 'Ranked by evidence', arv: 'Ranked by Y1 ARV' };
+    function applyThemeBias(themeData, biasArr) {
+      if (!biasArr?.length || !themeData?.length) return { data: themeData || [], topTheme: null, biasUnmatched: !!biasArr?.length };
+      const biased = [], rest = [];
+      themeData.forEach(d => biasArr.includes(d.key) ? biased.push(d) : rest.push(d));
+      return { data: [...biased, ...rest], topTheme: biased[0]?.label || null, biasUnmatched: biased.length === 0 };
+    }
+    // Per-scenario rank: BCR proxy = scenario 3yr-arv / total impl (RAMPS sum to 2.5).
+    // Confirmed by user: contributing-portion proxy preferred over isolated BCR.
+    function scoreScenarioBy(s, analysis, rankBy) {
+      const per = analysis?.perScenario?.find(p => p.scenario_id === s.scenario_id);
+      if (rankBy === 'bcr')      { const impl = analysis?.impl || 0; return impl > 0 ? ((per?.arv || 0) * 2.5) / impl : (per?.arv || 0); }
+      if (rankBy === 'delay')    return per?.delay || 0;
+      if (rankBy === 'arv')      return per?.arv || 0;
+      if (rankBy === 'evidence') { const o = { Strong: 100, Moderate: 60, Weak: 30 }; return o[s.evidence_strength] ?? 60; }
+      return -(Number(s.print_priority) || 99);  // print_priority asc → negate so desc-sort works
+    }
+    function rankScenarios(scenarios, analysis, rankBy) {
+      if (!rankBy || !scenarios?.length) return scenarios;
+      return scenarios.slice().sort((a, b) => scoreScenarioBy(b, analysis, rankBy) - scoreScenarioBy(a, analysis, rankBy));
+    }
+
+    function ScenariosTab({ scenarios, analysis, onToggle, behavior }) {
       const themeData = useMemo(() => {
         const byTheme = {};
         scenarios.filter(s => s.active).forEach(s => {
@@ -698,19 +872,28 @@
         });
         return Object.entries(byTheme).filter(([_, v]) => v > 0).map(([k, v]) => ({ key: k, label: k, value: v, color: themeColor(k) })).sort((a, b) => b.value - a.value);
       }, [scenarios, analysis]);
+      const { data: themeDataSorted, topTheme, biasUnmatched } = applyThemeBias(themeData, behavior?.themeBias);
+      const biasArr = behavior?.themeBias || [];
+      const rankedScenarios = useMemo(() => behavior?.rankBy ? rankScenarios(scenarios, analysis, behavior.rankBy) : scenarios, [scenarios, analysis, behavior?.rankBy]);
+      const rankCaption = behavior?.rankBy ? RANK_CAPTION[behavior.rankBy] : null;
       if (!scenarios.length) return <div className="p-8 font-mono text-xs text-ink3">No scenarios loaded for this domain.</div>;
       return (
         <div className="max-w-[960px] mx-auto px-4 sm:px-8 py-8">
-          {themeData.length > 0 && (
+          {themeDataSorted.length > 0 && (
             <div className="bg-surface border border-border p-4 sm:p-5 mb-6 flex items-center gap-5">
-              <ThemeDonut data={themeData} size={88} />
+              <ThemeDonut data={themeDataSorted} size={88} />
               <div className="flex-1 min-w-0">
-                <div className="text-[10px] font-mono uppercase tracking-widest text-ink3 mb-2">Value by theme</div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-[10px] font-mono uppercase tracking-widest text-ink3">Value by theme</div>
+                  {topTheme && <div className="text-[10px] font-mono text-red">Top theme · {topTheme}</div>}
+                </div>
+                {biasUnmatched && <div className="text-[10px] font-mono text-ink3 italic mb-2">Tag bias finds no matching theme — using ARV ordering.</div>}
                 <div className="space-y-1">
-                  {themeData.slice(0, 4).map(d => (
+                  {themeDataSorted.slice(0, 4).map(d => (
                     <div key={d.key} className="flex items-center gap-2 text-[11px]">
                       <span className="w-2 h-2 flex-shrink-0" style={{ background: d.color }} />
                       <span className="text-ink truncate flex-1">{d.label}</span>
+                      {biasArr.includes(d.key) && <span className="text-[8px] font-mono text-red flex-shrink-0">★</span>}
                       <span className="font-mono text-ink2">{fmtMoney(d.value)}</span>
                     </div>
                   ))}
@@ -718,9 +901,12 @@
               </div>
             </div>
           )}
-          <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-3">{scenarios.filter(s => s.active).length} of {scenarios.length} mechanisms active</div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-[10px] font-mono uppercase tracking-widest text-ink2">{scenarios.filter(s => s.active).length} of {scenarios.length} mechanisms active</div>
+            {rankCaption && <div className="text-[9px] font-mono uppercase tracking-widest text-red/80">{rankCaption}</div>}
+          </div>
           <div className="space-y-3">
-            {scenarios.map(s => <ScenarioCard key={s.scenario_id} scenario={s} perScenario={analysis?.perScenario?.find(p => p.scenario_id === s.scenario_id)} onToggle={onToggle} />)}
+            {rankedScenarios.map(s => <ScenarioCard key={s.scenario_id} scenario={s} perScenario={analysis?.perScenario?.find(p => p.scenario_id === s.scenario_id)} onToggle={onToggle} />)}
           </div>
         </div>
       );
@@ -1082,19 +1268,25 @@
       outputs:   ['Is this defensible to finance?', 'How would procurement attack the BCR?'],
       snapshots: ['Compare the last two snapshots.', 'What changed since the last snapshot?']
     };
-    function meridianSystemPrompt({ engagement, domain, scenarios, analysis, tab }) {
+    function meridianSystemPrompt({ engagement, domain, scenarios, analysis, tab, tags, behavior, tone }) {
       const active = scenarios.filter(s => s.active);
       const stage = friendlyStage(engagement.deal_stage);
       const phase = friendlyPhase(engagement.phase);
+      const tagList = [...(tags || [])].map(humanizeTagLabel).filter(Boolean);
+      const toneNote = tone === 'conservative' ? 'Be conservative. Lead with NPV / payback. Hedge less than usual; numbers do the work.'
+                     : tone === 'urgent'       ? 'Be urgent. Lead with cost of delay. Short sentences. Bias toward action this quarter.'
+                                               : 'Be operational. Lead with realized Y1 value and what the team can ship.';
+      const persona = `You are Meridian, a value-engineering analyst copilot inside the Alt Meridian workspace.\n${toneNote}\nNo filler. No hedging.`;
       return [
-        'You are Meridian, a value-engineering analyst copilot inside the Alt Meridian workspace.',
-        'Be concise and specific — write like a senior consultant briefing a deal team. No filler, no hedging.',
+        persona,
         '',
         '# Current analysis',
         `Customer: ${engagement.prospect_name || '—'}`,
         `Vendor: ${engagement.vendor_name || '—'}`,
         `Domain: ${cleanDomainName(domain?.domain_name) || engagement.domain_id} (${domain?.primary_outcome || 'unmapped'})`,
         `Stage: ${stage.label} · Phase: ${phase.label}`,
+        tagList.length ? `Tags: ${tagList.join(', ')}` : null,
+        behavior?.signalEmphasis ? `Lead with: ${behavior.signalEmphasis}` : null,
         '',
         '# Computed numbers',
         `Y1 ARV: ${fmtMoney(analysis?.arvY1)} · Full ARV: ${fmtMoney(analysis?.arvFull)} · NPV: ${analysis?.npv != null ? fmtMoney(analysis.npv) : 'N/A'} · Payback: ${analysis?.payback != null ? fmtMonths(analysis.payback) : 'N/A'} · BCR: ${analysis?.bcr != null ? fmtMultiple(analysis.bcr) : 'N/A'}`,
@@ -1103,7 +1295,16 @@
         ...active.map(s => `- ${s.mechanism_label || s.scenario_id} (${s.value_theme || 'untyped'}, evidence: ${s.evidence_strength || 'Moderate'})`),
         '',
         `User is on the ${tab.toUpperCase()} tab.`
-      ].join('\n');
+      ].filter(Boolean).join('\n');
+    }
+    // Friendly label for a tag key (matches the chip text shown in vef2 step 1).
+    function humanizeTagLabel(key) {
+      const map = {
+        finance_led: 'Finance-led', ops_led: 'Ops-led', risk_led: 'Risk / compliance-led',
+        rescue: 'Rescue / turnaround', new_footprint: 'New footprint', expansion: 'Expansion', compliance_driven: 'Compliance-driven',
+        physical_network: 'Physical network', field_fleet: 'Field & fleet', digital_platform: 'Digital / data platform'
+      };
+      return map[key] || key;
     }
     function getMeridianKey() {
       let k = localStorage.getItem('anthropic_api_key');
@@ -1217,6 +1418,37 @@
         return merged.map(s => activeOverrides[s.scenario_id] != null ? { ...s, active: activeOverrides[s.scenario_id] } : s);
       }, [bundle, activeOverrides]);
       const analysis = useMemo(() => bundle ? computeAnalysis(scenarios, values, bundle.defs) : null, [bundle, scenarios, values]);
+      // Tag behavior derived once per bundle load — drives Overview/Scenarios/Inputs/Meridian copy + ranking.
+      const tags = useMemo(() => bundle ? parseTagsFromNotes(bundle.engagement?.notes) : new Set(), [bundle]);
+      const behavior = useMemo(() => resolveTagBehavior(tags), [tags]);
+      const tone = getTone(behavior);
+      // Auto-activate scenarios in tag-driven themes that haven't been explicitly toggled yet.
+      // Only fires once per bundle load — respects subsequent user toggles via the activeOverrides
+      // null-check inside setActiveOverrides.
+      useEffect(() => {
+        if (!bundle || !behavior.autoActiveThemes?.length) return;
+        const noSelection = (s) => !bundle.selections.find(x => x.scenario_id === s.scenario_id);
+        const targets = bundle.scenarios.filter(s => behavior.autoActiveThemes.includes(s.value_theme) && noSelection(s) && !s.active_by_default);
+        if (!targets.length) return;
+        setActiveOverrides(prev => {
+          const next = { ...prev };
+          targets.forEach(s => { if (next[s.scenario_id] == null) next[s.scenario_id] = true; });
+          return next;
+        });
+        Promise.all(targets.map(s => sbUpsert('vef_scenario_selections', { engagement_id: engagementId, scenario_id: s.scenario_id, is_active: true }, 'engagement_id,scenario_id'))).catch(() => {});
+      }, [bundle, behavior]);
+      // Buyer-lens tier default: surface visually on every load; auto-apply values only
+      // on a fresh engagement (no input_values rows yet) to avoid clobbering buyer input.
+      const tierDefaultedRef = useRef(null);
+      useEffect(() => {
+        if (!bundle || !behavior.tierDefault) return;
+        if (tierDefaultedRef.current === bundle.engagement.engagement_id) return;
+        tierDefaultedRef.current = bundle.engagement.engagement_id;
+        setTier(behavior.tierDefault);
+        if (Object.keys(bundle.values || {}).length === 0) {
+          applyPreset(behavior.tierDefault);
+        }
+      }, [bundle, behavior]);
       const slideInput = (key, val) => setOverrides(p => ({ ...p, [key]: { ...(p[key] || bundle.values?.[key] || {}), engagement_id: engagementId, input_key: key, provided_value: val, value_source: 'buyer' } }));
       const commitInput = (key, val) => sbUpsert('vef_input_values', { engagement_id: engagementId, input_key: key, provided_value: val, value_source: 'buyer' }, 'engagement_id,input_key').catch(() => {});
       const toggleScenario = (scenarioId, isActive) => {
@@ -1284,16 +1516,16 @@
                   </button>
                 ))}
               </nav>
-              <LiveAssumptions scenarios={scenarios} defs={bundle.defs} values={values} analysis={analysis} onSlide={slideInput} onCommit={commitInput} />
+              <LiveAssumptions scenarios={scenarios} defs={bundle.defs} values={values} analysis={analysis} onSlide={slideInput} onCommit={commitInput} tone={tone} />
             </aside>
             <main className="flex-1 overflow-auto">
-              {tab === 'overview' ? <OverviewTab bundle={bundle} scenarios={scenarios} analysis={analysis} governed={governed} onTab={setTab} />
-                : tab === 'scenarios' ? <ScenariosTab scenarios={scenarios} analysis={analysis} onToggle={toggleScenario} />
+              {tab === 'overview' ? <OverviewTab bundle={bundle} scenarios={scenarios} analysis={analysis} governed={governed} onTab={setTab} tags={tags} behavior={behavior} tone={tone} />
+                : tab === 'scenarios' ? <ScenariosTab scenarios={scenarios} analysis={analysis} onToggle={toggleScenario} behavior={behavior} />
                 : tab === 'inputs' ? <InputsTab scenarios={scenarios} defs={bundle.defs} values={values} tier={tier} onSlide={slideInput} onCommit={commitInput} onPreset={applyPreset} />
                 : tab === 'outputs' ? <OutputsTab scenarios={scenarios} analysis={analysis} tier={tier} onPreset={applyPreset} />
                 : <SnapshotsTab snapshots={bundle.snapshots || []} onSave={saveSnapshot} />}
             </main>
-            {drawerOpen && <MeridianDrawer onClose={() => setDrawerOpen(false)} tab={tab} context={{ engagement: bundle.engagement, domain: bundle.domain, scenarios, analysis }} />}
+            {drawerOpen && <MeridianDrawer onClose={() => setDrawerOpen(false)} tab={tab} context={{ engagement: bundle.engagement, domain: bundle.domain, scenarios, analysis, tags, behavior, tone }} />}
           </div>
         </div>
       );
