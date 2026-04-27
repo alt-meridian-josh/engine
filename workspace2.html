@@ -891,6 +891,97 @@
         </div>
       );
     }
+    function ScenarioWaterfall({ scenarios, analysis }) {
+      const active = scenarios.filter(s => s.active).map(s => {
+        const per = analysis?.perScenario?.find(p => p.scenario_id === s.scenario_id);
+        return { name: s.mechanism_label || s.scenario_id, theme: s.value_theme, arv: per?.arv || 0, shadow: per?.pool_shadow };
+      }).sort((a, b) => b.arv - a.arv);
+      const max = Math.max(...active.map(a => a.arv), analysis?.arvFull || 0, 1);
+      return (
+        <div className="bg-surface border border-border p-5">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-4">Scenario waterfall</div>
+          {active.length === 0 && <div className="text-[11px] font-mono text-ink3 italic">No active scenarios.</div>}
+          <div className="space-y-1.5">
+            {active.map(a => (
+              <div key={a.name} className="grid grid-cols-12 gap-2 sm:gap-3 items-center">
+                <span className="col-span-5 sm:col-span-4 text-[11px] text-ink truncate">{a.name}</span>
+                <div className="col-span-4 sm:col-span-6 h-5 bg-surface2 relative">
+                  <div className="absolute inset-y-0 left-0" style={{ width: ((a.arv / max) * 100) + '%', background: themeColor(a.theme), opacity: a.shadow ? 0.25 : 0.85 }} />
+                </div>
+                <span className={`col-span-3 sm:col-span-2 font-mono text-[11px] text-right ${a.shadow ? 'text-ink3' : 'text-ink'}`}>{fmtMoney(a.arv)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-3 pt-3 border-t border-border grid grid-cols-12 gap-2 sm:gap-3 items-center">
+            <span className="col-span-5 sm:col-span-4 text-[10px] font-mono uppercase tracking-widest text-red">Total ARV</span>
+            <div className="col-span-4 sm:col-span-6 h-5 bg-red" />
+            <span className="col-span-3 sm:col-span-2 font-mono text-[11px] text-red text-right">{fmtMoney(analysis?.arvFull || 0)}</span>
+          </div>
+        </div>
+      );
+    }
+    function DCFCurve({ analysis }) {
+      const monthly = (analysis?.arvFull || 0) / 12;
+      const impl = analysis?.impl || 0;
+      const points = [{ m: 0, c: -impl }];
+      let cum = -impl;
+      for (let m = 1; m <= 36; m++) {
+        const yearMul = m <= 12 ? RAMPS[0] : m <= 24 ? RAMPS[1] : RAMPS[2];
+        cum += monthly * yearMul;
+        points.push({ m, c: cum });
+      }
+      const ymin = Math.min(...points.map(p => p.c));
+      const ymax = Math.max(...points.map(p => p.c));
+      const range = ymax - ymin || 1;
+      const W = 360, H = 80;
+      const xOf = m => (m / 36) * W;
+      const yOf = c => H - ((c - ymin) / range) * H;
+      const path = points.map((p, i) => (i === 0 ? 'M' : 'L') + xOf(p.m).toFixed(1) + ' ' + yOf(p.c).toFixed(1)).join(' ');
+      const zeroY = yOf(0);
+      let paybackM = null;
+      for (let i = 1; i < points.length; i++) { if (points[i - 1].c < 0 && points[i].c >= 0) { paybackM = points[i].m; break; } }
+      return (
+        <div className="bg-surface border border-border p-5">
+          <div className="flex items-center justify-between mb-3 gap-3">
+            <div className="text-[10px] font-mono uppercase tracking-widest text-ink2">36-month cumulative cash flow</div>
+            <div className="text-[11px] font-mono text-ink2">Payback: <span className="text-red">{paybackM ? paybackM + ' mo' : '—'}</span></div>
+          </div>
+          <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" width="100%" height={H} className="block">
+            <line x1="0" y1={zeroY} x2={W} y2={zeroY} stroke="#444" strokeWidth="1" strokeDasharray="2 3" vectorEffect="non-scaling-stroke" />
+            {paybackM && <line x1={xOf(paybackM)} y1="0" x2={xOf(paybackM)} y2={H} stroke="#d63b2f" strokeWidth="1" strokeDasharray="2 3" vectorEffect="non-scaling-stroke" />}
+            <path d={path} fill="none" stroke="#d63b2f" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+          </svg>
+          <div className="flex justify-between text-[9px] font-mono text-ink3 mt-1"><span>Mo 0 ({fmtMoney(-impl)})</span><span>Mo 36 ({fmtMoney(cum)})</span></div>
+        </div>
+      );
+    }
+    function FinancialTable({ analysis }) {
+      const a = analysis || {};
+      const rows = [
+        ['Y1 Realized Value', fmtMoney(a.arvY1), 'Y1 ramps to 50% adoption.'],
+        ['Y2 Realized Value', fmtMoney(a.arvY2), 'Full adoption.'],
+        ['Y3 Realized Value', fmtMoney(a.arvY3), 'Full adoption.'],
+        ['3-Year Total', fmtMoney((a.arvY1 || 0) + (a.arvY2 || 0) + (a.arvY3 || 0)), 'Sum, no discounting.'],
+        ['NPV (10% discount)', a.npv != null ? fmtMoney(a.npv) : '—', 'Y1 face, Y2/Y3 discounted.'],
+        ['Payback', a.payback != null ? fmtMonths(a.payback) : '—', 'impl ÷ (Y1 ARV / 12).'],
+        ['BCR', a.bcr != null ? fmtMultiple(a.bcr) : '—', '3yr benefit ÷ implementation.'],
+        ['Implementation', a.impl ? fmtMoney(a.impl) : '—', 'From inputs.implementation_cost.']
+      ];
+      return (
+        <div className="bg-surface border border-border">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 px-5 py-3 border-b border-border">Financial summary</div>
+          <table className="w-full">
+            <tbody>{rows.map((r, i) => (
+              <tr key={i} className={i === 3 || i === 6 ? 'border-t border-border' : ''}>
+                <td className="px-5 py-2 text-xs text-ink">{r[0]}</td>
+                <td className="px-3 py-2 text-xs font-mono text-right text-ink">{r[1]}</td>
+                <td className="px-5 py-2 text-[10px] font-mono text-ink3 hidden sm:table-cell">{r[2]}</td>
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+      );
+    }
     function OutputsTab({ scenarios, analysis, tier, onPreset }) {
       return (
         <div className="max-w-[1080px] mx-auto px-4 sm:px-8 py-8">
@@ -898,12 +989,16 @@
             <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-2">Assumption tier</div>
             <BigTierToggle tier={tier} onPreset={onPreset} />
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
             <ValueOfActingCard analysis={analysis} />
             <CostOfDelayCard analysis={analysis} />
             <CostOfDoingNothingCard analysis={analysis} />
           </div>
-          <div className="text-[11px] font-mono text-ink3 italic">[ scenario waterfall + DCF + financial table — chunk W10 ]</div>
+          <div className="space-y-4">
+            <ScenarioWaterfall scenarios={scenarios} analysis={analysis} />
+            <DCFCurve analysis={analysis} />
+            <FinancialTable analysis={analysis} />
+          </div>
         </div>
       );
     }
