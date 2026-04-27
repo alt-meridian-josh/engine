@@ -283,41 +283,11 @@
       );
     }
 
-    /* ---------- AUTH HOOK ---------- */
-    function useAuth() {
-      const [user, setUser] = useState(null);
-      const [ready, setReady] = useState(false);
-      useEffect(() => {
-        sb.auth.getSession().then(({ data }) => {
-          setUser(data?.session?.user || null);
-          setReady(true);
-        });
-        const { data: sub } = sb.auth.onAuthStateChange((_evt, session) => {
-          setUser(session?.user || null);
-        });
-        return () => sub?.subscription?.unsubscribe?.();
-      }, []);
-      const signIn = async (email, password) => {
-        const { error } = await sb.auth.signInWithPassword({ email, password });
-        if (error) throw error;
-      };
-      const signOut = () => sb.auth.signOut();
-      return { user, ready, signIn, signOut };
-    }
-
-    /* ---------- LOGIN SCREEN ---------- */
+    /* ---------- LOGIN SCREEN (fake — no validation) ---------- */
     function LoginScreen({ onSignIn }) {
       const [email, setEmail] = useState('seller@altmeridian.com');
       const [password, setPassword] = useState('altmeridian2026');
-      const [busy, setBusy] = useState(false);
-      const [err, setErr] = useState('');
-      const submit = async (e) => {
-        e.preventDefault();
-        setErr(''); setBusy(true);
-        try { await onSignIn(email, password); }
-        catch (ex) { setErr(ex.message || 'Sign-in failed'); }
-        finally { setBusy(false); }
-      };
+      const submit = (e) => { e.preventDefault(); onSignIn(); };
       return (
         <div className="min-h-full grid place-items-center bg-bg px-4">
           <form onSubmit={submit} className="w-[380px] bg-surface border border-border1 p-8">
@@ -333,10 +303,9 @@
             <label className="block text-[11px] font-mono uppercase text-ink2 mb-1.5 tracking-wider">Password</label>
             <input type="password" value={password} onChange={e => setPassword(e.target.value)}
               className="w-full bg-surface2 border border-border1 px-3 py-2 mb-6 text-sm focus:border-red outline-none" />
-            {err && <div className="text-red text-xs mb-3 font-mono">{err}</div>}
-            <button type="submit" disabled={busy}
-              className="w-full bg-red hover:bg-red/90 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2.5 text-sm font-display tracking-wide transition-colors">
-              {busy ? 'Signing in…' : 'Enter Workspace →'}
+            <button type="submit"
+              className="w-full bg-red hover:bg-red/90 text-white py-2.5 text-sm font-display tracking-wide transition-colors">
+              Enter Workspace →
             </button>
             <div className="text-[11px] text-ink2 mt-8 italic font-mono leading-relaxed">
               "Value belongs to mechanisms, not solutions."
@@ -1313,18 +1282,15 @@
 
     /* ---------- APP ROOT ---------- */
     function App() {
-      const { user, ready, signIn, signOut } = useAuth();
+      const [signedIn, setSignedIn] = useState(false);
       const [activeId, setActiveId] = useState(null);
       useEffect(() => {
         const eng = new URLSearchParams(location.search).get('engagement');
-        if (eng) setActiveId(eng);
+        if (eng) { setSignedIn(true); setActiveId(eng); }
       }, []);
-      if (!ready) {
-        return <div className="min-h-full grid place-items-center text-ink2 font-mono text-xs">Loading…</div>;
-      }
-      if (!user) return <LoginScreen onSignIn={signIn} />;
-      if (activeId) return <EngagementShell engagementId={activeId} onBack={() => setActiveId(null)} signOut={signOut} />;
-      return <HomeScreen onOpen={setActiveId} onNew={() => { location.href = 'vef2.html'; }} signOut={signOut} userEmail={user.email} />;
+      if (!signedIn) return <LoginScreen onSignIn={() => setSignedIn(true)} />;
+      if (activeId) return <EngagementShell engagementId={activeId} onBack={() => setActiveId(null)} />;
+      return <HomeScreen onOpen={setActiveId} onNew={() => { location.href = 'vef2.html'; }} signOut={() => setSignedIn(false)} userEmail="seller@altmeridian.com" />;
     }
 
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
