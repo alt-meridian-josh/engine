@@ -198,6 +198,91 @@
       return Math.floor(ms / 86_400_000) + 'd ago';
     }
 
+    /* ---------- SENSITIVITY + CONFIDENCE ---------- */
+    // Rank input_defs by ARV impact: perturb each input ±20% and measure |ΔarvFull|.
+    function topSensitiveInputs(scenarios, defs, valuesMap, n = 4) {
+      if (!defs?.length || !scenarios?.length) return [];
+      const base = computeAnalysis(scenarios, valuesMap, defs).arvFull;
+      const candidates = defs.filter(d => d.input_key !== 'implementation_cost');
+      const scored = candidates.map(d => {
+        const cur = Number(valuesMap?.[d.input_key]?.provided_value ?? d.typical_value ?? d.default_value ?? 0);
+        const probe = cur === 0 ? 1 : cur * 1.2;
+        const probed = { ...valuesMap, [d.input_key]: { ...(valuesMap?.[d.input_key] || {}), provided_value: probe } };
+        const arv = computeAnalysis(scenarios, probed, defs).arvFull;
+        return { def: d, delta: Math.abs(arv - base) };
+      });
+      return scored.filter(x => x.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, n).map(x => x.def);
+    }
+
+    function confidenceTier(scenarios) {
+      const active = (scenarios || []).filter(s => s.active);
+      if (!active.length) return { tier: 'EXPLORATORY', pct: 25, color: '#888' };
+      const tally = { Strong: 0, Moderate: 0, Weak: 0 };
+      active.forEach(s => { const e = s.evidence_strength || 'Moderate'; if (tally[e] != null) tally[e]++; });
+      const score = (tally.Strong * 1 + tally.Moderate * 0.6 + tally.Weak * 0.3) / active.length;
+      if (score >= 0.75) return { tier: 'STRONG', pct: 90, color: '#86efac' };
+      if (score >= 0.45) return { tier: 'MODERATE', pct: 60, color: '#fbbf24' };
+      return { tier: 'EXPLORATORY', pct: 30, color: '#888' };
+    }
+
+    /* ---------- SLIDER + SOURCE CHIP ---------- */
+    function Slider({ value, min, max, step, onChange, onCommit }) {
+      const commit = () => onCommit?.(Number(value));
+      return (
+        <input type="range" value={value} min={min} max={max} step={step}
+          onChange={e => onChange(Number(e.target.value))}
+          onMouseUp={commit} onTouchEnd={commit} onKeyUp={commit}
+          className="w-full h-1 accent-red bg-border1 cursor-pointer" />
+      );
+    }
+    function SourceChip({ source }) {
+      const isBuyer = source && source !== 'default';
+      return (
+        <span className={`text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 ${isBuyer ? 'bg-green-900/40 text-green-300' : 'bg-surface2 text-ink3'}`}>
+          {isBuyer ? 'BUYER' : 'DEFAULT'}
+        </span>
+      );
+    }
+
+    /* ---------- LIVE ASSUMPTIONS RAIL ---------- */
+    function LiveAssumptions({ scenarios, defs, values, analysis, onSlide, onCommit }) {
+      const top = useMemo(() => topSensitiveInputs(scenarios, defs, values, 4), [scenarios, defs, values]);
+      const conf = useMemo(() => confidenceTier(scenarios), [scenarios]);
+      if (!top.length) {
+        return <div className="text-[11px] font-mono text-ink3 italic">No sensitivity signal yet.</div>;
+      }
+      return (
+        <div className="space-y-3">
+          {top.map(d => {
+            const iv = values?.[d.input_key];
+            const cur = Number(iv?.provided_value ?? d.typical_value ?? d.default_value ?? 0);
+            const min = Number(d.min_value ?? 0);
+            const max = Number(d.max_value ?? Math.max(cur * 2, 1000));
+            const step = Number(d.step_value ?? Math.max((max - min) / 100, 0.01));
+            return (
+              <div key={d.input_key}>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-[10px] font-mono uppercase tracking-wider text-ink2 truncate">{d.input_label || d.input_key}</span>
+                  <SourceChip source={iv?.value_source} />
+                </div>
+                <Slider value={cur} min={min} max={max} step={step}
+                  onChange={(v) => onSlide(d.input_key, v)}
+                  onCommit={(v) => onCommit(d.input_key, v)} />
+                <div className="text-[11px] font-mono text-ink mt-0.5">{cur.toLocaleString(undefined, { maximumFractionDigits: 2 })} <span className="text-ink3">{d.input_unit || ''}</span></div>
+              </div>
+            );
+          })}
+          <div className="pt-3 mt-3 border-t border-border1">
+            <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mb-1">Live ARV</div>
+            <div className="font-display text-xl text-red leading-none">{fmtMoney(analysis?.arvY1 || 0)}</div>
+            <div className="mt-1.5 inline-flex items-center gap-1.5 text-[9px] font-mono uppercase tracking-widest" style={{ color: conf.color }}>
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: conf.color }} />{conf.tier}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     /* ---------- AUTH HOOK ---------- */
     function useAuth() {
       const [user, setUser] = useState(null);
@@ -460,10 +545,10 @@
       );
     }
 
-    function LeftRail({ tab, onTab, bundle, analysis }) {
+    function LeftRail({ tab, onTab, scenarios, defs, values, analysis, onSlide, onCommit }) {
       return (
-        <aside className="w-[200px] bg-surface border-r border-border1 flex flex-col flex-shrink-0">
-          <nav className="py-3">
+        <aside className="w-[200px] bg-surface border-r border-border1 flex flex-col flex-shrink-0 overflow-hidden">
+          <nav className="py-3 flex-shrink-0">
             {TABS.map(t => (
               <button key={t.key} onClick={() => onTab(t.key)}
                 className={`w-full text-left px-4 py-2 text-[11px] font-mono uppercase tracking-widest border-l-2 transition-colors ${tab === t.key ? 'border-red text-red bg-red/5' : 'border-transparent text-ink2 hover:text-ink'}`}>
@@ -471,9 +556,9 @@
               </button>
             ))}
           </nav>
-          <div className="mt-auto px-4 py-4 border-t border-border1">
-            <div className="text-[10px] font-mono uppercase tracking-widest text-ink3 mb-2">Live Assumptions</div>
-            <div className="text-[11px] font-mono text-ink3 italic">[ chunk W6 ]</div>
+          <div className="mt-auto px-4 py-4 border-t border-border1 overflow-y-auto">
+            <div className="text-[10px] font-mono uppercase tracking-widest text-ink3 mb-3">Live Assumptions</div>
+            <LiveAssumptions scenarios={scenarios} defs={defs} values={values} analysis={analysis} onSlide={onSlide} onCommit={onCommit} />
           </div>
         </aside>
       );
@@ -502,25 +587,28 @@
 
     function EngagementShell({ engagementId, onBack }) {
       const [bundle, setBundle] = useState(null);
+      const [overrides, setOverrides] = useState({});
       const [tab, setTab] = useState('overview');
       const [tier, setTier] = useState('typical');
       const [drawerOpen, setDrawerOpen] = useState(false);
       const [err, setErr] = useState('');
       useEffect(() => {
-        setBundle(null); setErr('');
+        setBundle(null); setOverrides({}); setErr('');
         loadEngagementBundle(engagementId).then(b => {
           if (!b) setErr('Engagement not found');
           else setBundle(b);
         }).catch(e => setErr(e.message || 'Failed to load engagement'));
       }, [engagementId]);
+      const values = useMemo(() => ({ ...(bundle?.values || {}), ...overrides }), [bundle, overrides]);
       const scenarios = useMemo(() => bundle ? mergeScenarios(bundle.scenarios, bundle.selections) : [], [bundle]);
-      const analysis = useMemo(() => bundle ? computeAnalysis(scenarios, bundle.values, bundle.defs) : null, [bundle, scenarios]);
-      const governed = useMemo(() => bundle ? governedPct(bundle.values, bundle.defs) : 0, [bundle]);
-      const savedAgo = useMemo(() => {
-        if (!bundle) return '';
-        const last = bundle.snapshots?.[0]?.created_at || bundle.engagement?.intake_date;
-        return 'saved ' + fmtRelative(last);
-      }, [bundle]);
+      const analysis = useMemo(() => bundle ? computeAnalysis(scenarios, values, bundle.defs) : null, [bundle, scenarios, values]);
+      const governed = useMemo(() => bundle ? governedPct(values, bundle.defs) : 0, [bundle, values]);
+      const savedAgo = useMemo(() => bundle ? 'saved ' + fmtRelative(bundle.snapshots?.[0]?.created_at || bundle.engagement?.intake_date) : '', [bundle]);
+      const slideInput = (key, val) => setOverrides(p => ({ ...p, [key]: { ...(p[key] || bundle.values?.[key] || {}), engagement_id: engagementId, input_key: key, provided_value: val, value_source: 'buyer' } }));
+      const commitInput = async (key, val) => {
+        try { await sbUpsert('vef_input_values', { engagement_id: engagementId, input_key: key, provided_value: val, value_source: 'buyer' }, 'engagement_id,input_key'); }
+        catch (e) { console.error('input persist failed', e); }
+      };
       const cycleTier = () => setTier(t => t === 'conservative' ? 'typical' : t === 'typical' ? 'aggressive' : 'conservative');
       if (err) return <div className="p-12 font-mono text-xs text-red">{err} <button onClick={onBack} className="ml-4 text-ink2 hover:text-red">← Back</button></div>;
       if (!bundle) return <div className="min-h-full grid place-items-center text-ink2 font-mono text-xs">Loading engagement…</div>;
@@ -529,7 +617,7 @@
           <Topbar engagement={bundle.engagement} domain={bundle.domain} analysis={analysis} onBack={onBack} onToggleMeridian={() => setDrawerOpen(o => !o)} drawerOpen={drawerOpen} />
           <ContextBar engagement={bundle.engagement} domain={bundle.domain} scenarios={scenarios} tier={tier} onTierCycle={cycleTier} governed={governed} savedAgo={savedAgo} />
           <div className="flex-1 flex min-h-0">
-            <LeftRail tab={tab} onTab={setTab} bundle={bundle} analysis={analysis} />
+            <LeftRail tab={tab} onTab={setTab} scenarios={scenarios} defs={bundle.defs} values={values} analysis={analysis} onSlide={slideInput} onCommit={commitInput} />
             <CenterSurface tab={tab} bundle={bundle} scenarios={scenarios} analysis={analysis} />
             <RightDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} tab={tab} />
           </div>
