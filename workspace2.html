@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Alt Meridian · Workspace</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: {
+      colors: { bg:'#0e0e0e', surface:'#141414', surface2:'#1a1a1a', border1:'#222', border2:'#2d2d2d', ink:'#e8e8e8', ink2:'#888', ink3:'#444', red:'#d63b2f' },
+      fontFamily: { display:['Syne','sans-serif'], mono:['"DM Mono"','monospace'], sans:['Syne','system-ui','sans-serif'] }
+    } } };
+  </script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    html, body, #root { height: 100%; }
+    body { background: #0e0e0e; color: #e8e8e8; font-family: 'Syne', system-ui, sans-serif; }
+    input, textarea, button, select { font-family: inherit; }
+    input[type=range] { accent-color: #d63b2f; }
+  </style>
+</head>
+<body class="bg-bg text-ink">
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+    /* ---------- SUPABASE ---------- */
+    const SUPABASE_URL = 'https://kpecdezcolcycgpuqbgs.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwZWNkZXpjb2xjeWNncHVxYmdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2ODIyMDYsImV4cCI6MjA5MTI1ODIwNn0.rKHzdjjkYToEZWdS0ngg3Kgigh_gDWt5cRbLBCE44rg';
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    /* ---------- AUTH HOOK ---------- */
+    function useAuth() {
+      const [user, setUser] = useState(null);
+      const [ready, setReady] = useState(false);
+      useEffect(() => {
+        sb.auth.getSession().then(({ data }) => {
+          setUser(data?.session?.user || null);
+          setReady(true);
+        });
+        const { data: sub } = sb.auth.onAuthStateChange((_evt, session) => {
+          setUser(session?.user || null);
+        });
+        return () => sub?.subscription?.unsubscribe?.();
+      }, []);
+      const signIn = async (email, password) => {
+        const { error } = await sb.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+      };
+      const signOut = () => sb.auth.signOut();
+      return { user, ready, signIn, signOut };
+    }
+
+    /* ---------- LOGIN SCREEN ---------- */
+    function LoginScreen({ onSignIn }) {
+      const [email, setEmail] = useState('seller@altmeridian.com');
+      const [password, setPassword] = useState('altmeridian2026');
+      const [busy, setBusy] = useState(false);
+      const [err, setErr] = useState('');
+      const submit = async (e) => {
+        e.preventDefault();
+        setErr(''); setBusy(true);
+        try { await onSignIn(email, password); }
+        catch (ex) { setErr(ex.message || 'Sign-in failed'); }
+        finally { setBusy(false); }
+      };
+      return (
+        <div className="min-h-full grid place-items-center bg-bg px-4">
+          <form onSubmit={submit} className="w-[380px] bg-surface border border-border1 p-8">
+            <div className="font-display text-2xl tracking-wide mb-1">
+              <span className="text-red">ALT</span> <span className="text-ink">MERIDIAN</span>
+            </div>
+            <div className="font-mono text-[10px] text-ink2 uppercase tracking-widest mb-8">
+              Workspace · Sign in
+            </div>
+            <label className="block text-[11px] font-mono uppercase text-ink2 mb-1.5 tracking-wider">Email</label>
+            <input type="email" value={email} onChange={e => setEmail(e.target.value)}
+              className="w-full bg-surface2 border border-border1 px-3 py-2 mb-4 text-sm focus:border-red outline-none" />
+            <label className="block text-[11px] font-mono uppercase text-ink2 mb-1.5 tracking-wider">Password</label>
+            <input type="password" value={password} onChange={e => setPassword(e.target.value)}
+              className="w-full bg-surface2 border border-border1 px-3 py-2 mb-6 text-sm focus:border-red outline-none" />
+            {err && <div className="text-red text-xs mb-3 font-mono">{err}</div>}
+            <button type="submit" disabled={busy}
+              className="w-full bg-red hover:bg-red/90 disabled:opacity-50 disabled:cursor-not-allowed text-white py-2.5 text-sm font-display tracking-wide transition-colors">
+              {busy ? 'Signing in…' : 'Enter Workspace →'}
+            </button>
+            <div className="text-[11px] text-ink2 mt-8 italic font-mono leading-relaxed">
+              "Value belongs to mechanisms, not solutions."
+            </div>
+          </form>
+        </div>
+      );
+    }
+
+    /* ---------- ROUTE STUBS (filled in later chunks) ---------- */
+    function HomeScreen({ onOpen, signOut }) {
+      return (
+        <div className="p-12">
+          <div className="font-display text-2xl mb-2"><span className="text-red">ALT</span> MERIDIAN</div>
+          <div className="font-mono text-xs text-ink2 mb-8">[ HOME — chunk W4 ]</div>
+          <button onClick={signOut} className="text-xs font-mono text-ink2 hover:text-red">Sign out</button>
+        </div>
+      );
+    }
+    function EngagementShell({ engagementId, onBack }) {
+      return (
+        <div className="p-12 font-mono text-xs text-ink2">
+          <div className="mb-4">engagement_id: {engagementId} · [ chunk W5+ ]</div>
+          <button onClick={onBack} className="hover:text-red">← Back</button>
+        </div>
+      );
+    }
+
+    /* ---------- APP ROOT ---------- */
+    function App() {
+      const { user, ready, signIn, signOut } = useAuth();
+      const [activeId, setActiveId] = useState(null);
+      useEffect(() => {
+        const eng = new URLSearchParams(location.search).get('engagement');
+        if (eng) setActiveId(eng);
+      }, []);
+      if (!ready) {
+        return <div className="min-h-full grid place-items-center text-ink2 font-mono text-xs">Loading…</div>;
+      }
+      if (!user) return <LoginScreen onSignIn={signIn} />;
+      if (activeId) return <EngagementShell engagementId={activeId} onBack={() => setActiveId(null)} signOut={signOut} />;
+      return <HomeScreen onOpen={setActiveId} signOut={signOut} />;
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
