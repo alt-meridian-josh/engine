@@ -130,6 +130,120 @@
       return { engagement: eng, domain, domains, selections, scenarios, defs, values, snapshots, evidence, signals };
     }
 
+    /* ---------- FORMULA ENGINE ---------- */
+    const RAMPS = [0.5, 1.0, 1.0];   // Y1 50% adoption, Y2/Y3 full
+    const DISCOUNT = 0.10;
+
+    function evalFormula(formula, inputs) {
+      if (!formula || typeof formula !== 'string') return null;
+      const keys = Object.keys(inputs || {});
+      const vals = keys.map(k => {
+        const v = inputs[k];
+        return (v == null || isNaN(Number(v))) ? 0 : Number(v);
+      });
+      try {
+        const fn = new Function(...keys, '"use strict"; return (' + formula + ');');
+        const r = fn(...vals);
+        return (typeof r === 'number' && isFinite(r)) ? r : null;
+      } catch (_) { return null; }
+    }
+
+    // Flatten {input_key:{provided_value:N}} → {input_key:N}; falls back to typical/default.
+    function resolvedInputs(inputsMap, inputDefs) {
+      const out = {};
+      (inputDefs || []).forEach(d => {
+        const p = inputsMap?.[d.input_key]?.provided_value;
+        out[d.input_key] = p != null ? Number(p) : Number(d.typical_value ?? d.default_value ?? 0);
+      });
+      return out;
+    }
+
+    // Pool-share guard: in each value_theme, only the highest-ARV active scenario contributes.
+    function computeAnalysis(scenarios, inputsMap, inputDefs) {
+      const inputs = resolvedInputs(inputsMap, inputDefs);
+      const per = (scenarios || []).map(s => {
+        const arv = evalFormula(s.value_scenario_formula, inputs) || 0;
+        const delay = evalFormula(s.delay_cost_formula, inputs) || (arv / 12);
+        const coi = evalFormula(s.cost_of_inaction_formula, inputs) || (arv * 3);
+        return { scenario_id: s.scenario_id, theme: s.value_theme || 'other', active: !!s.active, arv, delay, coi, pool_shadow: false };
+      });
+      const best = {};
+      per.filter(p => p.active).forEach(p => { if (!best[p.theme] || p.arv > best[p.theme].arv) best[p.theme] = p; });
+      per.forEach(p => { if (p.active && best[p.theme] && best[p.theme].scenario_id !== p.scenario_id) p.pool_shadow = true; });
+      const counted = per.filter(p => p.active && !p.pool_shadow);
+      const arvFull = counted.reduce((s, p) => s + p.arv, 0);
+      const arvY1 = arvFull * RAMPS[0], arvY2 = arvFull * RAMPS[1], arvY3 = arvFull * RAMPS[2];
+      const monthlyDelay = counted.reduce((s, p) => s + p.delay, 0);
+      const coi3yr = counted.reduce((s, p) => s + p.coi, 0);
+      const impl = Number(inputsMap?.implementation_cost?.provided_value) || 0;
+      const npv = impl > 0 ? arvY1 + arvY2 / (1 + DISCOUNT) + arvY3 / (1 + DISCOUNT) ** 2 - impl : null;
+      const payback = impl > 0 && arvY1 > 0 ? impl / (arvY1 / 12) : null;
+      const bcr = impl > 0 ? (arvY1 + arvY2 + arvY3) / impl : null;
+      return { arvY1, arvY2, arvY3, arvFull, monthlyDelay, coi3yr, npv, payback, bcr, perScenario: per, impl };
+    }
+
+    /* ---------- FORMAT HELPERS ---------- */
+    function fmtMoney(n) {
+      if (n == null || !isFinite(n)) return '—';
+      const a = Math.abs(n);
+      if (a >= 1e9) return '$' + (n / 1e9).toFixed(1) + 'B';
+      if (a >= 1e6) return '$' + (n / 1e6).toFixed(1) + 'M';
+      if (a >= 1e3) return '$' + (n / 1e3).toFixed(0) + 'K';
+      return '$' + Math.round(n).toLocaleString();
+    }
+    const fmtPercent = (n, d = 0) => (n == null || !isFinite(n)) ? '—' : (n * 100).toFixed(d) + '%';
+    const fmtMonths = (n) => (n == null || !isFinite(n)) ? '—' : n.toFixed(1) + ' mo';
+    const fmtMultiple = (n) => (n == null || !isFinite(n)) ? '—' : n.toFixed(2) + 'x';
+    function fmtDate(s) {
+      if (!s) return '—';
+      const d = new Date(s);
+      return isNaN(d) ? s : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    function fmtRelative(s) {
+      if (!s) return '—';
+      const ms = Date.now() - new Date(s).getTime();
+      if (ms < 60_000) return 'just now';
+      if (ms < 3_600_000) return Math.floor(ms / 60_000) + 'm ago';
+      if (ms < 86_400_000) return Math.floor(ms / 3_600_000) + 'h ago';
+      return Math.floor(ms / 86_400_000) + 'd ago';
+    }
+
+    /* ---------- STAGE + PHASE TRANSLATION (Rule 8: no DB language in UI) ---------- */
+    // DB stage strings are lowercase; map to friendly verb-tense labels with tone.
+    const STAGE_MAP = {
+      'discovery':      { label: 'Discovery',  tone: 'blue'  },
+      'validation':     { label: 'Validating', tone: 'blue'  },
+      'proposal':       { label: 'Proposing',  tone: 'amber' },
+      'finance review': { label: 'In Review',  tone: 'amber' },
+      'closed won':     { label: 'Won',        tone: 'green' },
+      'closed lost':    { label: 'Lost',       tone: 'ink'   }
+    };
+    const friendlyStage = (raw) => STAGE_MAP[(raw || '').toLowerCase()] || { label: raw || 'Draft', tone: 'ink' };
+    // Phase fuzzy-match — DB uses things like "Discovery", "Pilot", "Deployment", "Expansion", "Renewal".
+    function friendlyPhase(raw) {
+      const lc = (raw || '').toLowerCase();
+      if (lc.includes('pilot')) return { label: 'Piloting',  tone: 'amber' };
+      if (lc.includes('deploy')) return { label: 'Deploying', tone: 'blue'  };
+      if (lc.includes('expand')) return { label: 'Expanding', tone: 'green' };
+      if (lc.includes('renew'))  return { label: 'Renewing',  tone: 'green' };
+      if (lc.includes('discover') || lc.includes('explor')) return { label: 'Exploring', tone: 'ink' };
+      return { label: raw || 'Exploring', tone: 'ink' };
+    }
+    // Tone → Tailwind class (used by both StageBadge and PhaseBadge in W4+).
+    const TONE_BG = {
+      blue:  'bg-blue/20 text-blue',
+      amber: 'bg-amber/20 text-amber',
+      green: 'bg-green/20 text-green',
+      teal:  'bg-teal/20 text-teal',
+      red:   'bg-red/20 text-red',
+      ink:   'bg-surface2 text-ink2'
+    };
+    const ACTIVE_STAGES   = new Set(['discovery', 'validation', 'proposal', 'finance review']);
+    const PILOT_PHASES    = new Set([]);  // matched via friendlyPhase('Piloting'); see isPilot()
+    const isActive    = (e) => ACTIVE_STAGES.has((e?.deal_stage || '').toLowerCase()) && !((e?.engagement_status || '').toLowerCase().includes('completed'));
+    const isPilot     = (e) => friendlyPhase(e?.phase).label === 'Piloting';
+    const isCompleted = (e) => (e?.engagement_status || '').toLowerCase().includes('completed') || (e?.deal_stage || '').toLowerCase().startsWith('closed');
+
     /* ---------- LOGIN — fake, no validation, no API ---------- */
     function LoginScreen({ onEnter }) {
       const [email, setEmail] = useState('seller@altmeridian.com');
