@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Alt Meridian · VEF Assist</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: {
+      colors: {
+        bg:'#0e0e0e', surface:'#141414', surface2:'#1a1a1a',
+        border:'#222222', border2:'#2d2d2d',
+        ink:'#e8e8e8', ink2:'#888888', ink3:'#444444',
+        red:'#d63b2f', 'red-dim':'rgba(214,59,47,0.10)',
+        green:'#2d7d4f', amber:'#b45309', blue:'#1d4ed8', teal:'#0f766e'
+      },
+      fontFamily: {
+        display:['Syne','sans-serif'],
+        mono:['"DM Mono"','monospace'],
+        sans:['Syne','system-ui','sans-serif']
+      }
+    } } };
+  </script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    html, body, #root { height: 100%; }
+    body { background:#0e0e0e; color:#e8e8e8; font-family:'Syne', system-ui, sans-serif; }
+    input, textarea, button, select { font-family: inherit; }
+    input[type=range] { accent-color:#d63b2f; }
+  </style>
+</head>
+<body class="bg-bg text-ink">
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+    /* ---------- STEPS ---------- */
+    const STEPS = [
+      { key: 0, label: 'Import',    title: 'Paste a vendor claim' },
+      { key: 1, label: 'Context',   title: 'What are we trying to improve?' },
+      { key: 2, label: 'Scenarios', title: 'Pick the mechanisms that fit' },
+      { key: 3, label: 'Evidence',  title: 'Evidence and audit' }
+    ];
+
+    function StepIndicator({ step, complete }) {
+      return (
+        <div className="flex items-center gap-1.5 sm:gap-2">
+          {STEPS.map((s, i) => {
+            const isDone = complete[s.key];
+            const isCurrent = step === s.key;
+            const cls = isDone ? 'bg-red border-red text-white' : isCurrent ? 'bg-bg border-red text-red' : 'bg-bg border-border2 text-ink3';
+            return (
+              <React.Fragment key={s.key}>
+                <div className="flex items-center gap-1.5 sm:gap-2">
+                  <div className={`w-5 h-5 sm:w-6 sm:h-6 border flex items-center justify-center text-[10px] font-mono ${cls}`}>{i + 1}</div>
+                  <span className={`text-[10px] font-mono uppercase tracking-widest hidden sm:inline ${isCurrent ? 'text-red' : isDone ? 'text-ink' : 'text-ink3'}`}>{s.label}</span>
+                </div>
+                {i < STEPS.length - 1 && <div className={`w-4 sm:w-8 h-px ${isDone ? 'bg-red' : 'bg-border'}`} />}
+              </React.Fragment>
+            );
+          })}
+        </div>
+      );
+    }
+
+    function Topbar({ step, complete, onCancel }) {
+      return (
+        <header className="h-12 sm:h-14 px-4 sm:px-6 border-b border-border bg-surface flex items-center justify-between flex-shrink-0 gap-3">
+          <div className="flex items-center gap-3 sm:gap-6">
+            <div className="font-display text-base sm:text-lg tracking-wide"><span className="text-red">ALT</span> <span className="text-ink">MERIDIAN</span></div>
+            <span className="font-mono text-[10px] uppercase tracking-widest text-ink2 hidden sm:inline">VEF Assist</span>
+          </div>
+          <StepIndicator step={step} complete={complete} />
+          <button onClick={onCancel} className="text-[11px] font-mono text-ink2 hover:text-red">Cancel</button>
+        </header>
+      );
+    }
+
+    /* ---------- APP STATE ---------- */
+    function makeInitialState() {
+      return {
+        pasted: '', claims: [], extracted: false,
+        outcomes: [], domain: null,
+        analysis_name: '', customer: '', vendor: '',
+        whatToProve: '', whatToProveOpen: false,
+        selectedScenarios: new Set(),
+        scenarioSearch: '', themeFilter: new Set(),
+        notes: ''
+      };
+    }
+
+    function App() {
+      const [step, setStep] = useState(0);
+      const [s, setS] = useState(makeInitialState);
+      const update = (patch) => setS(prev => ({ ...prev, ...patch }));
+      const complete = useMemo(() => ({
+        0: s.extracted || s.claims.length > 0,
+        1: s.outcomes.length > 0 && !!s.domain,
+        2: s.selectedScenarios.size > 0,
+        3: false
+      }), [s]);
+      const cancel = () => { if (confirm('Cancel and discard?')) location.href = 'workspace2.html'; };
+      return (
+        <div className="h-full flex flex-col bg-bg">
+          <Topbar step={step} complete={complete} onCancel={cancel} />
+          <main className="flex-1 overflow-auto">
+            <div className="max-w-[1280px] mx-auto px-4 sm:px-8 py-6 sm:py-10 grid grid-cols-1 md:grid-cols-12 gap-6 md:gap-8">
+              <section className="md:col-span-7">
+                <div className="font-display text-xl sm:text-2xl text-ink mb-1">{STEPS[step].title}</div>
+                <div className="text-[11px] font-mono text-ink2 mb-6 sm:mb-8">Step {step + 1} of {STEPS.length} · {STEPS[step].label}</div>
+                <div className="font-mono text-xs text-ink3 italic">[ step content — chunks V4–V7 ]</div>
+                <div className="mt-12 flex items-center justify-between">
+                  <button onClick={() => setStep(p => Math.max(0, p - 1))} disabled={step === 0}
+                    className="text-[11px] font-mono uppercase tracking-widest text-ink2 hover:text-red disabled:opacity-30">← Back</button>
+                  <button onClick={() => setStep(p => Math.min(STEPS.length - 1, p + 1))} disabled={step === STEPS.length - 1}
+                    className="bg-red hover:bg-red/90 disabled:opacity-30 text-white px-4 py-2 text-[11px] font-mono uppercase tracking-widest">Next →</button>
+                </div>
+              </section>
+              <aside className="md:col-span-5">
+                <div className="bg-red-dim border border-red/30 p-5 sticky top-4">
+                  <div className="font-display text-base text-red mb-4">VEF Interpretation</div>
+                  <div className="font-mono text-xs text-ink3 italic">[ always-on interpretation panel — chunk V3 ]</div>
+                </div>
+              </aside>
+            </div>
+          </main>
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
