@@ -221,6 +221,93 @@
       );
     }
 
+    /* ---------- STEP 1 CONTEXT ---------- */
+    function OutcomeTile({ outcome, selected, onToggle }) {
+      return (
+        <button onClick={() => onToggle(outcome.key)}
+          className={`text-left p-4 border transition-colors ${selected ? 'border-red bg-red/10' : 'border-border bg-surface hover:border-border2'}`}>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full" style={{ background: outcome.color }} />
+            <span className="font-display text-base text-ink">{outcome.key}</span>
+          </div>
+          <div className="text-[11px] text-ink2 mt-1.5 leading-relaxed">{outcome.desc}</div>
+        </button>
+      );
+    }
+    function DomainTile({ domain, count, selected, onSelect }) {
+      return (
+        <button onClick={() => onSelect(domain.domain_id)}
+          className={`text-left p-3 border transition-colors ${selected ? 'border-red bg-red/10' : 'border-border bg-surface hover:border-border2'}`}>
+          <div className="font-display text-sm text-ink truncate">{cleanDomainName(domain.domain_name) || domain.domain_id}</div>
+          <div className="flex items-center justify-between mt-2">
+            <span className="text-[10px] font-mono uppercase tracking-wider text-ink3">{domain.technology || 'Other'}</span>
+            <span className="text-[10px] font-mono text-ink2">{count} <span className="text-ink3">scen</span></span>
+          </div>
+        </button>
+      );
+    }
+    // MetaPills (Rule 1: kill forms — 3 inline placeholder inputs, no labels)
+    function MetaPills({ s, update }) {
+      const cls = "bg-surface border border-border px-3 py-2 text-sm font-mono text-ink placeholder:text-ink3 focus:border-red outline-none";
+      return (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+          <input value={s.analysis_name} onChange={e => update({ analysis_name: e.target.value })} placeholder="analysis name" className={cls} />
+          <input value={s.customer} onChange={e => update({ customer: e.target.value })} placeholder="customer" className={cls} />
+          <input value={s.vendor} onChange={e => update({ vendor: e.target.value })} placeholder="vendor" className={cls} />
+        </div>
+      );
+    }
+    function Step1Context({ s, update, matchPool, domains }) {
+      const scenarioCounts = useMemo(() => {
+        const m = {}; (matchPool || []).forEach(sc => { m[sc.domain_id] = (m[sc.domain_id] || 0) + 1; }); return m;
+      }, [matchPool]);
+      const filteredDomains = useMemo(() => {
+        const list = Object.values(domains);
+        if (s.outcomes.length === 0) return list;
+        return list.filter(d => s.outcomes.includes(d.primary_outcome));
+      }, [domains, s.outcomes]);
+      const toggleOutcome = (key) => {
+        const next = s.outcomes.includes(key) ? s.outcomes.filter(o => o !== key) : [...s.outcomes, key];
+        update({ outcomes: next, ...(s.domain && next.length && !next.includes(domains[s.domain]?.primary_outcome) ? { domain: null } : {}) });
+      };
+      return (
+        <div>
+          <div className="text-[12px] text-ink2 mb-4 leading-relaxed">Pick the business outcomes this analysis is targeting. Multi-select.</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
+            {OUTCOMES.map(o => <OutcomeTile key={o.key} outcome={o} selected={s.outcomes.includes(o.key)} onToggle={toggleOutcome} />)}
+          </div>
+          {s.outcomes.length > 0 && (
+            <>
+              <div className="text-[10px] font-mono uppercase tracking-widest text-red mb-3">Where does this apply?</div>
+              {Object.keys(domains).length === 0 ? (
+                <div className="text-[11px] font-mono text-ink3 italic mb-8">Loading domains…</div>
+              ) : filteredDomains.length === 0 ? (
+                <div className="text-[11px] font-mono text-ink3 italic mb-8">No domains match the selected outcomes.</div>
+              ) : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-8">
+                  {filteredDomains.map(d => <DomainTile key={d.domain_id} domain={d} count={scenarioCounts[d.domain_id] || 0} selected={s.domain === d.domain_id} onSelect={(id) => update({ domain: id })} />)}
+                </div>
+              )}
+            </>
+          )}
+          <div className="mb-3">
+            <div className="text-[10px] font-mono uppercase tracking-widest text-ink3 mb-2">Tag this analysis</div>
+            <MetaPills s={s} update={update} />
+          </div>
+          <button onClick={() => update({ whatToProveOpen: !s.whatToProveOpen })}
+            className="text-[10px] font-mono uppercase tracking-widest text-ink2 hover:text-red flex items-center gap-1.5 mt-3">
+            <span className="text-ink3">{s.whatToProveOpen ? '▾' : '▸'}</span>
+            {s.whatToProveOpen ? "What we're trying to prove" : 'Add context +'}
+          </button>
+          {s.whatToProveOpen && (
+            <textarea value={s.whatToProve} onChange={e => update({ whatToProve: e.target.value })}
+              rows={3} placeholder="What's the question this analysis needs to answer?"
+              className="w-full mt-2 bg-surface border border-border px-3 py-2 text-sm focus:border-red outline-none" />
+          )}
+        </div>
+      );
+    }
+
     /* ---------- STEPS ---------- */
     const STEPS = [
       { key: 0, label: 'Import',    title: 'Paste a vendor claim' },
@@ -442,7 +529,8 @@
                 <div className="font-display text-xl sm:text-2xl text-ink mb-1">{STEPS[step].title}</div>
                 <div className="text-[11px] font-mono text-ink2 mb-6 sm:mb-8">Step {step + 1} of {STEPS.length} · {STEPS[step].label}</div>
                 {step === 0 && <Step0Import s={s} update={update} matchPool={matchPool} onSkip={() => setStep(1)} />}
-                {step > 0 && <div className="font-mono text-xs text-ink3 italic">[ step content — chunks V5–V7 ]</div>}
+                {step === 1 && <Step1Context s={s} update={update} matchPool={matchPool} domains={domains} />}
+                {step > 1 && <div className="font-mono text-xs text-ink3 italic">[ step content — chunks V6–V7 ]</div>}
                 <div className="mt-12 flex items-center justify-between">
                   <button onClick={() => setStep(p => Math.max(0, p - 1))} disabled={step === 0}
                     className="text-[11px] font-mono uppercase tracking-widest text-ink2 hover:text-red disabled:opacity-30">← Back</button>
