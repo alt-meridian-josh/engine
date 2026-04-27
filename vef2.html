@@ -568,6 +568,90 @@
       };
     }
 
+    /* ---------- INTERPRETATION CONTEXT (V8) ---------- */
+    function confidenceFromScenarios(scenarios) {
+      if (!scenarios.length) return { tier: 'EXPLORATORY', pct: 25, color: '#888' };
+      const tally = { Strong: 0, Moderate: 0, Weak: 0 };
+      scenarios.forEach(s => { const e = s.evidence_strength || 'Moderate'; if (tally[e] != null) tally[e]++; });
+      const score = (tally.Strong + tally.Moderate * 0.6 + tally.Weak * 0.3) / scenarios.length;
+      if (score >= 0.75) return { tier: 'STRONG', pct: 90, color: '#86efac' };
+      if (score >= 0.45) return { tier: 'MODERATE', pct: 60, color: '#fbbf24' };
+      return { tier: 'EXPLORATORY', pct: 30, color: '#888' };
+    }
+    function useInterpretation(s, matchPool, domains) {
+      const [signals, setSignals] = useState([]);
+      const [inputDefs, setInputDefs] = useState([]);
+      useEffect(() => {
+        if (!s.domain) { setSignals([]); setInputDefs([]); return; }
+        const dom = domains[s.domain];
+        Promise.all([
+          loadValueSignals(s.domain),
+          loadInputDefinitions(s.domain, dom)
+        ]).then(([sigs, defs]) => { setSignals(sigs); setInputDefs(defs); });
+      }, [s.domain, domains]);
+      return useMemo(() => {
+        const dom = s.domain ? domains[s.domain] : null;
+        const domainPool = (matchPool || []).filter(sc => sc.domain_id === s.domain);
+        const themes = Array.from(new Set(domainPool.map(p => p.value_theme).filter(Boolean)));
+        const selectedScenarios = domainPool.filter(sc => s.selectedScenarios.has(sc.scenario_id));
+        const tally = { Strong: 0, Moderate: 0, Weak: 0 };
+        domainPool.forEach(sc => { const e = sc.evidence_strength || 'Moderate'; if (tally[e] != null) tally[e]++; });
+        const conf = confidenceFromScenarios(selectedScenarios.length ? selectedScenarios : domainPool);
+        const missing = (inputDefs || [])
+          .filter(d => d.discovery_prompt && d.input_key !== 'implementation_cost')
+          .slice(0, 3)
+          .map(d => ({ key: d.input_key, label: d.input_label || d.input_key, discovery: d.discovery_prompt }));
+        const topMini = domainPool.slice().sort((a, b) => (Number(a.print_priority) || 99) - (Number(b.print_priority) || 99)).slice(0, 3);
+        return {
+          signals: (signals || []).map(sg => sg.signal_label || sg.signal_name || sg.signal_key).filter(Boolean),
+          themes,
+          engine: dom ? cleanDomainName(dom.domain_name) || dom.domain_id : null,
+          scenarios: domainPool,
+          tally,
+          confidence: conf,
+          missing,
+          topMini
+        };
+      }, [s.domain, s.selectedScenarios, matchPool, domains, signals, inputDefs]);
+    }
+
+    /* ---------- CREATE HANDLER ---------- */
+    function buildEngagementRow({ s, domains }) {
+      const today = new Date().toISOString().slice(0, 10);
+      const id = (crypto && crypto.randomUUID) ? crypto.randomUUID() : 'eng_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      // Speculative fields (whatToProve, outcomes, claims summary) are stashed in `notes`
+      // with a labeled prefix per lesson 2026-04-24 — never include speculative columns
+      // on INSERT, they fail-loud against unknown PostgREST schema.
+      const claimSummary = (s.claims || []).filter(c => c.scenario && c.verdict !== 'Missing')
+        .map(c => `  - "${c.metric}" ${c.value} → ${c.scenario.mechanism_label || c.scenario.scenario_id} [${c.verdict}]`).join('\n');
+      const notesParts = [];
+      if (s.whatToProve) notesParts.push('WHAT WE\'RE TRYING TO PROVE:\n' + s.whatToProve);
+      if (s.outcomes.length) notesParts.push('TARGET OUTCOMES: ' + s.outcomes.join(', '));
+      if (claimSummary) notesParts.push('VENDOR CLAIMS:\n' + claimSummary);
+      if (s.notes) notesParts.push('EVIDENCE NOTES:\n' + s.notes);
+      return {
+        engagement_id: id,
+        analysis_name: s.analysis_name || 'Untitled analysis',
+        prospect_name: s.customer || null,
+        vendor_name:   s.vendor || null,
+        domain_id:     s.domain,
+        intake_date:   today,
+        deal_stage:    'discovery',
+        engagement_status: 'Draft',
+        phase:         'Discovery',
+        notes:         notesParts.join('\n\n') || null
+      };
+    }
+    async function createAnalysis({ s, domains }) {
+      if (!s.domain || !s.selectedScenarios.size) throw new Error('Pick a domain and at least one scenario.');
+      const row = buildEngagementRow({ s, domains });
+      await sbInsert('vef_engagements', row);
+      await Promise.all(Array.from(s.selectedScenarios).map(scenario_id =>
+        sbUpsert('vef_scenario_selections', { engagement_id: row.engagement_id, scenario_id, is_active: true }, 'engagement_id,scenario_id')
+      ));
+      return row.engagement_id;
+    }
+
     /* ---------- LEFT PANEL — step dispatcher ---------- */
     function LeftPanel({ step, s, update, matchPool, setMatchPool, onSkip, onCreate, busy }) {
       return (
@@ -602,7 +686,8 @@
       );
     }
     function RightPanel({ ctx }) {
-      const c = ctx || { signals: [], themes: [], scenarios: [], missing: [], engine: null, confidence: { tier: 'EXPLORATORY', pct: 25, color: '#888' } };
+      const c = ctx || { signals: [], themes: [], scenarios: [], missing: [], engine: null, tally: { Strong: 0, Moderate: 0, Weak: 0 }, topMini: [], confidence: { tier: 'EXPLORATORY', pct: 25, color: '#888' } };
+      const tot = c.tally.Strong + c.tally.Moderate + c.tally.Weak;
       return (
         <aside className="bg-red/5 border border-red/30 p-6 sticky top-6">
           <div className="flex items-center justify-between mb-5">
@@ -619,8 +704,17 @@
             <div className="font-display text-sm text-ink">{c.engine || <span className="text-ink3 italic font-mono text-[11px]">Pending domain selection.</span>}</div>
           </InterpSection>
           <InterpSection title="Scenarios Available">
-            <div className="text-sm font-mono text-ink">{c.scenarios.length || 0}</div>
-            <div className="text-[10px] font-mono text-ink3 mt-1">[ V8 fills the strong/moderate/weak breakdown ]</div>
+            <div className="text-sm font-mono text-ink mb-2">{c.scenarios.length}</div>
+            {tot > 0 && (
+              <>
+                <div className="text-[10px] font-mono text-ink2 mb-1">{c.tally.Strong} <span style={{ color: '#86efac' }}>Strong</span> · {c.tally.Moderate} <span style={{ color: '#fbbf24' }}>Moderate</span> · {c.tally.Weak} <span style={{ color: '#f87171' }}>Weak</span></div>
+                <div className="flex h-1.5 w-full">
+                  <div style={{ width: ((c.tally.Strong / tot) * 100) + '%', background: '#86efac' }} />
+                  <div style={{ width: ((c.tally.Moderate / tot) * 100) + '%', background: '#fbbf24' }} />
+                  <div style={{ width: ((c.tally.Weak / tot) * 100) + '%', background: '#f87171' }} />
+                </div>
+              </>
+            )}
           </InterpSection>
           <InterpSection title="Confidence Preview">
             <div className="text-[11px] font-mono text-ink mb-1">Based on your selections, this analysis will be <span style={{ color: c.confidence.color }}>{c.confidence.tier}</span>.</div>
@@ -630,7 +724,7 @@
           </InterpSection>
           <InterpSection title="Missing Inputs">
             {c.missing.length === 0
-              ? <div className="text-[11px] font-mono text-ink3 italic">[ V8 surfaces top 3 unset inputs ]</div>
+              ? <div className="text-[11px] font-mono text-ink3 italic">No discovery prompts loaded yet.</div>
               : c.missing.map(m => (
                   <div key={m.key} className="mb-2">
                     <div className="text-[11px] text-ink">{m.label}</div>
@@ -638,6 +732,27 @@
                   </div>
                 ))}
           </InterpSection>
+          {c.topMini.length > 0 && (
+            <div className="pt-4 mt-2 border-t border-red/20">
+              <div className="text-[9px] font-mono uppercase tracking-widest text-red/80 mb-2">Top Mechanisms</div>
+              <div className="space-y-2">
+                {c.topMini.map(sc => {
+                  const ev = sc.evidence_strength || 'Moderate';
+                  const evC = ev === 'Strong' ? '#86efac' : ev === 'Weak' ? '#f87171' : '#fbbf24';
+                  const evPct = ev === 'Strong' ? 100 : ev === 'Weak' ? 30 : 60;
+                  return (
+                    <div key={sc.scenario_id} className="bg-surface border border-border1 px-3 py-2">
+                      <div className="text-[11px] text-ink truncate">{sc.mechanism_label || sc.scenario_id}</div>
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="flex-1 h-1 bg-surface2 relative"><div className="absolute inset-y-0 left-0" style={{ width: evPct + '%', background: evC }} /></div>
+                        <span className="text-[9px] font-mono uppercase tracking-widest" style={{ color: evC }}>{ev}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </aside>
       );
     }
@@ -646,7 +761,11 @@
       const [step, setStep] = useState(0);
       const [s, setS] = useState(makeInitialState);
       const [matchPool, setMatchPool] = useState(null);
+      const [domains, setDomains] = useState({});
+      const [busy, setBusy] = useState(false);
       const update = (patch) => setS(prev => ({ ...prev, ...patch }));
+      useEffect(() => { loadDomains().then(setDomains).catch(() => {}); }, []);
+      const ctx = useInterpretation(s, matchPool, domains);
       const complete = useMemo(() => ({
         0: s.extracted || s.claims.length > 0,
         1: s.outcomes.length > 0 && !!s.domain,
@@ -654,13 +773,23 @@
         3: false
       }), [s]);
       const cancel = () => { if (confirm('Cancel and discard?')) location.href = 'workspace2.html'; };
+      const onCreate = async () => {
+        setBusy(true);
+        try {
+          const id = await createAnalysis({ s, domains });
+          location.href = 'workspace2.html?engagement=' + encodeURIComponent(id);
+        } catch (e) {
+          alert('Create failed: ' + (e.message || e));
+          setBusy(false);
+        }
+      };
       return (
         <div className="h-full flex flex-col bg-bg">
           <Topbar step={step} complete={complete} onCancel={cancel} />
           <main className="flex-1 overflow-auto">
             <div className="max-w-[1280px] mx-auto px-8 py-8 grid grid-cols-12 gap-8">
               <div className="col-span-7">
-                <LeftPanel step={step} s={s} update={update} matchPool={matchPool} setMatchPool={setMatchPool} onSkip={() => setStep(p => Math.min(STEPS.length - 1, p + 1))} onCreate={() => alert('Create wired in V8')} busy={false} />
+                <LeftPanel step={step} s={s} update={update} matchPool={matchPool} setMatchPool={setMatchPool} onSkip={() => setStep(p => Math.min(STEPS.length - 1, p + 1))} onCreate={onCreate} busy={busy} />
                 <div className="mt-12 flex items-center justify-between">
                   <button onClick={() => setStep(p => Math.max(0, p - 1))} disabled={step === 0}
                     className="text-[11px] font-mono uppercase tracking-widest text-ink2 hover:text-red disabled:opacity-30">← Back</button>
@@ -669,7 +798,7 @@
                 </div>
               </div>
               <div className="col-span-5">
-                <RightPanel s={s} />
+                <RightPanel ctx={ctx} />
               </div>
             </div>
           </main>
