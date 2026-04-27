@@ -1115,17 +1115,124 @@
       return null;
     }
 
-    function RightDrawer({ open, onClose, tab }) {
-      if (!open) return null;
+    /* ---------- MERIDIAN DRAWER (Anthropic chat) ---------- */
+    const MERIDIAN_MODEL = 'claude-sonnet-4-5';
+    const MERIDIAN_LABEL = 'claude-sonnet-4-5';
+    const QUICK_PROMPTS = {
+      overview:  ['Weakest assumption?', 'Draft a CFO narrative for this analysis.'],
+      scenarios: ['Which scenario is most likely to be challenged?', 'What evidence would harden the weakest one?'],
+      inputs:    ['What am I missing?', 'Which inputs would the buyer push back on?'],
+      outputs:   ['Is this defensible to a finance reviewer?', 'How would procurement attack the BCR?'],
+      snapshots: ['Compare the most recent two snapshots.', 'What changed since the last snapshot?']
+    };
+    function meridianSystemPrompt({ engagement, domain, scenarios, analysis, tab }) {
+      const active = scenarios.filter(s => s.active);
+      const lines = [
+        'You are Meridian, a value-engineering analyst copilot inside the Alt Meridian workspace.',
+        'Be concise, specific, and write like a senior consultant briefing a deal team. No filler, no hedging.',
+        '',
+        '# Current analysis',
+        `Customer: ${engagement.prospect_name || '—'}`,
+        `Vendor: ${engagement.vendor_name || '—'}`,
+        `Domain: ${cleanDomainName(domain?.domain_name) || engagement.domain_id} (${domain?.primary_outcome || 'unmapped outcome'})`,
+        `Stage: ${engagement.deal_stage || '—'} · Phase: ${engagement.phase || '—'}`,
+        '',
+        '# Computed numbers',
+        `Y1 ARV: ${fmtMoney(analysis?.arvY1)} · Full ARV: ${fmtMoney(analysis?.arvFull)} · NPV: ${analysis?.npv != null ? fmtMoney(analysis.npv) : 'N/A'} · Payback: ${analysis?.payback != null ? fmtMonths(analysis.payback) : 'N/A'} · BCR: ${analysis?.bcr != null ? fmtMultiple(analysis.bcr) : 'N/A'}`,
+        '',
+        '# Active scenarios',
+        ...active.map(s => `- ${s.mechanism_label || s.scenario_id} (${s.value_theme || 'untyped'}, evidence: ${s.evidence_strength || 'Moderate'})`),
+        '',
+        `User is currently on the ${tab.toUpperCase()} tab.`
+      ];
+      return lines.join('\n');
+    }
+    function getMeridianKey() {
+      let k = localStorage.getItem('anthropic_api_key');
+      if (!k) {
+        k = prompt('Enter your Anthropic API key (stored in localStorage on this device):');
+        if (k) localStorage.setItem('anthropic_api_key', k.trim());
+      }
+      return k;
+    }
+    async function callMeridian(messages, system) {
+      const key = getMeridianKey();
+      if (!key) throw new Error('No API key provided.');
+      const resp = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': key,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({ model: MERIDIAN_MODEL, max_tokens: 1024, system, messages })
+      });
+      if (!resp.ok) throw new Error('Meridian API ' + resp.status + ': ' + await resp.text());
+      const data = await resp.json();
+      return data.content?.map(c => c.text).join('') || '';
+    }
+    function ChatBubble({ role, text }) {
+      const cls = role === 'user' ? 'bg-red/15 border-red/40 text-ink' : role === 'error' ? 'bg-red/10 border-red text-red' : 'bg-surface2 border-border1 text-ink';
+      return (
+        <div className="mb-3">
+          <div className="text-[8px] font-mono uppercase tracking-widest text-ink3 mb-1">{role === 'user' ? 'You' : role === 'error' ? 'Error' : 'Assistant'}</div>
+          <div className={`border px-3 py-2 text-[12px] leading-relaxed whitespace-pre-wrap ${cls}`}>{text}</div>
+        </div>
+      );
+    }
+    function MeridianDrawer({ onClose, tab, context }) {
+      const [messages, setMessages] = useState([]);
+      const [input, setInput] = useState('');
+      const [busy, setBusy] = useState(false);
+      const bodyRef = useRef(null);
+      useEffect(() => { if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight; }, [messages]);
+      const send = async (text) => {
+        const t = (text || input).trim();
+        if (!t || busy) return;
+        setInput('');
+        const next = [...messages, { role: 'user', content: t }];
+        setMessages(next); setBusy(true);
+        try {
+          const reply = await callMeridian(next, meridianSystemPrompt({ ...context, tab }));
+          setMessages([...next, { role: 'assistant', content: reply }]);
+        } catch (e) {
+          setMessages([...next, { role: 'error', content: e.message || 'Request failed' }]);
+        } finally { setBusy(false); }
+      };
+      const prompts = QUICK_PROMPTS[tab] || QUICK_PROMPTS.overview;
       return (
         <aside className="w-[300px] bg-surface border-l border-border1 flex flex-col flex-shrink-0">
           <div className="h-11 px-4 border-b border-border1 flex items-center justify-between flex-shrink-0">
-            <div className="font-mono text-[10px] uppercase tracking-widest text-ink2">Meridian · claude-sonnet-4</div>
-            <button onClick={onClose} className="text-ink3 hover:text-red text-sm">×</button>
+            <div className="font-mono text-[10px] uppercase tracking-widest text-ink2">Meridian · {MERIDIAN_LABEL}</div>
+            <button onClick={onClose} className="text-ink3 hover:text-red text-sm leading-none">×</button>
           </div>
-          <div className="p-4 text-[11px] font-mono text-ink3 italic">[ chunk W12 ]</div>
+          {messages.length === 0 && (
+            <div className="px-4 pt-4 flex-shrink-0">
+              <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mb-2">Quick prompts · {tab}</div>
+              <div className="space-y-1.5">
+                {prompts.map(p => (
+                  <button key={p} onClick={() => send(p)} className="block w-full text-left text-[11px] text-ink2 hover:text-red border border-border1 hover:border-red/50 px-2.5 py-1.5">{p}</button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div ref={bodyRef} className="flex-1 overflow-auto px-4 pt-4">
+            {messages.map((m, i) => <ChatBubble key={i} role={m.role === 'error' ? 'error' : m.role} text={m.content} />)}
+            {busy && <div className="text-[10px] font-mono text-ink3 italic">thinking…</div>}
+          </div>
+          <div className="border-t border-border1 p-3 flex-shrink-0">
+            <textarea value={input} onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+              rows={2} placeholder="Ask Meridian…" className="w-full bg-surface2 border border-border1 px-2 py-1.5 text-[12px] resize-none focus:border-red outline-none" />
+            <button onClick={() => send()} disabled={busy} className="w-full mt-2 bg-red hover:bg-red/90 disabled:opacity-50 text-white py-1.5 text-[11px] font-mono uppercase tracking-wider">Send</button>
+          </div>
         </aside>
       );
+    }
+    function RightDrawer({ open, onClose, tab, context }) {
+      if (!open) return null;
+      return <MeridianDrawer onClose={onClose} tab={tab} context={context} />;
     }
 
     function EngagementShell({ engagementId, onBack }) {
@@ -1198,7 +1305,7 @@
           <div className="flex-1 flex min-h-0">
             <LeftRail tab={tab} onTab={setTab} scenarios={scenarios} defs={bundle.defs} values={values} analysis={analysis} onSlide={slideInput} onCommit={commitInput} />
             <CenterSurface tab={tab} bundle={bundle} scenarios={scenarios} analysis={analysis} governed={governed} tier={tier} values={values} onToggleScenario={toggleScenario} onSlide={slideInput} onCommit={commitInput} onPreset={applyPreset} onSaveSnapshot={saveSnapshot} />
-            <RightDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} tab={tab} />
+            <RightDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} tab={tab} context={{ engagement: bundle.engagement, domain: bundle.domain, scenarios, analysis }} />
           </div>
         </div>
       );
