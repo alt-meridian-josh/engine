@@ -35,6 +35,88 @@
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwZWNkZXpjb2xjeWNncHVxYmdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2ODIyMDYsImV4cCI6MjA5MTI1ODIwNn0.rKHzdjjkYToEZWdS0ngg3Kgigh_gDWt5cRbLBCE44rg';
     const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+    /* ---------- DB HELPERS ---------- */
+    async function sbSelect(table, q) {
+      let b = sb.from(table).select('*');
+      if (q?.eq) Object.entries(q.eq).forEach(([k, v]) => b = b.eq(k, v));
+      if (q?.in) Object.entries(q.in).forEach(([k, vs]) => b = b.in(k, vs));
+      if (q?.order) b = b.order(q.order[0], { ascending: q.order[1] !== false });
+      if (q?.limit) b = b.limit(q.limit);
+      const { data, error } = await b;
+      if (error) throw error;
+      return data || [];
+    }
+    async function sbInsert(table, row) {
+      const { data, error } = await sb.from(table).insert(row).select();
+      if (error) throw error;
+      return data?.[0] || null;
+    }
+    async function sbUpsert(table, row, onConflict) {
+      const { data, error } = await sb.from(table).upsert(row, onConflict ? { onConflict } : {}).select();
+      if (error) throw error;
+      return data?.[0] || null;
+    }
+    async function sbUpdate(table, patch, q) {
+      let b = sb.from(table).update(patch);
+      if (q?.eq) Object.entries(q.eq).forEach(([k, v]) => b = b.eq(k, v));
+      const { data, error } = await b.select();
+      if (error) throw error;
+      return data || [];
+    }
+
+    /* ---------- LOADERS ---------- */
+    async function loadDomains() {
+      const arr = await sbSelect('vef_domains');
+      const m = {}; arr.forEach(d => m[d.domain_id] = d); return m;
+    }
+    const loadEngagements = () => sbSelect('vef_engagements', { order: ['intake_date', false] });
+    const loadValueSignals = (domainId) =>
+      sbSelect('vef_value_signals', { eq: { domain_id: domainId } }).catch(() => []);
+    const loadEvidence = (domainId) =>
+      sbSelect('vef_evidence_registry', { eq: { domain_id: domainId } }).catch(() => []);
+    const loadSnapshots = (engId) =>
+      sbSelect('vef_output_snapshots', { eq: { engagement_id: engId }, order: ['created_at', false] });
+    const loadScenarioSelections = (engId) =>
+      sbSelect('vef_scenario_selections', { eq: { engagement_id: engId } });
+    async function loadInputValues(engId) {
+      const arr = await sbSelect('vef_input_values', { eq: { engagement_id: engId } });
+      const m = {}; arr.forEach(iv => m[iv.input_key] = iv); return m;
+    }
+    // RFID fallback: synthetic domain ids like WH-RFD have no scenarios/inputs of their own;
+    // retry with the canonical 'RFD' bucket. See workspace.html:1340 for original logic.
+    async function loadScenariosForDomain(domainId, domain) {
+      let scens = await sbSelect('vef_value_scenarios', { eq: { domain_id: domainId } }).catch(() => []);
+      if (!scens.length && domain?.technology === 'RFID' && domainId !== 'RFD') {
+        scens = await sbSelect('vef_value_scenarios', { eq: { domain_id: 'RFD' } }).catch(() => []);
+      }
+      return scens;
+    }
+    async function loadInputDefinitions(domainId, domain) {
+      let rows = await sbSelect('vef_input_definitions', { eq: { domain_id: domainId } }).catch(() => []);
+      if (!rows.length && domain?.technology === 'RFID' && domainId !== 'RFD') {
+        rows = await sbSelect('vef_input_definitions', { eq: { domain_id: 'RFD' } }).catch(() => []);
+      }
+      const seen = new Set();
+      return rows.filter(r => seen.has(r.input_key) ? false : (seen.add(r.input_key), true));
+    }
+    async function loadEngagementBundle(engagementId) {
+      const rows = await sbSelect('vef_engagements', { eq: { engagement_id: engagementId }, limit: 1 });
+      const eng = rows[0];
+      if (!eng) return null;
+      const domains = await loadDomains();
+      const domain = domains[eng.domain_id];
+      const [selections, scenarios, defs, values, snapshots, evidence, signals] = await Promise.all([
+        loadScenarioSelections(eng.engagement_id),
+        loadScenariosForDomain(eng.domain_id, domain),
+        loadInputDefinitions(eng.domain_id, domain),
+        loadInputValues(eng.engagement_id),
+        loadSnapshots(eng.engagement_id),
+        loadEvidence(eng.domain_id),
+        loadValueSignals(eng.domain_id)
+      ]);
+      return { engagement: eng, domain, domains, selections, scenarios, defs, values, snapshots, evidence, signals };
+    }
+
     /* ---------- AUTH HOOK ---------- */
     function useAuth() {
       const [user, setUser] = useState(null);
