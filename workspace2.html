@@ -1179,10 +1179,149 @@
       );
     }
 
+    /* ---------- INTAKE STATUS BANNER (I5a) ---------- */
+    function IntakeStatusBanner({ session, defs, onReview }) {
+      if (!session) return null;
+      const total = session.curated_input_keys?.length || defs.length || 0;
+      const answered = Object.keys(session.responses || {}).length;
+      const who = session.shared_with_email || 'prospect';
+      const status = session.status || 'pending';
+      if (status === 'submitted') {
+        return (
+          <div className="bg-red/10 border border-red px-4 py-3 mb-6 flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <div className="text-[11px] font-mono uppercase tracking-widest text-red">Submitted · {who}</div>
+              <div className="text-[12px] text-ink mt-1">{answered} of {total} answered · ready to review</div>
+            </div>
+            <button onClick={onReview} className="bg-red hover:bg-red/90 text-white px-4 py-2 text-[11px] font-mono uppercase tracking-widest">Review responses →</button>
+          </div>
+        );
+      }
+      if (status === 'applied') {
+        return (
+          <div className="bg-green/15 border border-green/40 px-4 py-3 mb-6">
+            <div className="text-[11px] font-mono uppercase tracking-widest text-green">✓ Applied · {who}</div>
+            <div className="text-[12px] text-ink2 mt-1">{answered} responses applied {fmtRelative(session.applied_at || session.shared_at)}</div>
+          </div>
+        );
+      }
+      if (answered > 0) {
+        return (
+          <div className="bg-surface border-l-2 border-amber px-4 py-3 mb-6">
+            <div className="text-[11px] font-mono uppercase tracking-widest text-amber">In progress · {who}</div>
+            <div className="text-[12px] text-ink2 mt-1">{answered} of {total} answered · last touched {fmtRelative(session.shared_at)}</div>
+          </div>
+        );
+      }
+      return (
+        <div className="bg-surface border-l-2 border-border2 px-4 py-3 mb-6">
+          <div className="text-[11px] font-mono uppercase tracking-widest text-ink2">Sent · {who}</div>
+          <div className="text-[12px] text-ink3 mt-1">{fmtRelative(session.shared_at)} · waiting on responses</div>
+        </div>
+      );
+    }
+
+    /* ---------- INTAKE REVIEW DIALOG (I5a) ---------- */
+    function IntakeReviewDialog({ engagement, session, defs, currentValues, onClose, onApplied }) {
+      const initial = useMemo(() => {
+        const d = {};
+        defs.forEach(def => {
+          const r = session.responses?.[def.input_key];
+          d[def.input_key] = r && r.source !== 'skipped' && r.value != null ? 'apply' : 'reject';
+        });
+        return d;
+      }, [defs, session]);
+      const [decisions, setDecisions] = useState(initial);
+      const [busy, setBusy] = useState(false);
+      const [err, setErr] = useState('');
+      const setDecision = (k, v) => setDecisions(p => ({ ...p, [k]: v }));
+      const markAllApplicable = () => setDecisions(p => {
+        const n = { ...p };
+        defs.forEach(def => { const r = session.responses?.[def.input_key]; if (r && r.source !== 'skipped' && r.value != null) n[def.input_key] = 'apply'; });
+        return n;
+      });
+      const apply = async () => {
+        setBusy(true); setErr('');
+        try {
+          const toApply = defs.filter(d => decisions[d.input_key] === 'apply' && session.responses?.[d.input_key]?.value != null);
+          const sourceTag = 'buyer:intake:' + (session.session_id || '').slice(0, 8);
+          await Promise.all(toApply.map(d => sbUpsert('vef_input_values', {
+            engagement_id: engagement.engagement_id,
+            input_key: d.input_key,
+            provided_value: Number(session.responses[d.input_key].value),
+            value_source: sourceTag
+          }, 'engagement_id,input_key')));
+          const next = { ...session, status: 'applied', applied_at: new Date().toISOString() };
+          const newNotes = await writeIntakeSession(engagement.engagement_id, engagement.notes, next);
+          // Patch values map so the seller sees green BUYER dots + recomputed ARV without reload.
+          const valuesPatch = { ...currentValues };
+          toApply.forEach(d => { valuesPatch[d.input_key] = { engagement_id: engagement.engagement_id, input_key: d.input_key, provided_value: Number(session.responses[d.input_key].value), value_source: sourceTag }; });
+          onApplied(newNotes, next, valuesPatch);
+          onClose();
+        } catch (e) { setErr(e.message || 'Apply failed'); }
+        finally { setBusy(false); }
+      };
+      const applyCount = Object.values(decisions).filter(v => v === 'apply').length;
+      return (
+        <div className="fixed inset-0 z-30 bg-bg/85 grid place-items-center p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+          <div className="w-full max-w-[720px] bg-surface border border-border max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border flex-shrink-0">
+              <div>
+                <div className="font-display text-base text-ink">Intake responses</div>
+                <div className="text-[10px] font-mono text-ink3 mt-0.5">{session.shared_with_email || 'prospect'} · {fmtRelative(session.shared_at)}</div>
+              </div>
+              <button onClick={onClose} className="text-ink3 hover:text-red text-base leading-none">×</button>
+            </div>
+            <div className="px-5 py-4 overflow-auto">
+              {err && <div className="text-[11px] font-mono text-red mb-3 border-l-2 border-red bg-red/5 px-3 py-2">{err}</div>}
+              <div className="text-[12px] text-ink2 mb-4">{applyCount} of {defs.length} marked to apply. Toggle Apply / Reject per row, or use Mark all.</div>
+              <div className="space-y-2">
+                {defs.map(d => {
+                  const r = session.responses?.[d.input_key];
+                  const cur = currentValues?.[d.input_key]?.provided_value;
+                  const decision = decisions[d.input_key];
+                  const status = !r ? 'pending' : r.source;
+                  const chip = status === 'confirmed' ? 'text-green' : status === 'edited' ? 'text-red' : status === 'skipped' ? 'text-ink3' : 'text-amber';
+                  const noProspectValue = !r || r.value == null;
+                  return (
+                    <div key={d.input_key} className="bg-surface2 border border-border p-3">
+                      <div className="text-[12px] text-ink mb-2">{d.discovery_prompt || d.input_label || d.input_key}</div>
+                      <div className="grid grid-cols-3 gap-3 text-[11px] font-mono mb-2">
+                        <div><span className="text-ink3 text-[10px]">CURRENT</span><div className="text-ink mt-0.5">{cur != null ? Number(cur).toLocaleString() : '—'}{d.input_unit ? ' ' + d.input_unit : ''}</div></div>
+                        <div><span className="text-ink3 text-[10px]">PROSPECT</span><div className="text-ink mt-0.5">{r?.value != null ? Number(r.value).toLocaleString() + (d.input_unit ? ' ' + d.input_unit : '') : status === 'skipped' ? '—' : 'pending'}</div></div>
+                        <div><span className="text-ink3 text-[10px]">SOURCE</span><div className={chip + ' mt-0.5 uppercase tracking-widest text-[10px]'}>{status}</div></div>
+                      </div>
+                      <div className="flex gap-1 pt-2 border-t border-border">
+                        <button onClick={() => setDecision(d.input_key, 'apply')} disabled={noProspectValue}
+                          className={`flex-1 text-[10px] font-mono uppercase tracking-widest py-1.5 ${decision === 'apply' ? 'bg-red text-white' : noProspectValue ? 'border border-border text-ink3 opacity-30 cursor-not-allowed' : 'border border-border2 text-ink2 hover:text-ink'}`}>Apply</button>
+                        <button onClick={() => setDecision(d.input_key, 'reject')}
+                          className={`flex-1 text-[10px] font-mono uppercase tracking-widest py-1.5 ${decision === 'reject' ? 'bg-surface text-ink border border-border2' : 'border border-border2 text-ink3 hover:text-ink2'}`}>Reject</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex items-center justify-between px-5 py-3 border-t border-border gap-3 flex-shrink-0">
+              <button onClick={markAllApplicable} className="text-[11px] font-mono uppercase tracking-widest text-ink2 hover:text-red">Mark all applicable</button>
+              <div className="flex gap-2">
+                <button onClick={onClose} className="text-[11px] font-mono uppercase tracking-widest text-ink2 hover:text-red px-3 py-1.5">Cancel</button>
+                <button onClick={apply} disabled={busy || applyCount === 0} className="bg-red hover:bg-red/90 disabled:opacity-30 text-white px-4 py-1.5 text-[11px] font-mono uppercase tracking-widest">{busy ? 'Applying…' : `Apply ${applyCount} →`}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     function InputsTab({ scenarios, defs, values, tier, onSlide, onCommit, onPreset, engagement, onSessionWritten }) {
       const groups = useMemo(() => groupInputsByScenario(scenarios, defs), [scenarios, defs]);
       const [shareOpen, setShareOpen] = useState(false);
+      const [reviewOpen, setReviewOpen] = useState(false);
       const session = parseIntakeSession(engagement?.notes);
+      const reviewDefs = useMemo(() => session?.curated_input_keys
+        ? session.curated_input_keys.map(k => defs.find(d => d.input_key === k)).filter(Boolean)
+        : [], [session, defs]);
       if (!defs?.length) return <div className="p-8 font-mono text-xs text-ink3">No inputs defined for this domain.</div>;
       return (
         <div className="max-w-[920px] mx-auto px-4 sm:px-8 py-8">
@@ -1195,7 +1334,12 @@
               <PresetStrip tier={tier} onPreset={onPreset} />
             </div>
           </div>
+          <IntakeStatusBanner session={session} defs={reviewDefs} onReview={() => setReviewOpen(true)} />
           {shareOpen && <ShareIntakeDialog engagement={engagement} defs={defs} scenarios={scenarios} values={values} onClose={() => setShareOpen(false)} onWritten={onSessionWritten} />}
+          {reviewOpen && session && reviewDefs.length > 0 && (
+            <IntakeReviewDialog engagement={engagement} session={session} defs={reviewDefs} currentValues={values}
+              onClose={() => setReviewOpen(false)} onApplied={onSessionWritten} />
+          )}
           <div className="space-y-8">
             {groups.map(g => (
               <div key={g.name}>
@@ -1729,7 +1873,7 @@
             <main className="flex-1 overflow-auto">
               {tab === 'overview' ? <OverviewTab bundle={bundle} scenarios={scenarios} analysis={analysis} governed={governed} onTab={setTab} tags={tags} behavior={behavior} tone={tone} />
                 : tab === 'scenarios' ? <ScenariosTab scenarios={scenarios} analysis={analysis} onToggle={toggleScenario} behavior={behavior} />
-                : tab === 'inputs' ? <InputsTab scenarios={scenarios} defs={bundle.defs} values={values} tier={tier} onSlide={slideInput} onCommit={commitInput} onPreset={applyPreset} engagement={bundle.engagement} onSessionWritten={(notes) => setBundle(b => b ? { ...b, engagement: { ...b.engagement, notes } } : b)} />
+                : tab === 'inputs' ? <InputsTab scenarios={scenarios} defs={bundle.defs} values={values} tier={tier} onSlide={slideInput} onCommit={commitInput} onPreset={applyPreset} engagement={bundle.engagement} onSessionWritten={(notes, _sess, valuesPatch) => setBundle(b => b ? { ...b, engagement: { ...b.engagement, notes }, ...(valuesPatch ? { values: valuesPatch } : {}) } : b)} />
                 : tab === 'outputs' ? <OutputsTab scenarios={scenarios} analysis={analysis} tier={tier} onPreset={applyPreset} />
                 : <SnapshotsTab snapshots={bundle.snapshots || []} onSave={saveSnapshot} />}
             </main>
