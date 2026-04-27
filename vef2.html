@@ -91,6 +91,35 @@
       { key: 'Revenue',      color: '#6ee7b7', desc: "Capture value that's being lost" }
     ];
     const OUTCOME_BY = OUTCOMES.reduce((m, o) => (m[o.key] = o, m), {});
+    // Op areas — "Where in their operation?" chips (multi-select).
+    const OP_AREAS = [
+      { key: 'store',     label: 'Store / Branch',             sub: 'Frontline locations' },
+      { key: 'warehouse', label: 'Warehouse / DC',             sub: 'Inventory & flows' },
+      { key: 'plant',     label: 'Plant / Line',               sub: 'Production & quality' },
+      { key: 'fleet',     label: 'Fleet / Field',              sub: 'Mobile assets & routes' },
+      { key: 'office',    label: 'Back Office / Finance',      sub: 'Planning, risk, finance' },
+      { key: 'platform',  label: 'Digital Product / Platform', sub: 'Software, data, APIs' }
+    ];
+    // Solution patterns shown after at least one op area is picked.
+    // `match` regex resolves a pattern to its representative domain by scanning
+    // domain_name + technology + primary_outcome of each domain in the catalog.
+    const SOLUTION_PATTERNS = [
+      { key: 'asset_location', label: 'Asset & Location Intelligence', desc: "Track what's where in real time.",            opAreas: ['store','warehouse','plant','fleet'], match: /rfid|rtls|gps|ble|location|asset[\s-]*track|track[\s-]*asset|telemetry|tag/i },
+      { key: 'risk_cat',       label: 'Risk & Cat Analytics',          desc: 'Predict and prevent financial exposure.',     opAreas: ['office','plant','fleet'],            match: /risk|insur|compliance|catastrophe|fraud|exposure|safety/i },
+      { key: 'cv_quality',     label: 'Computer Vision Quality',       desc: 'Visual inspection and defect detection.',     opAreas: ['plant','warehouse'],                 match: /vision|inspect|defect|visual|imaging|camera/i },
+      { key: 'enterprise_ai',  label: 'Enterprise AI Platform',        desc: 'Foundation for cross-cutting AI workflows.',  opAreas: ['office','platform'],                 match: /\bai\b|\bml\b|machine[\s-]*learn|llm|gen[\s-]*ai|intelligence/i },
+      { key: 'inventory_flow', label: 'Inventory & Flow Optimization', desc: 'Move things faster through your operation.',  opAreas: ['warehouse','store'],                 match: /inventory|throughput|picking|pick[\s-]*pack|flow|wms|stock/i },
+      { key: 'workforce',      label: 'Workforce & Productivity',      desc: 'Get more from your people.',                  opAreas: ['store','warehouse','plant','office'], match: /labor|workforce|productiv|employee|crew|wfm/i },
+      { key: 'connected_ops',  label: 'Connected Operations',          desc: 'Real-time visibility across your operation.', opAreas: ['plant','warehouse','fleet'],         match: /iot|connect|telemetry|real[\s-]?time|sensor|mes|scada/i },
+      { key: 'data_platform',  label: 'Data & Integration',            desc: 'Software, data flows, APIs.',                 opAreas: ['platform','office'],                 match: /data|api|integrat|platform|etl|lake|stream/i }
+    ];
+    function resolvePatternDomain(pattern, domains) {
+      for (const d of Object.values(domains || {})) {
+        const hay = [d.domain_name, d.technology, d.primary_outcome].filter(Boolean).join(' ');
+        if (pattern.match.test(hay)) return d.domain_id;
+      }
+      return null;
+    }
     const THEME_COLORS = {
       'Operational Efficiency':'#fbbf24', 'Compliance & Risk':'#c4b5fd', 'Asset Performance':'#86efac',
       'Inventory Accuracy':'#93c5fd', 'Throughput':'#f59e0b', 'Visibility':'#60a5fa',
@@ -234,19 +263,7 @@
         </button>
       );
     }
-    function DomainTile({ domain, count, selected, onSelect }) {
-      return (
-        <button onClick={() => onSelect(domain.domain_id)}
-          className={`text-left p-3 border transition-colors ${selected ? 'border-red bg-red/10' : 'border-border bg-surface hover:border-border2'}`}>
-          <div className="font-display text-sm text-ink truncate">{cleanDomainName(domain.domain_name) || domain.domain_id}</div>
-          <div className="flex items-center justify-between mt-2">
-            <span className="text-[10px] font-mono uppercase tracking-wider text-ink3">{domain.technology || 'Other'}</span>
-            <span className="text-[10px] font-mono text-ink2">{count} <span className="text-ink3">scen</span></span>
-          </div>
-        </button>
-      );
-    }
-    // MetaPills (Rule 1: kill forms — 3 inline placeholder inputs, no labels)
+// MetaPills (Rule 1: kill forms — 3 inline placeholder inputs, no labels)
     function MetaPills({ s, update }) {
       const cls = "bg-surface border border-border px-3 py-2 text-sm font-mono text-ink placeholder:text-ink3 focus:border-red outline-none";
       return (
@@ -257,19 +274,49 @@
         </div>
       );
     }
-    function Step1Context({ s, update, matchPool, domains }) {
-      const scenarioCounts = useMemo(() => {
-        const m = {}; (matchPool || []).forEach(sc => { m[sc.domain_id] = (m[sc.domain_id] || 0) + 1; }); return m;
-      }, [matchPool]);
-      const filteredDomains = useMemo(() => {
-        const list = Object.values(domains);
-        if (s.outcomes.length === 0) return list;
-        return list.filter(d => s.outcomes.includes(d.primary_outcome));
-      }, [domains, s.outcomes]);
+    function OpAreaChip({ area, selected, onToggle }) {
+      return (
+        <button onClick={() => onToggle(area.key)}
+          className={`text-left px-3 py-2 border transition-colors ${selected ? 'border-red bg-red/10' : 'border-border bg-surface hover:border-border2'}`}>
+          <div className="font-display text-sm text-ink">{area.label}</div>
+          <div className="text-[10px] font-mono text-ink2 mt-0.5">{area.sub}</div>
+        </button>
+      );
+    }
+    function SolutionPatternTile({ pattern, resolvable, selected, onSelect }) {
+      const disabled = !resolvable;
+      return (
+        <button onClick={() => !disabled && onSelect(pattern.key)} disabled={disabled}
+          className={`text-left p-3 border transition-colors ${disabled ? 'border-border bg-bg opacity-40 cursor-not-allowed' : selected ? 'border-red bg-red/10' : 'border-border bg-surface hover:border-border2'}`}>
+          <div className="font-display text-sm text-ink">{pattern.label}</div>
+          <div className="text-[11px] text-ink2 mt-1 leading-relaxed">{pattern.desc}</div>
+          {disabled && <div className="text-[9px] font-mono uppercase tracking-widest text-ink3 mt-1.5">No matching engine in library</div>}
+        </button>
+      );
+    }
+    function Step1Context({ s, update, matchPool, domains, attempted }) {
       const toggleOutcome = (key) => {
         const next = s.outcomes.includes(key) ? s.outcomes.filter(o => o !== key) : [...s.outcomes, key];
-        update({ outcomes: next, ...(s.domain && next.length && !next.includes(domains[s.domain]?.primary_outcome) ? { domain: null } : {}) });
+        update({ outcomes: next });
       };
+      const toggleArea = (key) => {
+        const next = new Set(s.opAreas);
+        next.has(key) ? next.delete(key) : next.add(key);
+        // Re-validate selected pattern against the new op-area set; clear if no overlap.
+        const pat = s.pattern ? SOLUTION_PATTERNS.find(p => p.key === s.pattern) : null;
+        const stillValid = pat && pat.opAreas.some(a => next.has(a));
+        update({ opAreas: next, ...(stillValid ? {} : { pattern: null, domain: null }) });
+      };
+      const visiblePatterns = useMemo(() => {
+        if (s.opAreas.size === 0) return [];
+        return SOLUTION_PATTERNS.filter(p => p.opAreas.some(a => s.opAreas.has(a)));
+      }, [s.opAreas]);
+      const pickPattern = (key) => {
+        const p = SOLUTION_PATTERNS.find(x => x.key === key);
+        const did = p ? resolvePatternDomain(p, domains) : null;
+        update({ pattern: key, domain: did });
+      };
+      const showAreaError = attempted && s.opAreas.size === 0;
       return (
         <div>
           <div className="text-[12px] text-ink2 mb-4 leading-relaxed">Pick the business outcomes this analysis is targeting. Multi-select.</div>
@@ -278,14 +325,31 @@
           </div>
           {s.outcomes.length > 0 && (
             <>
-              <div className="text-[10px] font-mono uppercase tracking-widest text-red mb-3">Where does this apply?</div>
-              {Object.keys(domains).length === 0 ? (
-                <div className="text-[11px] font-mono text-ink3 italic mb-8">Loading domains…</div>
-              ) : filteredDomains.length === 0 ? (
-                <div className="text-[11px] font-mono text-ink3 italic mb-8">No domains match the selected outcomes.</div>
-              ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-8">
-                  {filteredDomains.map(d => <DomainTile key={d.domain_id} domain={d} count={scenarioCounts[d.domain_id] || 0} selected={s.domain === d.domain_id} onSelect={(id) => update({ domain: id })} />)}
+              <div className="flex items-center justify-between mb-1">
+                <div className="font-display text-base text-ink">Where in their operation?</div>
+                <span className="text-[9px] font-mono uppercase tracking-widest px-2 py-0.5 border border-border2 text-ink3">Multi-select</span>
+              </div>
+              <div className="text-[12px] text-ink2 mb-3 leading-relaxed">Choose the parts of the operation most affected by this problem.</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                {OP_AREAS.map(a => <OpAreaChip key={a.key} area={a} selected={s.opAreas.has(a.key)} onToggle={toggleArea} />)}
+              </div>
+              {s.opAreas.size > 0 && (
+                <div className="text-[10px] font-mono text-ink3 italic mt-2">Tip: add another area if the problem spans multiple parts of the operation.</div>
+              )}
+              {showAreaError && (
+                <div className="text-[11px] font-mono text-red mt-3 border-l-2 border-red bg-red/5 px-3 py-2">Pick at least one part of the operation so we can narrow the right engines.</div>
+              )}
+              {s.opAreas.size > 0 && (
+                <div className="mt-6 mb-8">
+                  <div className="text-[10px] font-mono uppercase tracking-widest text-red mb-3">Solution pattern</div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {visiblePatterns.map(p => (
+                      <SolutionPatternTile key={p.key} pattern={p}
+                        resolvable={!!resolvePatternDomain(p, domains)}
+                        selected={s.pattern === p.key}
+                        onSelect={pickPattern} />
+                    ))}
+                  </div>
                 </div>
               )}
             </>
@@ -768,7 +832,7 @@
     function makeInitialState() {
       return {
         pasted: '', claims: [], extracted: false,
-        outcomes: [], domain: null,
+        outcomes: [], opAreas: new Set(), domain: null, pattern: null,
         analysis_name: '', customer: '', vendor: '',
         whatToProve: '', whatToProveOpen: false,
         selectedScenarios: new Set(),
@@ -800,12 +864,17 @@
         loadDomains().then(setDomains).catch(() => {});
       }, []);
       const ctx = useInterpretation(s, matchPool, domains);
+      const [attempted, setAttempted] = useState({});
       const complete = useMemo(() => ({
         0: s.extracted || s.claims.length > 0,
-        1: s.outcomes.length > 0 && !!s.domain,
+        1: s.outcomes.length > 0 && s.opAreas.size > 0 && !!s.domain,
         2: s.selectedScenarios.size > 0,
         3: false
       }), [s]);
+      const tryNext = () => {
+        if (!complete[step]) { setAttempted(a => ({ ...a, [step]: true })); return; }
+        setStep(p => Math.min(STEPS.length - 1, p + 1));
+      };
       const cancel = () => { if (confirm('Cancel and discard?')) location.href = 'workspace2.html'; };
       return (
         <div className="h-full flex flex-col bg-bg">
@@ -816,13 +885,13 @@
                 <div className="font-display text-xl sm:text-2xl text-ink mb-1">{STEPS[step].title}</div>
                 <div className="text-[11px] font-mono text-ink2 mb-6 sm:mb-8">Step {step + 1} of {STEPS.length} · {STEPS[step].label}</div>
                 {step === 0 && <Step0Import s={s} update={update} matchPool={matchPool} onSkip={() => setStep(1)} />}
-                {step === 1 && <Step1Context s={s} update={update} matchPool={matchPool} domains={domains} />}
+                {step === 1 && <Step1Context s={s} update={update} matchPool={matchPool} domains={domains} attempted={!!attempted[1]} />}
                 {step === 2 && <Step2Scenarios s={s} update={update} matchPool={matchPool} />}
                 {step === 3 && <Step3Evidence s={s} update={update} matchPool={matchPool} onCreate={onCreate} busy={busy} />}
                 <div className="mt-12 flex items-center justify-between">
                   <button onClick={() => setStep(p => Math.max(0, p - 1))} disabled={step === 0}
                     className="text-[11px] font-mono uppercase tracking-widest text-ink2 hover:text-red disabled:opacity-30">← Back</button>
-                  <button onClick={() => setStep(p => Math.min(STEPS.length - 1, p + 1))} disabled={step === STEPS.length - 1}
+                  <button onClick={tryNext} disabled={step === STEPS.length - 1}
                     className="bg-red hover:bg-red/90 disabled:opacity-30 text-white px-4 py-2 text-[11px] font-mono uppercase tracking-widest">Next →</button>
                 </div>
               </section>
