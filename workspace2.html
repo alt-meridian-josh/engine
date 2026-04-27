@@ -564,10 +564,106 @@
       );
     }
 
-    function CenterSurface({ tab, bundle, scenarios, analysis }) {
+    /* ---------- THEME COLORS for value_theme chips/bars ---------- */
+    const THEME_COLORS = {
+      'Operational Efficiency': '#fbbf24',
+      'Compliance & Risk': '#c4b5fd',
+      'Asset Performance': '#86efac',
+      'Inventory Accuracy': '#93c5fd',
+      'Throughput': '#f59e0b',
+      'Visibility': '#60a5fa',
+      'Revenue': '#6ee7b7',
+      'Labor Productivity': '#5eead4'
+    };
+    const themeColor = (t) => THEME_COLORS[t] || '#888';
+
+    function priorityAction({ governed, scenarios, snapshots, conf }) {
+      const active = scenarios.filter(s => s.active);
+      if (governed < 40) return { headline: 'Gather buyer inputs', body: `Only ${governed}% of assumptions are buyer-confirmed. The analysis is mostly running on defaults.`, cta: 'Open Inputs' };
+      if (!active.length) return { headline: 'Activate at least one scenario', body: 'No mechanisms are active — ARV is $0 by definition.', cta: 'Open Scenarios' };
+      const weak = active.filter(s => (s.evidence_strength || '') === 'Weak').length;
+      if (weak > 0) return { headline: 'Strengthen weak evidence', body: `${weak} active scenario${weak > 1 ? 's are' : ' is'} resting on weak proof. Pull case studies or proof points before the CFO sees this.`, cta: 'Open Scenarios' };
+      if (!snapshots?.length) return { headline: 'Save the baseline snapshot', body: 'Capture this state so changes from here have a reference point.', cta: 'Save Snapshot' };
+      return { headline: 'Schedule customer review', body: `Analysis is at ${conf.tier} confidence. Time to walk it through with the customer.`, cta: 'Generate Report' };
+    }
+
+    /* ---------- OVERVIEW TAB ---------- */
+    function OverviewTab({ bundle, scenarios, analysis, governed }) {
+      const conf = useMemo(() => confidenceTier(scenarios), [scenarios]);
+      const next = useMemo(() => priorityAction({ governed, scenarios, snapshots: bundle.snapshots, conf }), [governed, scenarios, bundle.snapshots, conf]);
+      const evMix = useMemo(() => {
+        const t = { Strong: 0, Moderate: 0, Weak: 0 };
+        scenarios.filter(s => s.active).forEach(s => { const k = s.evidence_strength || 'Moderate'; if (t[k] != null) t[k]++; });
+        return t;
+      }, [scenarios]);
+      const arv = analysis?.arvY1 || 0;
       return (
         <main className="flex-1 overflow-auto">
-          <div className="p-8 font-mono text-xs text-ink2">[ {tab.toUpperCase()} TAB — chunk W{tab === 'overview' ? 7 : tab === 'scenarios' ? 8 : tab === 'inputs' ? 9 : tab === 'outputs' ? 10 : 12} ]</div>
+          <div className="max-w-[960px] mx-auto px-8 py-10">
+            <div className="text-center mb-10">
+              <div className={`font-display font-bold leading-none ${arv > 0 ? 'text-red' : 'text-ink3'}`} style={{ fontSize: '64px' }}>{fmtMoney(arv)}</div>
+              <div className="text-[11px] font-mono uppercase tracking-widest text-ink2 mt-3">annual value at stake</div>
+              <div className="mt-4 inline-flex items-center gap-1.5 text-[10px] font-mono uppercase tracking-widest" style={{ color: conf.color }}>
+                <span className="w-1.5 h-1.5 rounded-full" style={{ background: conf.color }} />{conf.tier} confidence
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-6 mb-12">
+              {[
+                { label: 'Cost of Delay', value: fmtMoney(analysis?.monthlyDelay || 0) + '/mo' },
+                { label: 'Payback', value: fmtMonths(analysis?.payback) },
+                { label: 'BCR', value: fmtMultiple(analysis?.bcr) }
+              ].map(s => (
+                <div key={s.label} className="text-center">
+                  <div className="font-display text-2xl text-ink">{s.value}</div>
+                  <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mt-1">{s.label}</div>
+                </div>
+              ))}
+            </div>
+            <div className="grid grid-cols-2 gap-6 mb-10">
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-3">What's working</div>
+                <div className="space-y-2">
+                  {scenarios.length === 0 && <div className="text-[11px] font-mono text-ink3 italic">No mechanisms loaded.</div>}
+                  {scenarios.map(s => {
+                    const per = analysis?.perScenario?.find(p => p.scenario_id === s.scenario_id);
+                    const glyph = !s.active ? { icon: '○', color: '#444' } : per?.pool_shadow ? { icon: '◐', color: '#888' } : { icon: '✓', color: '#86efac' };
+                    return (
+                      <div key={s.scenario_id} className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2 truncate">
+                          <span style={{ color: glyph.color }}>{glyph.icon}</span>
+                          <span className={s.active ? 'text-ink' : 'text-ink3'}>{s.mechanism_label || s.scenario_label || s.scenario_id}</span>
+                        </div>
+                        <span className={`font-mono text-xs ${s.active && !per?.pool_shadow ? 'text-red' : 'text-ink3'}`}>{fmtMoney(per?.arv || 0)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-3">What to do next</div>
+                <div className="border-l-2 border-red bg-surface p-4">
+                  <div className="font-display text-base text-ink mb-1">{next.headline}</div>
+                  <div className="text-[12px] text-ink2 mb-3 leading-relaxed">{next.body}</div>
+                  <button className="bg-red hover:bg-red/90 text-white px-3 py-1.5 text-[11px] font-mono uppercase tracking-wider">{next.cta}</button>
+                </div>
+              </div>
+            </div>
+            <div className="grid grid-cols-4 gap-4 pt-6 border-t border-border1 text-center">
+              <div><div className="font-display text-lg text-ink">{governed}%</div><div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mt-1">Completeness</div></div>
+              <div><div className="font-display text-sm text-ink">{evMix.Strong}<span className="text-ink3">/</span>{evMix.Moderate}<span className="text-ink3">/</span>{evMix.Weak}</div><div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mt-1">Strong / Mod / Weak</div></div>
+              <div><div className="font-display text-sm text-ink">{bundle.snapshots?.[0] ? fmtRelative(bundle.snapshots[0].created_at) : 'never'}</div><div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mt-1">Last Snapshot</div></div>
+              <div><div className="font-display text-lg text-ink">{scenarios.filter(s => s.active).length}<span className="text-ink3">/{scenarios.length}</span></div><div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mt-1">Scenarios</div></div>
+            </div>
+          </div>
+        </main>
+      );
+    }
+
+    function CenterSurface({ tab, bundle, scenarios, analysis, governed }) {
+      if (tab === 'overview') return <OverviewTab bundle={bundle} scenarios={scenarios} analysis={analysis} governed={governed} />;
+      return (
+        <main className="flex-1 overflow-auto">
+          <div className="p-8 font-mono text-xs text-ink2">[ {tab.toUpperCase()} TAB — chunk W{tab === 'scenarios' ? 8 : tab === 'inputs' ? 9 : tab === 'outputs' ? 10 : 12} ]</div>
         </main>
       );
     }
@@ -618,7 +714,7 @@
           <ContextBar engagement={bundle.engagement} domain={bundle.domain} scenarios={scenarios} tier={tier} onTierCycle={cycleTier} governed={governed} savedAgo={savedAgo} />
           <div className="flex-1 flex min-h-0">
             <LeftRail tab={tab} onTab={setTab} scenarios={scenarios} defs={bundle.defs} values={values} analysis={analysis} onSlide={slideInput} onCommit={commitInput} />
-            <CenterSurface tab={tab} bundle={bundle} scenarios={scenarios} analysis={analysis} />
+            <CenterSurface tab={tab} bundle={bundle} scenarios={scenarios} analysis={analysis} governed={governed} />
             <RightDrawer open={drawerOpen} onClose={() => setDrawerOpen(false)} tab={tab} />
           </div>
         </div>
