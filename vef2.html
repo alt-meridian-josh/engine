@@ -608,6 +608,15 @@
 
     /* ---------- INTERPRETATION HOOK + PANEL ---------- */
     function useInterpretation(s, matchPool, domains) {
+      const [signals, setSignals] = useState([]);
+      const [inputDefs, setInputDefs] = useState([]);
+      // Load per-domain auxiliary data lazily; falls back to empty if unavailable.
+      useEffect(() => {
+        if (!s.domain) { setSignals([]); setInputDefs([]); return; }
+        const dom = domains[s.domain];
+        Promise.all([loadValueSignals(s.domain), loadInputDefinitions(s.domain, dom)])
+          .then(([sigs, defs]) => { setSignals(sigs); setInputDefs(defs); }).catch(() => {});
+      }, [s.domain, domains]);
       return useMemo(() => {
         const dom = s.domain ? domains[s.domain] : null;
         // Pre-domain pool: filter by selected outcomes (if any), else full library.
@@ -629,8 +638,14 @@
         const why = !s.domain
           ? (s.outcomes.length === 0 ? 'Showing the full library. Pick outcomes to narrow.' : `${pool.length} mechanisms across ${s.outcomes.length} outcome${s.outcomes.length > 1 ? 's' : ''}.`)
           : `${pool.length} mechanisms in ${cleanDomainName(dom?.domain_name) || s.domain}.`;
-        return { engine: dom ? cleanDomainName(dom.domain_name) || dom.domain_id : null, pool, themes, themeData, tally, conf, why };
-      }, [s.domain, s.outcomes, matchPool, domains]);
+        const signalLabels = (signals || []).map(sg => sg.signal_label || sg.signal_name || sg.signal_key).filter(Boolean);
+        const missing = (inputDefs || [])
+          .filter(d => d.discovery_prompt && d.input_key !== 'implementation_cost')
+          .slice(0, 3)
+          .map(d => ({ key: d.input_key, label: d.input_label || d.input_key.replace(/_/g, ' '), discovery: d.discovery_prompt }));
+        const topMini = pool.slice().sort((a, b) => (Number(a.print_priority) || 99) - (Number(b.print_priority) || 99)).slice(0, 3);
+        return { engine: dom ? cleanDomainName(dom.domain_name) || dom.domain_id : null, pool, themes, themeData, tally, conf, why, signals: signalLabels, missing, topMini };
+      }, [s.domain, s.outcomes, matchPool, domains, signals, inputDefs]);
     }
     function InterpretationPanel({ s, ctx }) {
       return (
@@ -671,9 +686,82 @@
               <div className="absolute inset-y-0 left-0" style={{ width: ctx.conf.pct + '%', background: ctx.conf.color }} />
             </div>
           </InterpSection>
+          {s.domain && (
+            <>
+              <InterpSection title="Detected signals">
+                <ChipRow items={ctx.signals} color="#fbbf24" empty="No signals registered for this domain." />
+              </InterpSection>
+              {ctx.missing.length > 0 && (
+                <InterpSection title="Missing inputs">
+                  {ctx.missing.map(m => (
+                    <div key={m.key} className="mb-2">
+                      <div className="text-[11px] text-ink">{m.label}</div>
+                      <div className="text-[10px] font-mono text-ink3 italic">Ask: {m.discovery}</div>
+                    </div>
+                  ))}
+                </InterpSection>
+              )}
+              {ctx.topMini.length > 0 && (
+                <InterpSection title="Top mechanisms">
+                  <div className="space-y-1.5">
+                    {ctx.topMini.map(sc => {
+                      const ev = sc.evidence_strength || 'Moderate';
+                      const evC = ev === 'Strong' ? '#86efac' : ev === 'Weak' ? '#f87171' : '#fbbf24';
+                      const evPct = ev === 'Strong' ? 100 : ev === 'Weak' ? 30 : 60;
+                      return (
+                        <div key={sc.scenario_id} className="bg-surface border border-border px-2.5 py-2">
+                          <div className="text-[11px] text-ink truncate">{sc.mechanism_label || sc.scenario_id}</div>
+                          <div className="flex items-center gap-2 mt-1">
+                            <div className="flex-1 h-0.5 bg-surface2 relative"><div className="absolute inset-y-0 left-0" style={{ width: evPct + '%', background: evC }} /></div>
+                            <span className="text-[8px] font-mono uppercase tracking-widest" style={{ color: evC }}>{ev}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </InterpSection>
+              )}
+            </>
+          )}
           <div className="text-[10px] font-mono text-ink3 italic pt-3 border-t border-red/20">{ctx.why}</div>
         </div>
       );
+    }
+
+    /* ---------- CREATE ANALYSIS ---------- */
+    function buildEngagementRow({ s }) {
+      const today = new Date().toISOString().slice(0, 10);
+      const id = (crypto && crypto.randomUUID) ? crypto.randomUUID() : 'eng_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      // Lesson 2026-04-24 — speculative fields stash into `notes` with labeled prefix.
+      // Never INSERT unknown columns; PostgREST fails loud.
+      const claimSummary = (s.claims || []).filter(c => c.scenario && c.verdict !== 'Missing')
+        .map(c => `  - "${c.metric}" ${c.value} → ${c.scenario.mechanism_label || c.scenario.scenario_id} [${c.verdict}]`).join('\n');
+      const parts = [];
+      if (s.whatToProve) parts.push("WHAT WE'RE TRYING TO PROVE:\n" + s.whatToProve);
+      if (s.outcomes.length) parts.push('TARGET OUTCOMES: ' + s.outcomes.join(', '));
+      if (claimSummary) parts.push('VENDOR CLAIMS:\n' + claimSummary);
+      if (s.notes) parts.push('EVIDENCE NOTES:\n' + s.notes);
+      return {
+        engagement_id: id,
+        analysis_name: s.analysis_name || 'Untitled analysis',
+        prospect_name: s.customer || null,
+        vendor_name:   s.vendor || null,
+        domain_id:     s.domain,
+        intake_date:   today,
+        deal_stage:    'discovery',
+        engagement_status: 'Draft',
+        phase:         'Discovery',
+        notes:         parts.join('\n\n') || null
+      };
+    }
+    async function createAnalysis(s) {
+      if (!s.domain || !s.selectedScenarios.size) throw new Error('Pick a domain and at least one scenario.');
+      const row = buildEngagementRow({ s });
+      await sbInsert('vef_engagements', row);
+      await Promise.all(Array.from(s.selectedScenarios).map(scenario_id =>
+        sbUpsert('vef_scenario_selections', { engagement_id: row.engagement_id, scenario_id, is_active: true }, 'engagement_id,scenario_id')
+      ));
+      return row.engagement_id;
     }
 
     /* ---------- APP STATE ---------- */
@@ -694,7 +782,18 @@
       const [s, setS] = useState(makeInitialState);
       const [matchPool, setMatchPool] = useState([]);
       const [domains, setDomains] = useState({});
+      const [busy, setBusy] = useState(false);
       const update = (patch) => setS(prev => ({ ...prev, ...patch }));
+      const onCreate = async () => {
+        setBusy(true);
+        try {
+          const id = await createAnalysis(s);
+          location.href = 'workspace2.html?engagement=' + encodeURIComponent(id);
+        } catch (e) {
+          alert('Create failed: ' + (e.message || e));
+          setBusy(false);
+        }
+      };
       // Preload library + domains so the interpretation panel is alive from frame 1 (Rule 3).
       useEffect(() => {
         loadAllScenarios().then(setMatchPool).catch(() => {});
@@ -719,7 +818,7 @@
                 {step === 0 && <Step0Import s={s} update={update} matchPool={matchPool} onSkip={() => setStep(1)} />}
                 {step === 1 && <Step1Context s={s} update={update} matchPool={matchPool} domains={domains} />}
                 {step === 2 && <Step2Scenarios s={s} update={update} matchPool={matchPool} />}
-                {step === 3 && <Step3Evidence s={s} update={update} matchPool={matchPool} onCreate={() => alert('Create wired in V8')} busy={false} />}
+                {step === 3 && <Step3Evidence s={s} update={update} matchPool={matchPool} onCreate={onCreate} busy={busy} />}
                 <div className="mt-12 flex items-center justify-between">
                   <button onClick={() => setStep(p => Math.max(0, p - 1))} disabled={step === 0}
                     className="text-[11px] font-mono uppercase tracking-widest text-ink2 hover:text-red disabled:opacity-30">← Back</button>
