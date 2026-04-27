@@ -839,7 +839,30 @@
         </div>
       );
     }
-    function ScenariosTab({ scenarios, analysis, onToggle }) {
+    /* ---------- BIAS + RANK HELPERS (A7) ---------- */
+    const RANK_CAPTION = { bcr: 'Ranked by BCR', delay: 'Ranked by Cost of Delay', evidence: 'Ranked by evidence', arv: 'Ranked by Y1 ARV' };
+    function applyThemeBias(themeData, biasArr) {
+      if (!biasArr?.length || !themeData?.length) return { data: themeData || [], topTheme: null, biasUnmatched: !!biasArr?.length };
+      const biased = [], rest = [];
+      themeData.forEach(d => biasArr.includes(d.key) ? biased.push(d) : rest.push(d));
+      return { data: [...biased, ...rest], topTheme: biased[0]?.label || null, biasUnmatched: biased.length === 0 };
+    }
+    // Per-scenario rank: BCR proxy = scenario 3yr-arv / total impl (RAMPS sum to 2.5).
+    // Confirmed by user: contributing-portion proxy preferred over isolated BCR.
+    function scoreScenarioBy(s, analysis, rankBy) {
+      const per = analysis?.perScenario?.find(p => p.scenario_id === s.scenario_id);
+      if (rankBy === 'bcr')      { const impl = analysis?.impl || 0; return impl > 0 ? ((per?.arv || 0) * 2.5) / impl : (per?.arv || 0); }
+      if (rankBy === 'delay')    return per?.delay || 0;
+      if (rankBy === 'arv')      return per?.arv || 0;
+      if (rankBy === 'evidence') { const o = { Strong: 100, Moderate: 60, Weak: 30 }; return o[s.evidence_strength] ?? 60; }
+      return -(Number(s.print_priority) || 99);  // print_priority asc → negate so desc-sort works
+    }
+    function rankScenarios(scenarios, analysis, rankBy) {
+      if (!rankBy || !scenarios?.length) return scenarios;
+      return scenarios.slice().sort((a, b) => scoreScenarioBy(b, analysis, rankBy) - scoreScenarioBy(a, analysis, rankBy));
+    }
+
+    function ScenariosTab({ scenarios, analysis, onToggle, behavior }) {
       const themeData = useMemo(() => {
         const byTheme = {};
         scenarios.filter(s => s.active).forEach(s => {
@@ -849,19 +872,28 @@
         });
         return Object.entries(byTheme).filter(([_, v]) => v > 0).map(([k, v]) => ({ key: k, label: k, value: v, color: themeColor(k) })).sort((a, b) => b.value - a.value);
       }, [scenarios, analysis]);
+      const { data: themeDataSorted, topTheme, biasUnmatched } = applyThemeBias(themeData, behavior?.themeBias);
+      const biasArr = behavior?.themeBias || [];
+      const rankedScenarios = useMemo(() => behavior?.rankBy ? rankScenarios(scenarios, analysis, behavior.rankBy) : scenarios, [scenarios, analysis, behavior?.rankBy]);
+      const rankCaption = behavior?.rankBy ? RANK_CAPTION[behavior.rankBy] : null;
       if (!scenarios.length) return <div className="p-8 font-mono text-xs text-ink3">No scenarios loaded for this domain.</div>;
       return (
         <div className="max-w-[960px] mx-auto px-4 sm:px-8 py-8">
-          {themeData.length > 0 && (
+          {themeDataSorted.length > 0 && (
             <div className="bg-surface border border-border p-4 sm:p-5 mb-6 flex items-center gap-5">
-              <ThemeDonut data={themeData} size={88} />
+              <ThemeDonut data={themeDataSorted} size={88} />
               <div className="flex-1 min-w-0">
-                <div className="text-[10px] font-mono uppercase tracking-widest text-ink3 mb-2">Value by theme</div>
+                <div className="flex items-center justify-between mb-2">
+                  <div className="text-[10px] font-mono uppercase tracking-widest text-ink3">Value by theme</div>
+                  {topTheme && <div className="text-[10px] font-mono text-red">Top theme · {topTheme}</div>}
+                </div>
+                {biasUnmatched && <div className="text-[10px] font-mono text-ink3 italic mb-2">Tag bias finds no matching theme — using ARV ordering.</div>}
                 <div className="space-y-1">
-                  {themeData.slice(0, 4).map(d => (
+                  {themeDataSorted.slice(0, 4).map(d => (
                     <div key={d.key} className="flex items-center gap-2 text-[11px]">
                       <span className="w-2 h-2 flex-shrink-0" style={{ background: d.color }} />
                       <span className="text-ink truncate flex-1">{d.label}</span>
+                      {biasArr.includes(d.key) && <span className="text-[8px] font-mono text-red flex-shrink-0">★</span>}
                       <span className="font-mono text-ink2">{fmtMoney(d.value)}</span>
                     </div>
                   ))}
@@ -869,9 +901,12 @@
               </div>
             </div>
           )}
-          <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-3">{scenarios.filter(s => s.active).length} of {scenarios.length} mechanisms active</div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-[10px] font-mono uppercase tracking-widest text-ink2">{scenarios.filter(s => s.active).length} of {scenarios.length} mechanisms active</div>
+            {rankCaption && <div className="text-[9px] font-mono uppercase tracking-widest text-red/80">{rankCaption}</div>}
+          </div>
           <div className="space-y-3">
-            {scenarios.map(s => <ScenarioCard key={s.scenario_id} scenario={s} perScenario={analysis?.perScenario?.find(p => p.scenario_id === s.scenario_id)} onToggle={onToggle} />)}
+            {rankedScenarios.map(s => <ScenarioCard key={s.scenario_id} scenario={s} perScenario={analysis?.perScenario?.find(p => p.scenario_id === s.scenario_id)} onToggle={onToggle} />)}
           </div>
         </div>
       );
@@ -1372,6 +1407,21 @@
       const tags = useMemo(() => bundle ? parseTagsFromNotes(bundle.engagement?.notes) : new Set(), [bundle]);
       const behavior = useMemo(() => resolveTagBehavior(tags), [tags]);
       const tone = getTone(behavior);
+      // Auto-activate scenarios in tag-driven themes that haven't been explicitly toggled yet.
+      // Only fires once per bundle load — respects subsequent user toggles via the activeOverrides
+      // null-check inside setActiveOverrides.
+      useEffect(() => {
+        if (!bundle || !behavior.autoActiveThemes?.length) return;
+        const noSelection = (s) => !bundle.selections.find(x => x.scenario_id === s.scenario_id);
+        const targets = bundle.scenarios.filter(s => behavior.autoActiveThemes.includes(s.value_theme) && noSelection(s) && !s.active_by_default);
+        if (!targets.length) return;
+        setActiveOverrides(prev => {
+          const next = { ...prev };
+          targets.forEach(s => { if (next[s.scenario_id] == null) next[s.scenario_id] = true; });
+          return next;
+        });
+        Promise.all(targets.map(s => sbUpsert('vef_scenario_selections', { engagement_id: engagementId, scenario_id: s.scenario_id, is_active: true }, 'engagement_id,scenario_id'))).catch(() => {});
+      }, [bundle, behavior]);
       const slideInput = (key, val) => setOverrides(p => ({ ...p, [key]: { ...(p[key] || bundle.values?.[key] || {}), engagement_id: engagementId, input_key: key, provided_value: val, value_source: 'buyer' } }));
       const commitInput = (key, val) => sbUpsert('vef_input_values', { engagement_id: engagementId, input_key: key, provided_value: val, value_source: 'buyer' }, 'engagement_id,input_key').catch(() => {});
       const toggleScenario = (scenarioId, isActive) => {
@@ -1443,7 +1493,7 @@
             </aside>
             <main className="flex-1 overflow-auto">
               {tab === 'overview' ? <OverviewTab bundle={bundle} scenarios={scenarios} analysis={analysis} governed={governed} onTab={setTab} tags={tags} behavior={behavior} tone={tone} />
-                : tab === 'scenarios' ? <ScenariosTab scenarios={scenarios} analysis={analysis} onToggle={toggleScenario} />
+                : tab === 'scenarios' ? <ScenariosTab scenarios={scenarios} analysis={analysis} onToggle={toggleScenario} behavior={behavior} />
                 : tab === 'inputs' ? <InputsTab scenarios={scenarios} defs={bundle.defs} values={values} tier={tier} onSlide={slideInput} onCommit={commitInput} onPreset={applyPreset} />
                 : tab === 'outputs' ? <OutputsTab scenarios={scenarios} analysis={analysis} tier={tier} onPreset={applyPreset} />
                 : <SnapshotsTab snapshots={bundle.snapshots || []} onSave={saveSnapshot} />}
