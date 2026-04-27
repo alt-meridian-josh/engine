@@ -903,6 +903,8 @@
       const claimSummary = (s.claims || []).filter(c => c.scenario && c.verdict !== 'Missing')
         .map(c => `  - "${c.metric}" ${c.value} → ${c.scenario.mechanism_label || c.scenario.scenario_id} [${c.verdict}]`).join('\n');
       const parts = [];
+      // TAGS line goes first so the workspace2 parser finds it without scanning the whole notes blob.
+      if (s.dealTags && s.dealTags.size) parts.push('TAGS: ' + [...s.dealTags].join(', '));
       if (s.whatToProve) parts.push("WHAT WE'RE TRYING TO PROVE:\n" + s.whatToProve);
       if (s.outcomes.length) parts.push('TARGET OUTCOMES: ' + s.outcomes.join(', '));
       if (claimSummary) parts.push('VENDOR CLAIMS:\n' + claimSummary);
