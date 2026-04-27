@@ -409,6 +409,106 @@
       );
     }
 
+    /* ---------- STEP 3 — EVIDENCE & AUDIT ---------- */
+    function evidenceStatus(scenario) {
+      const ev = scenario.evidence_strength || 'Moderate';
+      const ids = String(scenario.evidence_ids || '').split(',').map(x => x.trim()).filter(Boolean);
+      if (ev === 'Strong') return { label: 'Good to go', color: '#86efac' };
+      if (ev === 'Moderate' && ids.length > 0) return { label: 'Good to go', color: '#86efac' };
+      if (ev === 'Moderate') return { label: 'Needs data', color: '#fbbf24' };
+      return { label: 'Assumption', color: '#f87171' };
+    }
+    function EvidenceCoverageTable({ scenarios }) {
+      if (!scenarios.length) return <div className="text-[11px] font-mono text-ink3 italic">Pick at least one scenario in Step 2.</div>;
+      return (
+        <table className="w-full">
+          <thead>
+            <tr className="border-b border-border1">
+              <th className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">Scenario</th>
+              <th className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">Evidence</th>
+              <th className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">Sources</th>
+              <th className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {scenarios.map(sc => {
+              const ids = String(sc.evidence_ids || '').split(',').map(x => x.trim()).filter(Boolean);
+              const ev = sc.evidence_strength || 'Moderate';
+              const evColor = ev === 'Strong' ? '#86efac' : ev === 'Weak' ? '#f87171' : '#fbbf24';
+              const st = evidenceStatus(sc);
+              return (
+                <tr key={sc.scenario_id} className="border-b border-border1">
+                  <td className="py-2.5 px-3 text-xs text-ink truncate max-w-[280px]">{sc.mechanism_label || sc.scenario_id}</td>
+                  <td className="py-2.5 px-3"><span className="text-[9px] font-mono uppercase tracking-widest px-1.5 py-0.5 border" style={{ borderColor: evColor + '55', color: evColor }}>{ev}</span></td>
+                  <td className="py-2.5 px-3 text-xs font-mono text-ink2">{ids.length}</td>
+                  <td className="py-2.5 px-3"><span className="text-[10px] font-mono" style={{ color: st.color }}>{st.label}</span></td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      );
+    }
+    function ClaimAuditTable({ claims }) {
+      const used = (claims || []).filter(c => c.scenario && c.verdict !== 'Missing');
+      if (!used.length) return null;
+      return (
+        <div className="mt-8">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-red mb-3">Claim audit · {used.length} claims</div>
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-border1">
+                <th className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">Vendor claim</th>
+                <th className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">Matched scenario</th>
+                <th className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">Verdict</th>
+                <th className="text-left text-[9px] font-mono uppercase tracking-widest text-ink3 py-2 px-3">AM Range</th>
+              </tr>
+            </thead>
+            <tbody>
+              {used.map((c, i) => {
+                const v = VERDICT_BY[c.verdict] || VERDICTS[1];
+                const ev = c.scenario?.evidence_strength || 'Moderate';
+                const evColor = ev === 'Strong' ? '#86efac' : ev === 'Weak' ? '#f87171' : '#fbbf24';
+                return (
+                  <tr key={i} className="border-b border-border1">
+                    <td className="py-2.5 px-3 text-xs text-ink"><span className="font-mono mr-2">{c.value}</span>{c.metric}</td>
+                    <td className="py-2.5 px-3 text-xs text-ink2 truncate max-w-[200px]">{c.scenario?.mechanism_label || c.scenario?.scenario_id || '—'}</td>
+                    <td className="py-2.5 px-3"><span className="text-[10px] font-mono" style={{ color: v.color }}>{v.key}</span></td>
+                    <td className="py-2.5 px-3"><span className="text-[10px] font-mono" style={{ color: evColor }}>{ev}</span></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+    function Step3Evidence({ s, update, matchPool, onCreate, busy }) {
+      const selectedScenarios = useMemo(() => {
+        return (matchPool || []).filter(sc => s.selectedScenarios.has(sc.scenario_id));
+      }, [matchPool, s.selectedScenarios]);
+      return (
+        <div>
+          <div className="text-[12px] text-ink2 mb-4 leading-relaxed">Coverage of evidence across the chosen mechanisms. Anything marked "Needs data" or "Assumption" is fair game for the customer or finance to challenge.</div>
+          <EvidenceCoverageTable scenarios={selectedScenarios} />
+          <ClaimAuditTable claims={s.claims} />
+          <div className="mt-8">
+            <label className="block text-[10px] font-mono uppercase tracking-widest text-ink2 mb-2">What evidence still needs to be gathered?</label>
+            <textarea value={s.notes} onChange={e => update({ notes: e.target.value })}
+              rows={4} placeholder="Notes on case studies to pull, customer references to talk to, finance proof points to source…"
+              className="w-full bg-surface border border-border1 px-3 py-2 text-sm focus:border-red outline-none" />
+          </div>
+          <div className="mt-8 flex items-center justify-end gap-4">
+            <span className="text-[10px] font-mono text-ink3">Ready to create the analysis?</span>
+            <button onClick={onCreate} disabled={busy || s.selectedScenarios.size === 0 || !s.domain}
+              className="bg-red hover:bg-red/90 disabled:opacity-40 text-white px-5 py-2.5 text-xs font-display tracking-wide">
+              {busy ? 'Creating…' : 'Create Analysis →'}
+            </button>
+          </div>
+        </div>
+      );
+    }
+
     /* ---------- STEPS ---------- */
     const STEPS = [
       { key: 0, label: 'Import',    title: 'Paste a vendor claim' },
@@ -469,7 +569,7 @@
     }
 
     /* ---------- LEFT PANEL — step dispatcher ---------- */
-    function LeftPanel({ step, s, update, matchPool, setMatchPool, onSkip }) {
+    function LeftPanel({ step, s, update, matchPool, setMatchPool, onSkip, onCreate, busy }) {
       return (
         <div>
           <div className="font-display text-2xl text-ink mb-1">{STEPS[step].title}</div>
@@ -477,7 +577,7 @@
           {step === 0 && <Step0Import s={s} update={update} matchPool={matchPool} setMatchPool={setMatchPool} onSkip={onSkip} />}
           {step === 1 && <Step1Context s={s} update={update} matchPool={matchPool} setMatchPool={setMatchPool} />}
           {step === 2 && <Step2Scenarios s={s} update={update} matchPool={matchPool} />}
-          {step === 3 && <div className="font-mono text-xs text-ink3 italic">[ step content — chunk V7 ]</div>}
+          {step === 3 && <Step3Evidence s={s} update={update} matchPool={matchPool} onCreate={onCreate} busy={busy} />}
         </div>
       );
     }
@@ -560,7 +660,7 @@
           <main className="flex-1 overflow-auto">
             <div className="max-w-[1280px] mx-auto px-8 py-8 grid grid-cols-12 gap-8">
               <div className="col-span-7">
-                <LeftPanel step={step} s={s} update={update} matchPool={matchPool} setMatchPool={setMatchPool} onSkip={() => setStep(p => Math.min(STEPS.length - 1, p + 1))} />
+                <LeftPanel step={step} s={s} update={update} matchPool={matchPool} setMatchPool={setMatchPool} onSkip={() => setStep(p => Math.min(STEPS.length - 1, p + 1))} onCreate={() => alert('Create wired in V8')} busy={false} />
                 <div className="mt-12 flex items-center justify-between">
                   <button onClick={() => setStep(p => Math.max(0, p - 1))} disabled={step === 0}
                     className="text-[11px] font-mono uppercase tracking-widest text-ink2 hover:text-red disabled:opacity-30">← Back</button>
