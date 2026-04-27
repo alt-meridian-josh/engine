@@ -1036,15 +1036,142 @@
         </div>
       );
     }
-    function InputsTab({ scenarios, defs, values, tier, onSlide, onCommit, onPreset }) {
+    /* ---------- SHARE INTAKE DIALOG (I2) ---------- */
+    const RECIPIENT_ROLES = ['Champion', 'Finance', 'Risk / Compliance', 'Procurement', 'Operations', 'Other'];
+    const DEFAULT_INTAKE_INTRO = ({ customer, analysisName }) =>
+      `We're modeling the value case for ${customer || 'your initiative'}${analysisName ? ' (' + analysisName + ')' : ''}.\n\n` +
+      `This is a 5-question intake — about 5 minutes on phone or laptop. Confirm or adjust the industry benchmarks where you have a real number, skip the rest. Your account team will use it to build the case.`;
+
+    function ShareIntakeDialog({ engagement, defs, scenarios, values, onClose, onWritten }) {
+      const [step, setStep] = useState(0);
+      const [email, setEmail] = useState(engagement.champion_email || '');
+      const [role, setRole] = useState('Champion');
+      const curated = useMemo(() => curateInputs(defs, scenarios, values, 5), [defs, scenarios, values]);
+      const [selectedKeys, setSelectedKeys] = useState(() => new Set(curated.map(d => d.input_key)));
+      const [intro, setIntro] = useState(() => DEFAULT_INTAKE_INTRO({ customer: engagement.prospect_name, analysisName: engagement.analysis_name }));
+      const [busy, setBusy] = useState(false);
+      const [copied, setCopied] = useState(false);
+      const [err, setErr] = useState('');
+      const existing = parseIntakeSession(engagement?.notes);
+      const toggleKey = (k) => setSelectedKeys(p => { const n = new Set(p); if (n.has(k)) n.delete(k); else if (n.size < 5) n.add(k); return n; });
+      const buildAndWrite = async () => {
+        const sessionObj = newIntakeSession({ shared_with_email: email || null, shared_with_role: role, curated_input_keys: [...selectedKeys] });
+        sessionObj.status = 'in_progress';
+        const newNotes = await writeIntakeSession(engagement.engagement_id, engagement.notes, sessionObj);
+        onWritten?.(newNotes, sessionObj);
+        return buildShareLink(sessionObj.share_token);
+      };
+      const sendViaMail = async () => {
+        setBusy(true); setErr('');
+        try {
+          const link = await buildAndWrite();
+          const subject = encodeURIComponent('Quick value-case intake' + (engagement.analysis_name ? ' — ' + engagement.analysis_name : ''));
+          const body = encodeURIComponent(intro + '\n\n' + link + '\n\nThanks');
+          window.open(`mailto:${encodeURIComponent(email)}?subject=${subject}&body=${body}`, '_self');
+          onClose();
+        } catch (e) { setErr(e.message || 'Send failed'); }
+        finally { setBusy(false); }
+      };
+      const copyLink = async () => {
+        setBusy(true); setErr('');
+        try { const link = await buildAndWrite(); await navigator.clipboard.writeText(link); setCopied(true); setTimeout(() => setCopied(false), 2000); }
+        catch (e) { setErr(e.message || 'Copy failed'); }
+        finally { setBusy(false); }
+      };
+      const stepValid = (i) => i === 0 ? /\S+@\S+\.\S+/.test(email) : i === 1 ? selectedKeys.size > 0 : true;
+      return (
+        <div className="fixed inset-0 z-30 bg-bg/85 grid place-items-center p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+          <div className="w-full max-w-[560px] bg-surface border border-border max-h-[90vh] overflow-auto">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+              <div className="font-display text-base text-ink">Share intake</div>
+              <button onClick={onClose} className="text-ink3 hover:text-red text-base leading-none">×</button>
+            </div>
+            <div className="px-5 pt-3 pb-1 flex items-center gap-2 text-[10px] font-mono uppercase tracking-widest">
+              {['Recipient', 'Questions', 'Send'].map((label, i) => (
+                <React.Fragment key={label}>
+                  <span className={i === step ? 'text-red' : i < step ? 'text-ink' : 'text-ink3'}>{i + 1} · {label}</span>
+                  {i < 2 && <span className="text-ink3">›</span>}
+                </React.Fragment>
+              ))}
+            </div>
+            {step === 0 && (
+              <div className="px-5 py-5">
+                {existing && <div className="text-[10px] font-mono text-amber border-l-2 border-amber bg-amber/5 px-3 py-2 mb-4">An intake was sent to {existing.shared_with_email || 'a prospect'} {fmtRelative(existing.shared_at)}. Sending again will replace the existing link.</div>}
+                <div className="text-[12px] text-ink2 mb-4 leading-relaxed">Who's filling this out?</div>
+                <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="email"
+                  className="w-full bg-surface2 border border-border px-3 py-2.5 mb-4 text-sm font-mono text-ink placeholder:text-ink3 focus:border-red outline-none" />
+                <div className="text-[10px] font-mono uppercase tracking-widest text-ink3 mb-2">Their role</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {RECIPIENT_ROLES.map(r => (
+                    <button key={r} onClick={() => setRole(r)} className={`text-[11px] font-mono px-2.5 py-1 border ${role === r ? 'border-red bg-red/15 text-ink' : 'border-border bg-surface2 text-ink2 hover:text-ink'}`}>{r}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+            {step === 1 && (
+              <div className="px-5 py-5">
+                <div className="text-[12px] text-ink2 leading-relaxed">{selectedKeys.size} of 5 questions selected. Cap is 5 to keep the intake under 5 minutes.</div>
+                <div className="space-y-2 mt-3">
+                  {curated.map(d => {
+                    const on = selectedKeys.has(d.input_key);
+                    return (
+                      <button key={d.input_key} onClick={() => toggleKey(d.input_key)} className={`w-full text-left p-3 border transition-colors ${on ? 'border-red bg-red/10' : 'border-border bg-surface2 hover:border-border2'}`}>
+                        <div className="flex items-start gap-2">
+                          <span className={`mt-0.5 w-4 h-4 border flex items-center justify-center flex-shrink-0 ${on ? 'bg-red border-red' : 'border-border2'}`}>{on && <span className="text-white text-[10px]">✓</span>}</span>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-[12px] text-ink">{d.discovery_prompt || d.input_label || d.input_key}</div>
+                            <div className="text-[10px] font-mono text-ink3 mt-0.5">Benchmark · {d.typical_value ?? '—'} {d.input_unit || ''}</div>
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="text-[10px] font-mono text-ink3 italic mt-3">Heuristic-curated. Manual override (add other inputs) lands in a follow-up.</div>
+              </div>
+            )}
+            {step === 2 && (
+              <div className="px-5 py-5">
+                <div className="text-[10px] font-mono uppercase tracking-widest text-ink3 mb-2">Intro your prospect will see</div>
+                <textarea value={intro} onChange={e => setIntro(e.target.value)} rows={6}
+                  className="w-full bg-surface2 border border-border px-3 py-2 text-sm focus:border-red outline-none mb-2" />
+                <div className="text-[10px] font-mono text-ink3 italic mb-4">The link is appended automatically when sent.</div>
+                {err && <div className="text-[11px] font-mono text-red mb-3 border-l-2 border-red bg-red/5 px-3 py-2">{err}</div>}
+                <div className="space-y-2">
+                  <button onClick={sendViaMail} disabled={busy || !email} className="w-full bg-red hover:bg-red/90 disabled:opacity-40 text-white py-2.5 text-[12px] font-display tracking-wide">{busy ? 'Working…' : 'Open in mail client →'}</button>
+                  <button onClick={copyLink} disabled={busy} className="w-full border border-border2 hover:border-red/60 text-ink py-2 text-[11px] font-mono uppercase tracking-widest">{copied ? '✓ Copied' : 'Copy share link'}</button>
+                  <button disabled className="w-full border border-border text-ink3 py-2 text-[11px] font-mono uppercase tracking-widest opacity-40 cursor-not-allowed">Download brief · chunk I4</button>
+                </div>
+              </div>
+            )}
+            <div className="flex items-center justify-between px-5 py-3 border-t border-border">
+              <button onClick={() => step === 0 ? onClose() : setStep(s => s - 1)} className="text-[11px] font-mono uppercase tracking-widest text-ink2 hover:text-red">{step === 0 ? 'Cancel' : '← Back'}</button>
+              {step < 2 && (
+                <button onClick={() => stepValid(step) && setStep(s => s + 1)} disabled={!stepValid(step)} className="bg-red hover:bg-red/90 disabled:opacity-30 text-white px-4 py-1.5 text-[11px] font-mono uppercase tracking-widest">Next →</button>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    function InputsTab({ scenarios, defs, values, tier, onSlide, onCommit, onPreset, engagement, onSessionWritten }) {
       const groups = useMemo(() => groupInputsByScenario(scenarios, defs), [scenarios, defs]);
+      const [shareOpen, setShareOpen] = useState(false);
+      const session = parseIntakeSession(engagement?.notes);
       if (!defs?.length) return <div className="p-8 font-mono text-xs text-ink3">No inputs defined for this domain.</div>;
       return (
         <div className="max-w-[920px] mx-auto px-4 sm:px-8 py-8">
-          <div className="flex items-center justify-between mb-6 gap-4">
+          <div className="flex items-center justify-between mb-6 gap-4 flex-wrap">
             <div className="text-[10px] font-mono uppercase tracking-widest text-ink2">{defs.length} inputs · {Object.keys(values).filter(k => values[k]?.provided_value != null).length} provided</div>
-            <PresetStrip tier={tier} onPreset={onPreset} />
+            <div className="flex items-center gap-2">
+              <button onClick={() => setShareOpen(true)} className={session ? 'text-[11px] font-mono uppercase tracking-widest border border-border2 hover:border-red px-2.5 py-1.5 text-ink' : 'bg-red hover:bg-red/90 text-white px-3 py-1.5 text-[11px] font-mono uppercase tracking-widest'}>
+                {session ? `◆ Sent · ${fmtRelative(session.shared_at)}` : 'Share intake →'}
+              </button>
+              <PresetStrip tier={tier} onPreset={onPreset} />
+            </div>
           </div>
+          {shareOpen && <ShareIntakeDialog engagement={engagement} defs={defs} scenarios={scenarios} values={values} onClose={() => setShareOpen(false)} onWritten={onSessionWritten} />}
           <div className="space-y-8">
             {groups.map(g => (
               <div key={g.name}>
@@ -1578,7 +1705,7 @@
             <main className="flex-1 overflow-auto">
               {tab === 'overview' ? <OverviewTab bundle={bundle} scenarios={scenarios} analysis={analysis} governed={governed} onTab={setTab} tags={tags} behavior={behavior} tone={tone} />
                 : tab === 'scenarios' ? <ScenariosTab scenarios={scenarios} analysis={analysis} onToggle={toggleScenario} behavior={behavior} />
-                : tab === 'inputs' ? <InputsTab scenarios={scenarios} defs={bundle.defs} values={values} tier={tier} onSlide={slideInput} onCommit={commitInput} onPreset={applyPreset} />
+                : tab === 'inputs' ? <InputsTab scenarios={scenarios} defs={bundle.defs} values={values} tier={tier} onSlide={slideInput} onCommit={commitInput} onPreset={applyPreset} engagement={bundle.engagement} onSessionWritten={(notes) => setBundle(b => b ? { ...b, engagement: { ...b.engagement, notes } } : b)} />
                 : tab === 'outputs' ? <OutputsTab scenarios={scenarios} analysis={analysis} tier={tier} onPreset={applyPreset} />
                 : <SnapshotsTab snapshots={bundle.snapshots || []} onSave={saveSnapshot} />}
             </main>
