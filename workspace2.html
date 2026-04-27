@@ -814,6 +814,100 @@
       );
     }
 
+    /* ---------- OUTPUTS TAB (top: tier toggle + 3 micro-visual cards) ---------- */
+    function BigTierToggle({ tier, onPreset }) {
+      const tiers = [
+        { key: 'conservative', label: 'Conservative', sub: 'cautious' },
+        { key: 'typical',      label: 'Typical',      sub: 'realistic' },
+        { key: 'aggressive',   label: 'Aggressive',   sub: 'best case' }
+      ];
+      return (
+        <div className="grid grid-cols-3 border border-border">
+          {tiers.map(t => (
+            <button key={t.key} onClick={() => onPreset(t.key)}
+              className={`px-3 sm:px-4 py-3 text-left transition-colors border-r last:border-r-0 border-border ${tier === t.key ? 'bg-red text-white' : 'text-ink hover:bg-surface'}`}>
+              <div className="font-display text-sm tracking-wide">{t.label}</div>
+              <div className="text-[10px] font-mono uppercase tracking-widest opacity-70 mt-0.5">{t.sub}</div>
+            </button>
+          ))}
+        </div>
+      );
+    }
+    function ValueOfActingCard({ analysis }) {
+      const max = Math.max(analysis?.arvY1 || 0, analysis?.arvY2 || 0, analysis?.arvY3 || 0, 1);
+      const rows = [{ k: 'Y1', v: analysis?.arvY1 || 0 }, { k: 'Y2', v: analysis?.arvY2 || 0 }, { k: 'Y3', v: analysis?.arvY3 || 0 }];
+      return (
+        <div className="bg-surface border border-border p-5">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-3">Value of acting</div>
+          <div className="font-display text-xl sm:text-2xl text-red mb-4">{fmtMoney(analysis?.arvFull || 0)}<span className="text-ink3 text-sm font-mono"> /yr</span></div>
+          <div className="space-y-2">
+            {rows.map(r => (
+              <div key={r.k} className="flex items-center gap-3">
+                <span className="font-mono text-[10px] uppercase tracking-widest text-ink3 w-6">{r.k}</span>
+                <div className="flex-1 h-2 bg-surface2 relative">
+                  <div className="absolute inset-y-0 left-0 bg-red" style={{ width: ((r.v / max) * 100) + '%' }} />
+                </div>
+                <span className="font-mono text-[11px] text-ink w-16 text-right">{fmtMoney(r.v)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="text-[10px] font-mono text-ink3 mt-3">Y1 ramps at 50%; Y2/Y3 full adoption.</div>
+        </div>
+      );
+    }
+    function CostOfDelayCard({ analysis }) {
+      const monthly = analysis?.monthlyDelay || 0;
+      return (
+        <div className="bg-surface border border-border p-5">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-3">Cost of delay</div>
+          <div className="font-display text-xl sm:text-2xl text-red mb-1">{fmtMoney(monthly)}<span className="text-ink3 text-sm font-mono"> /mo</span></div>
+          <div className="text-[11px] font-mono text-ink2 mb-4">12-mo: {fmtMoney(monthly * 12)}</div>
+          <div className="grid grid-cols-12 gap-0.5">
+            {Array.from({ length: 12 }, (_, i) => (
+              <div key={i} className="h-6 bg-red" style={{ opacity: 0.25 + (i / 11) * 0.7 }} title={`Month ${i + 1}: ${fmtMoney(monthly * (i + 1))} cumulative`} />
+            ))}
+          </div>
+          <div className="flex justify-between text-[9px] font-mono text-ink3 mt-1.5"><span>Mo 1</span><span>Mo 12</span></div>
+        </div>
+      );
+    }
+    function CostOfDoingNothingCard({ analysis }) {
+      const coi = analysis?.coi3yr || 0;
+      const arvCap = (analysis?.arvFull || 0) * 3 || 1;
+      const pct = Math.min(100, Math.round((coi / arvCap) * 100));
+      return (
+        <div className="bg-surface border border-border p-5">
+          <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-3">Cost of doing nothing</div>
+          <div className="font-display text-xl sm:text-2xl text-red mb-1">{fmtMoney(coi)}</div>
+          <div className="text-[11px] font-mono text-ink2 mb-4">3-yr value-at-risk</div>
+          <div className="h-3 bg-surface2 relative">
+            <div className="absolute inset-y-0 left-0 bg-red" style={{ width: pct + '%' }} />
+          </div>
+          <div className="flex justify-between text-[9px] font-mono text-ink3 mt-1.5">
+            <span>0</span>
+            <span>{pct}% of 3yr ARV ceiling</span>
+            <span>{fmtMoney(arvCap)}</span>
+          </div>
+        </div>
+      );
+    }
+    function OutputsTab({ scenarios, analysis, tier, onPreset }) {
+      return (
+        <div className="max-w-[1080px] mx-auto px-4 sm:px-8 py-8">
+          <div className="mb-6">
+            <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-2">Assumption tier</div>
+            <BigTierToggle tier={tier} onPreset={onPreset} />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
+            <ValueOfActingCard analysis={analysis} />
+            <CostOfDelayCard analysis={analysis} />
+            <CostOfDoingNothingCard analysis={analysis} />
+          </div>
+          <div className="text-[11px] font-mono text-ink3 italic">[ scenario waterfall + DCF + financial table — chunk W10 ]</div>
+        </div>
+      );
+    }
+
     /* ---------- ANALYSIS SHELL ---------- */
     const NAV = [
       { key: 'overview',  label: 'Overview' },
@@ -896,7 +990,8 @@
               {tab === 'overview' ? <OverviewTab bundle={bundle} scenarios={scenarios} analysis={analysis} governed={governed} onTab={setTab} />
                 : tab === 'scenarios' ? <ScenariosTab scenarios={scenarios} analysis={analysis} onToggle={toggleScenario} />
                 : tab === 'inputs' ? <InputsTab scenarios={scenarios} defs={bundle.defs} values={values} tier={tier} onSlide={slideInput} onCommit={commitInput} onPreset={applyPreset} />
-                : <div className="p-8 font-mono text-xs text-ink3 italic">[ {tab.toUpperCase()} TAB — chunk W{tab === 'outputs' ? 9 : 11} ]</div>}
+                : tab === 'outputs' ? <OutputsTab scenarios={scenarios} analysis={analysis} tier={tier} onPreset={applyPreset} />
+                : <div className="p-8 font-mono text-xs text-ink3 italic">[ SNAPSHOTS — chunk W11 ]</div>}
             </main>
           </div>
         </div>
