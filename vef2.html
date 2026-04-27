@@ -308,6 +308,98 @@
       );
     }
 
+    /* ---------- STEP 2 SCENARIOS ---------- */
+    function ScenarioPickRow({ scenario, checked, recommended, matched, onToggle }) {
+      const ev = scenario.evidence_strength || 'Moderate';
+      const evColor = ev === 'Strong' ? '#86efac' : ev === 'Weak' ? '#f87171' : '#fbbf24';
+      const evPct = ev === 'Strong' ? 100 : ev === 'Weak' ? 30 : 60;
+      const themeC = themeColor(scenario.value_theme);
+      return (
+        <button onClick={() => onToggle(scenario.scenario_id)}
+          className={`w-full text-left grid grid-cols-12 gap-3 items-center p-3 border transition-colors ${checked ? 'bg-red/10 border-red' : 'border-border bg-surface hover:border-border2'}`}>
+          <span className={`col-span-1 w-4 h-4 border flex items-center justify-center flex-shrink-0 ${checked ? 'bg-red border-red' : 'border-border2'}`}>
+            {checked && <span className="text-white text-[10px]">✓</span>}
+          </span>
+          <div className="col-span-7 sm:col-span-6 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              {scenario.value_theme && <span className="text-[9px] font-mono uppercase tracking-wider px-1.5 py-0.5" style={{ background: themeC + '22', color: themeC }}>{scenario.value_theme}</span>}
+              {recommended && <span className="text-[9px] font-mono uppercase tracking-widest text-green">★ Recommended</span>}
+              {matched && <span className="text-[9px] font-mono uppercase tracking-widest text-red">↳ Matched</span>}
+            </div>
+            <div className="text-sm text-ink truncate mt-0.5">{scenario.mechanism_label || scenario.scenario_label || 'Untitled'}</div>
+          </div>
+          <div className="col-span-4 sm:col-span-5 flex items-center gap-2">
+            <div className="flex-1 h-1 bg-surface2 relative">
+              <div className="absolute inset-y-0 left-0" style={{ width: evPct + '%', background: evColor }} />
+            </div>
+            <span className="text-[9px] font-mono uppercase tracking-widest flex-shrink-0" style={{ color: evColor }}>{ev}</span>
+          </div>
+        </button>
+      );
+    }
+    function Step2Scenarios({ s, update, matchPool }) {
+      const pool = useMemo(() => {
+        if (!s.domain || !matchPool) return [];
+        let list = matchPool.filter(sc => sc.domain_id === s.domain);
+        if (!list.length) list = matchPool.filter(sc => sc.domain_id === 'RFD');
+        return list;
+      }, [matchPool, s.domain]);
+      const matchedIds = useMemo(() => new Set((s.claims || []).filter(c => c.scenario && c.verdict !== 'Missing').map(c => c.scenario.scenario_id)), [s.claims]);
+      const allThemes = useMemo(() => Array.from(new Set(pool.map(p => p.value_theme).filter(Boolean))).sort(), [pool]);
+      const filtered = useMemo(() => {
+        const q = (s.scenarioSearch || '').toLowerCase();
+        return pool.filter(sc => {
+          if (s.themeFilter.size && !s.themeFilter.has(sc.value_theme)) return false;
+          if (q && !((sc.mechanism_label || '') + ' ' + (sc.one_liner || '') + ' ' + (sc.scenario_description || '')).toLowerCase().includes(q)) return false;
+          return true;
+        });
+      }, [pool, s.scenarioSearch, s.themeFilter]);
+      const toggle = (id) => {
+        const next = new Set(s.selectedScenarios);
+        next.has(id) ? next.delete(id) : next.add(id);
+        update({ selectedScenarios: next });
+      };
+      const toggleTheme = (t) => {
+        const next = new Set(s.themeFilter); next.has(t) ? next.delete(t) : next.add(t);
+        update({ themeFilter: next });
+      };
+      const selectAll = () => update({ selectedScenarios: new Set(filtered.map(sc => sc.scenario_id)) });
+      const clearAll = () => update({ selectedScenarios: new Set() });
+      if (!s.domain) return <div className="text-[12px] font-mono text-ink3 italic">Pick a domain in step 1 first.</div>;
+      return (
+        <div>
+          <div className="text-[12px] text-ink2 mb-4 leading-relaxed">{pool.length} mechanisms available. Pick the ones that fit this customer's situation — the interpretation panel updates live.</div>
+          <div className="flex items-center gap-2 mb-3">
+            <input value={s.scenarioSearch} onChange={e => update({ scenarioSearch: e.target.value })}
+              placeholder="search mechanisms…" className="flex-1 bg-surface border border-border px-3 py-2 text-sm font-mono text-ink placeholder:text-ink3 focus:border-red outline-none" />
+            <button onClick={selectAll} className="text-[10px] font-mono uppercase tracking-widest text-ink2 hover:text-red">Select all</button>
+            <button onClick={clearAll} className="text-[10px] font-mono uppercase tracking-widest text-ink2 hover:text-red">Clear</button>
+          </div>
+          {allThemes.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-4">
+              {allThemes.map(t => {
+                const on = s.themeFilter.has(t);
+                const c = themeColor(t);
+                return (
+                  <button key={t} onClick={() => toggleTheme(t)}
+                    className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 transition-colors"
+                    style={{ background: on ? c + '33' : 'transparent', color: on ? c : '#888', border: '1px solid ' + (on ? c : '#222') }}>{t}</button>
+                );
+              })}
+            </div>
+          )}
+          <div className="text-[10px] font-mono uppercase tracking-widest text-ink2 mb-2">{s.selectedScenarios.size} of {filtered.length} selected</div>
+          <div className="space-y-2 max-h-[640px] overflow-auto pr-1">
+            {filtered.length === 0 && <div className="text-[11px] font-mono text-ink3 italic">No mechanisms match the current filters.</div>}
+            {filtered.map(sc => (
+              <ScenarioPickRow key={sc.scenario_id} scenario={sc} checked={s.selectedScenarios.has(sc.scenario_id)}
+                recommended={!!sc.active_by_default} matched={matchedIds.has(sc.scenario_id)} onToggle={toggle} />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
     /* ---------- STEPS ---------- */
     const STEPS = [
       { key: 0, label: 'Import',    title: 'Paste a vendor claim' },
@@ -530,7 +622,8 @@
                 <div className="text-[11px] font-mono text-ink2 mb-6 sm:mb-8">Step {step + 1} of {STEPS.length} · {STEPS[step].label}</div>
                 {step === 0 && <Step0Import s={s} update={update} matchPool={matchPool} onSkip={() => setStep(1)} />}
                 {step === 1 && <Step1Context s={s} update={update} matchPool={matchPool} domains={domains} />}
-                {step > 1 && <div className="font-mono text-xs text-ink3 italic">[ step content — chunks V6–V7 ]</div>}
+                {step === 2 && <Step2Scenarios s={s} update={update} matchPool={matchPool} />}
+                {step === 3 && <div className="font-mono text-xs text-ink3 italic">[ step content — chunk V7 ]</div>}
                 <div className="mt-12 flex items-center justify-between">
                   <button onClick={() => setStep(p => Math.max(0, p - 1))} disabled={step === 0}
                     className="text-[11px] font-mono uppercase tracking-widest text-ink2 hover:text-red disabled:opacity-30">← Back</button>
