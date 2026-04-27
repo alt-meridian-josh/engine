@@ -33,7 +33,7 @@
 <body class="bg-bg text-ink">
   <div id="root"></div>
   <script type="text/babel" data-presets="react">
-    const { useState, useEffect, useMemo } = React;
+    const { useState, useEffect, useMemo, useRef } = React;
 
     /* ---------- SUPABASE ---------- */
     const SUPABASE_URL = 'https://kpecdezcolcycgpuqbgs.supabase.co';
@@ -71,6 +71,98 @@
     function Centered({ children }) {
       return <div className="min-h-full grid place-items-center px-6 py-8">{children}</div>;
     }
+    function ProgressDots({ index, total }) {
+      return (
+        <div className="flex items-center gap-1.5 mb-8">
+          {Array.from({ length: total }, (_, i) => (
+            <span key={i} className={`w-2 h-2 rounded-full transition-colors ${i < index ? 'bg-red opacity-50' : i === index ? 'bg-red' : 'bg-border2'}`} />
+          ))}
+          <span className="text-[10px] font-mono text-ink3 ml-2">{index + 1} of {total}</span>
+        </div>
+      );
+    }
+
+    /* ---------- QUESTION + REVIEW SCREENS ---------- */
+    function Question({ def, response, total, index, onAnswer, onBack }) {
+      const benchmark = Number(def.typical_value ?? def.default_value ?? 0);
+      const inputRef = useRef(null);
+      const [draft, setDraft] = useState(() => response?.value != null ? String(response.value) : '');
+      useEffect(() => { setDraft(response?.value != null ? String(response.value) : ''); }, [def.input_key]);
+      const commitTyped = () => {
+        const n = parseFloat(draft);
+        if (isNaN(n)) return;
+        onAnswer({ source: n === benchmark ? 'confirmed' : 'edited', value: n });
+      };
+      return (
+        <Centered>
+          <div className="max-w-[480px] w-full py-6 sm:py-12">
+            <ProgressDots index={index} total={total} />
+            <div className="font-display text-xl sm:text-2xl text-ink leading-snug mb-6">
+              {def.discovery_prompt || def.input_label || 'Help us with this number.'}
+            </div>
+            <div className="flex items-baseline gap-2 mb-2">
+              <input ref={inputRef} type="number" value={draft} onChange={e => setDraft(e.target.value)}
+                placeholder={String(benchmark)} inputMode="decimal"
+                className="flex-1 bg-surface border border-border px-4 py-3 text-2xl font-display text-ink placeholder:text-ink3 focus:border-red outline-none" />
+              {def.input_unit && <span className="text-[12px] font-mono text-ink2">{def.input_unit}</span>}
+            </div>
+            <div className="text-[11px] font-mono text-ink3 mb-6">Industry benchmark · {benchmark.toLocaleString()} {def.input_unit || ''}</div>
+            <div className="space-y-2">
+              <button onClick={() => onAnswer({ source: 'confirmed', value: benchmark })}
+                className="w-full bg-green/20 border border-green/40 hover:bg-green/30 text-green py-2.5 text-[12px] font-mono uppercase tracking-widest">
+                ✓ Use this benchmark · {benchmark.toLocaleString()}{def.input_unit ? ' ' + def.input_unit : ''}
+              </button>
+              <button onClick={() => inputRef.current?.focus()}
+                className="w-full border border-border2 hover:border-red/60 hover:bg-red/5 text-ink py-2.5 text-[11px] font-mono uppercase tracking-widest">Enter my number</button>
+              <button onClick={() => onAnswer({ source: 'skipped', value: null })}
+                className="w-full text-[11px] font-mono uppercase tracking-widest text-ink3 hover:text-ink py-2">Skip — not sure</button>
+            </div>
+            <div className="mt-8 flex items-center justify-between">
+              <button onClick={onBack} className="text-[11px] font-mono uppercase tracking-widest text-ink2 hover:text-red">← Back</button>
+              <button onClick={commitTyped} disabled={!draft || parseFloat(draft) === benchmark}
+                className="bg-red hover:bg-red/90 disabled:opacity-30 text-white px-4 py-2 text-[11px] font-mono uppercase tracking-widest">Next →</button>
+            </div>
+          </div>
+        </Centered>
+      );
+    }
+
+    function Review({ defs, responses, onJump, onSubmit, busy }) {
+      const answeredCount = defs.filter(d => responses[d.input_key]).length;
+      return (
+        <Centered>
+          <div className="max-w-[480px] w-full py-6 sm:py-12">
+            <div className="font-display text-2xl sm:text-3xl text-ink mb-2">Quick review.</div>
+            <div className="text-[13px] text-ink2 mb-6">{answeredCount} of {defs.length} answered. Tap any row to change.</div>
+            <div className="space-y-2 mb-8">
+              {defs.map((d, idx) => {
+                const r = responses[d.input_key];
+                const status = !r ? 'pending' : r.source;
+                const chip = status === 'confirmed' ? { label: '✓ Confirmed', cls: 'text-green' }
+                           : status === 'edited'    ? { label: '◐ Edited',    cls: 'text-red' }
+                           : status === 'skipped'   ? { label: '○ Skipped',   cls: 'text-ink3' }
+                           : { label: '— Pending', cls: 'text-amber' };
+                const display = r?.value != null ? r.value.toLocaleString() + (d.input_unit ? ' ' + d.input_unit : '') : status === 'skipped' ? '—' : 'not yet answered';
+                return (
+                  <button key={d.input_key} onClick={() => onJump(idx)} className="w-full text-left bg-surface border border-border hover:border-border2 p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[12px] text-ink truncate">{d.discovery_prompt || d.input_label || d.input_key.replace(/_/g, ' ')}</div>
+                        <div className="text-[11px] font-mono text-ink2 mt-0.5">{display}</div>
+                      </div>
+                      <div className={`text-[10px] font-mono uppercase tracking-widest flex-shrink-0 ${chip.cls}`}>{chip.label}</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+            <button onClick={onSubmit} disabled={busy} className="w-full bg-red hover:bg-red/90 disabled:opacity-50 text-white py-3 text-[12px] font-display tracking-wide">
+              {busy ? 'Sending…' : 'Send back to your account team →'}
+            </button>
+          </div>
+        </Centered>
+      );
+    }
 
     /* ---------- APP ---------- */
     function App() {
@@ -80,6 +172,9 @@
       const [defs, setDefs] = useState([]);
       const [stage, setStage] = useState('loading');
       const [err, setErr] = useState('');
+      const [responses, setResponses] = useState({});
+      const [questionIndex, setQuestionIndex] = useState(0);
+      const [busy, setBusy] = useState(false);
       useEffect(() => {
         if (!token) { setErr('This intake link is missing its session token.'); setStage('error'); return; }
         (async () => {
@@ -90,16 +185,44 @@
             if (!sess || sess.share_token !== token) { setErr('This intake link is invalid or has been replaced. Ask your account team for a fresh link.'); setStage('error'); return; }
             const inputDefs = await loadCuratedInputDefs(eng.domain_id, sess.curated_input_keys);
             setEngagement(eng); setSession(sess); setDefs(inputDefs);
+            setResponses(sess.responses || {});
+            // Resume to first unanswered question, else welcome.
+            const firstUn = (sess.curated_input_keys || []).findIndex(k => !(sess.responses || {})[k]);
+            if (firstUn > 0) setQuestionIndex(firstUn);
             if (sess.status === 'submitted' || sess.status === 'applied') setStage('submitted');
             else setStage('welcome');
           } catch (e) { setErr(e.message || 'Failed to load intake.'); setStage('error'); }
         })();
       }, [token]);
+      const persist = async (newResponses, statusOverride) => {
+        if (!engagement || !session) return;
+        const status = statusOverride || (Object.keys(newResponses).length > 0 ? 'in_progress' : session.status);
+        const next = { ...session, responses: newResponses, status };
+        try {
+          const newNotes = await writeIntakeSession(engagement.engagement_id, engagement.notes, next);
+          setEngagement(e => ({ ...e, notes: newNotes }));
+          setSession(next);
+        } catch (e) { console.error('intake save failed', e); }
+      };
+      const onAnswer = ({ source, value }) => {
+        const def = defs[questionIndex]; if (!def) return;
+        const r = { ...responses, [def.input_key]: { value, source, at: new Date().toISOString() } };
+        setResponses(r); persist(r);
+        if (questionIndex + 1 < defs.length) setQuestionIndex(questionIndex + 1);
+        else setStage('review');
+      };
+      const onBack = () => { if (questionIndex > 0) setQuestionIndex(questionIndex - 1); else setStage('welcome'); };
+      const onJump = (idx) => { setQuestionIndex(idx); setStage('question'); };
+      const onSubmit = async () => { setBusy(true); try { await persist(responses, 'submitted'); setStage('submitted'); } finally { setBusy(false); } };
       if (stage === 'loading') return <Centered><div className="text-ink2 font-mono text-xs">Loading…</div></Centered>;
       if (stage === 'error') return <Centered><div className="max-w-[420px] text-center"><div className="text-red font-mono text-sm leading-relaxed">{err}</div></div></Centered>;
       if (stage === 'welcome') return <Welcome engagement={engagement} session={session} defs={defs} onBegin={() => setStage('question')} />;
-      if (stage === 'question') return <div className="p-6 font-mono text-xs text-ink3 italic">[ QUESTION stage — chunk I3b ]</div>;
-      if (stage === 'review') return <div className="p-6 font-mono text-xs text-ink3 italic">[ REVIEW stage — chunk I3b ]</div>;
+      if (stage === 'question') {
+        const def = defs[questionIndex];
+        if (!def) return <Centered><div className="text-red font-mono text-sm">Question not found. Go back to review.</div></Centered>;
+        return <Question def={def} response={responses[def.input_key]} total={defs.length} index={questionIndex} onAnswer={onAnswer} onBack={onBack} />;
+      }
+      if (stage === 'review') return <Review defs={defs} responses={responses} onJump={onJump} onSubmit={onSubmit} busy={busy} />;
       if (stage === 'submitted') return <Submitted engagement={engagement} />;
       return null;
     }
