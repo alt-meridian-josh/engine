@@ -1314,10 +1314,77 @@
       );
     }
 
+    /* ---------- IMPORT INTAKE DIALOG (I5b — offline JSON path) ---------- */
+    function ImportIntakeDialog({ engagement, defs, onClose, onImported }) {
+      const [pasted, setPasted] = useState('');
+      const [busy, setBusy] = useState(false);
+      const [err, setErr] = useState('');
+      const importFromText = async (text) => {
+        setBusy(true); setErr('');
+        try {
+          const payload = JSON.parse(text);
+          if (payload.schema !== 'altmeridian.intake.v1') throw new Error('Unrecognized file format. Expected altmeridian.intake.v1.');
+          if (!Array.isArray(payload.questions)) throw new Error('No questions found in the file.');
+          const validKeys = new Set(defs.map(d => d.input_key));
+          const responses = {};
+          const importedKeys = [];
+          payload.questions.forEach(q => {
+            if (!q?.input_key || !validKeys.has(q.input_key)) return;
+            importedKeys.push(q.input_key);
+            if (q.response && q.response.value != null) {
+              responses[q.input_key] = { value: Number(q.response.value), source: q.response.source || 'edited', at: q.response.at || new Date().toISOString() };
+            } else if (q.response && q.response.source === 'skipped') {
+              responses[q.input_key] = { value: null, source: 'skipped', at: q.response.at || new Date().toISOString() };
+            }
+          });
+          if (importedKeys.length === 0) throw new Error("None of the file's input_keys match this analysis.");
+          const existing = parseIntakeSession(engagement.notes);
+          const sess = existing
+            ? { ...existing, responses: { ...(existing.responses || {}), ...responses }, status: 'submitted' }
+            : { ...newIntakeSession({ shared_with_email: payload.customer || null, curated_input_keys: importedKeys }), responses, status: 'submitted' };
+          if (!sess.curated_input_keys?.length) sess.curated_input_keys = importedKeys;
+          const newNotes = await writeIntakeSession(engagement.engagement_id, engagement.notes, sess);
+          onImported(newNotes, sess);
+          onClose();
+        } catch (e) { setErr(e.message || 'Import failed'); }
+        finally { setBusy(false); }
+      };
+      const onFile = (e) => {
+        const f = e.target.files?.[0]; if (!f) return;
+        const reader = new FileReader();
+        reader.onload = () => importFromText(String(reader.result || ''));
+        reader.readAsText(f);
+      };
+      return (
+        <div className="fixed inset-0 z-30 bg-bg/85 grid place-items-center p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+          <div className="w-full max-w-[480px] bg-surface border border-border">
+            <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+              <div className="font-display text-base text-ink">Import intake responses</div>
+              <button onClick={onClose} className="text-ink3 hover:text-red text-base leading-none">×</button>
+            </div>
+            <div className="px-5 py-5">
+              <div className="text-[12px] text-ink2 mb-4 leading-relaxed">Upload the .json file the prospect returned, or paste its contents. We route straight to the review screen.</div>
+              <label className="block w-full bg-surface2 border border-dashed border-border2 hover:border-red/60 cursor-pointer text-center py-6 mb-3">
+                <input type="file" accept=".json,application/json" onChange={onFile} className="hidden" />
+                <div className="text-[11px] font-mono uppercase tracking-widest text-ink2">↑ Choose .json file</div>
+              </label>
+              <div className="text-[10px] font-mono uppercase tracking-widest text-ink3 mb-2">Or paste</div>
+              <textarea value={pasted} onChange={e => setPasted(e.target.value)} rows={5}
+                placeholder='{ "schema": "altmeridian.intake.v1", "questions": [...] }'
+                className="w-full bg-surface2 border border-border px-3 py-2 text-[11px] font-mono text-ink focus:border-red outline-none mb-3" />
+              {err && <div className="text-[11px] font-mono text-red mb-3 border-l-2 border-red bg-red/5 px-3 py-2">{err}</div>}
+              <button onClick={() => importFromText(pasted)} disabled={busy || !pasted.trim()} className="w-full bg-red hover:bg-red/90 disabled:opacity-30 text-white py-2 text-[11px] font-mono uppercase tracking-widest">{busy ? 'Importing…' : 'Import pasted →'}</button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     function InputsTab({ scenarios, defs, values, tier, onSlide, onCommit, onPreset, engagement, onSessionWritten }) {
       const groups = useMemo(() => groupInputsByScenario(scenarios, defs), [scenarios, defs]);
       const [shareOpen, setShareOpen] = useState(false);
       const [reviewOpen, setReviewOpen] = useState(false);
+      const [importOpen, setImportOpen] = useState(false);
       const session = parseIntakeSession(engagement?.notes);
       const reviewDefs = useMemo(() => session?.curated_input_keys
         ? session.curated_input_keys.map(k => defs.find(d => d.input_key === k)).filter(Boolean)
@@ -1331,6 +1398,7 @@
               <button onClick={() => setShareOpen(true)} className={session ? 'text-[11px] font-mono uppercase tracking-widest border border-border2 hover:border-red px-2.5 py-1.5 text-ink' : 'bg-red hover:bg-red/90 text-white px-3 py-1.5 text-[11px] font-mono uppercase tracking-widest'}>
                 {session ? `◆ Sent · ${fmtRelative(session.shared_at)}` : 'Share intake →'}
               </button>
+              <button onClick={() => setImportOpen(true)} title="Import a returned intake .json file" className="text-[11px] font-mono uppercase tracking-widest border border-border2 hover:border-red/60 text-ink2 hover:text-ink px-2.5 py-1.5">↑ Import</button>
               <PresetStrip tier={tier} onPreset={onPreset} />
             </div>
           </div>
@@ -1339,6 +1407,11 @@
           {reviewOpen && session && reviewDefs.length > 0 && (
             <IntakeReviewDialog engagement={engagement} session={session} defs={reviewDefs} currentValues={values}
               onClose={() => setReviewOpen(false)} onApplied={onSessionWritten} />
+          )}
+          {importOpen && (
+            <ImportIntakeDialog engagement={engagement} defs={defs}
+              onClose={() => setImportOpen(false)}
+              onImported={(notes, sess) => { onSessionWritten(notes, sess); setReviewOpen(true); }} />
           )}
           <div className="space-y-8">
             {groups.map(g => (
