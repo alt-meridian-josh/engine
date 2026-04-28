@@ -129,6 +129,19 @@ Rules:
 
 ---
 
+## RULE 6 — NO SILENT NO-OP BUTTONS  *[learned from BUG-007]*
+
+**Every primary or topbar action button must have either an `onClick` handler or a `disabled` attribute before merge.**
+
+A styled button with no handler ships a lie: it looks live, the user clicks, nothing happens. There is no React warning, no type error, no test that catches it — only a buyer reaching for a feature that does not exist.
+
+Verification before any merge that touches button markup:
+- Grep new `<button` blocks for `onClick=` (or `disabled`) — every one must have one or the other.
+- If a button is intentionally a placeholder, give it `disabled` so the styling reflects the state.
+- Topbar action buttons get extra scrutiny — they are the most visible affordance on the screen and the slowest to be noticed when broken.
+
+---
+
 ## PROJECT CONTEXT
 
 ### Alt Meridian

@@ -79,3 +79,12 @@
 **Prevention rule:** When a screen has multiple state fields driving its view, the back-navigation reset must list every field that should snap back to default — not just the screen and active tab. Audit setState patches that change `screen`: any per-screen state that's user-selectable AND has a meaningful "default view" should be reset there.
 **Status:** RESOLVED
 **Project:** alt-meridian
+
+## BUG-007 2026-04-28 — Topbar Report button shipped as a no-op handler
+**File(s):** workspace2.html (AnalysisShell topbar, line 1942 pre-fix)
+**Symptom:** The "Report" button in the AnalysisShell topbar rendered with full primary styling (red bg, hover state) but had no `onClick`. Clicking it did nothing. Survived undetected through the A1–A9 tag-engine merges and the I1–I5b intake feature; surfaced when a buyer-facing report was finally requested.
+**Root cause:** The button was added to the topbar markup as a placeholder during an earlier rebuild and never wired to a handler. No type-check, no test, no visual signal that the button was inert (no `disabled` attr, no missing-handler React warning since `onClick` is optional).
+**Fix applied:** R1–R5 introduced the print report path. Module-scope `openPrintReport()` toggles `body.print-mode` and calls `window.print()` with an idempotent `afterprint` cleanup. Button now wired to `openPrintReport`. Curated print stylesheet renders cover, hero, interpretation, scenarios, evidence, tags, and snapshot history.
+**Prevention rule:** See CLAUDE.md — primary action buttons must have either a handler or a `disabled` attribute before merge.
+**Status:** RESOLVED
+**Project:** alt-meridian
