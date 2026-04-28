@@ -60,6 +60,11 @@
     .print-only .r-conf-strong      { color: #16a34a; }
     .print-only .r-conf-moderate    { color: #d97706; }
     .print-only .r-conf-exploratory { color: #525252; }
+    /* Evidence palette: same darkening rationale as confidence (Hard Rule 5 override).
+       Weak evidence keeps a red signal but darker than the in-app #f87171 for paper. */
+    .print-only .r-ev-strong   { color: #16a34a; }
+    .print-only .r-ev-moderate { color: #d97706; }
+    .print-only .r-ev-weak     { color: #b91c1c; }
     /* === COVER + HERO + SIGNALS (R2) === */
     .print-only .r-cover { padding-top: 1.4in; page-break-after: always; }
     .print-only .r-cover-mark { font-family: 'Syne', sans-serif; font-size: 22pt; letter-spacing: 0.06em; font-weight: 700; }
@@ -77,6 +82,27 @@
     .print-only .r-signal-value { font-family: 'Syne', sans-serif; font-size: 22pt; font-weight: 600; color: #000; }
     .print-only .r-signal-unit { font-family: 'DM Mono', ui-monospace, monospace; font-size: 11pt; color: #666; margin-left: 2pt; }
     .print-only .r-signal-label { font-size: 9pt; color: #666; margin-top: 6pt; text-transform: uppercase; letter-spacing: 0.08em; }
+    /* === INTERPRETATION SECTION (R3) === */
+    .print-only .r-section { padding-top: 0.3in; margin-bottom: 0.4in; }
+    .print-only .r-section-h { font-family: 'Syne', sans-serif; font-size: 14pt; font-weight: 600; margin-bottom: 14pt; padding-bottom: 6pt; border-bottom: 1px solid #c0c0c0; }
+    .print-only .r-rank-caption { font-family: 'DM Mono', ui-monospace, monospace; font-size: 9pt; color: #666; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 12pt; }
+    .print-only .r-interp-headline { border-left: 3px solid #d63b2f; padding: 6pt 0 6pt 12pt; font-size: 11pt; line-height: 1.5; margin-bottom: 18pt; }
+    .print-only .r-bias-h { font-size: 10pt; font-weight: 600; margin: 14pt 0 8pt; color: #333; }
+    .print-only .r-bias-row { display: grid; grid-template-columns: 1.7in 1fr 0.5in; align-items: center; gap: 10pt; margin-bottom: 5pt; font-size: 10pt; }
+    .print-only .r-bias-name { color: #222; }
+    .print-only .r-bias-top { color: #d63b2f; font-weight: 600; }
+    .print-only .r-bias-bar { height: 6pt; background: #e8e8e8; position: relative; }
+    .print-only .r-bias-bar > span { position: absolute; left: 0; top: 0; bottom: 0; background: #555; }
+    .print-only .r-bias-bar.r-bias-bar-top > span { background: #d63b2f; }
+    .print-only .r-bias-pct { text-align: right; font-family: 'DM Mono', ui-monospace, monospace; font-size: 9pt; color: #666; }
+    .print-only .r-confline { font-size: 11pt; margin: 18pt 0; line-height: 1.5; }
+    .print-only .r-why { font-style: italic; color: #555; font-size: 10pt; margin-top: 14pt; padding-top: 10pt; border-top: 1px dotted #c0c0c0; }
+    .print-only .r-mech-list { margin-top: 8pt; }
+    .print-only .r-mech-row { display: grid; grid-template-columns: 1.4in 1fr 0.9in 0.7in; align-items: baseline; gap: 10pt; padding: 8pt 0; border-bottom: 1px solid #ececec; font-size: 10pt; }
+    .print-only .r-mech-theme { font-family: 'DM Mono', ui-monospace, monospace; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.06em; color: #555; }
+    .print-only .r-mech-label { color: #000; }
+    .print-only .r-mech-arv { font-family: 'DM Mono', ui-monospace, monospace; text-align: right; color: #d63b2f; font-weight: 600; }
+    .print-only .r-mech-ev { font-family: 'DM Mono', ui-monospace, monospace; font-size: 8.5pt; text-align: right; text-transform: uppercase; letter-spacing: 0.06em; }
   </style>
 </head>
 <body class="bg-bg text-ink">
@@ -1905,12 +1931,29 @@
       window.print();
     }
 
-    /* ---------- REPORT VIEW (R2: cover + hero + signals) ----------
+    /* ---------- REPORT VIEW (R2 cover + hero + signals; R3 interpretation) ----------
        Reuses live-UI helpers: confidenceTier, TONE_COPY, OVERVIEW_SIGNALS, orderedSignals,
-       fmtMoney. Signal value strings inherit the live formatters' '—' fallback when a
-       metric is unset (e.g. NPV without implementation_cost); the report swaps that to
-       'pending' since em-dashes are disallowed in user-facing copy (Hard Rule 6). */
+       fmtMoney, applyThemeBias, rankScenarios, RANK_CAPTION, humanizeTagLabel, TAG_BEHAVIOR.
+       Signal value strings inherit the live formatters' '—' fallback when a metric is unset
+       (e.g. NPV without implementation_cost); the report swaps that to 'pending' since
+       em-dashes are disallowed in user-facing copy (Hard Rule 6). */
     const reportSafeValue = (v) => String(v).replace(/—/g, 'pending');
+    function reportHeadline(tags, tone) {
+      const valid = [...(tags || [])].filter(k => TAG_BEHAVIOR[k]);
+      if (!valid.length) return null;
+      const labels = valid.map(humanizeTagLabel);
+      const tagText = labels.length === 1
+        ? labels[0]
+        : labels.slice(0, -1).join(', ') + ' and ' + labels[labels.length - 1];
+      if (tone === 'urgent')       return tagText + ': surface fastest realized value first.';
+      if (tone === 'conservative') return tagText + ': defend NPV with strong evidence.';
+      return tagText + ': focus on operational ARV.';
+    }
+    function reportConfSentence(tier, tone) {
+      if (tone === 'conservative') return 'Confidence is ' + tier + '. The case can be defended in finance review.';
+      if (tone === 'urgent')       return 'Confidence is ' + tier + '. Acting this quarter is supportable on the numbers.';
+      return 'Confidence is ' + tier + '. The case is shippable with current evidence.';
+    }
     function ReportView({ bundle, scenarios, analysis, tags, behavior, tone }) {
       const eng = bundle.engagement;
       const outcome = bundle.domain?.primary_outcome;
@@ -1922,6 +1965,23 @@
         ? new Date(eng.intake_date).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
         : '';
       const signals = orderedSignals(behavior, 3).map(k => ({ key: k, ...OVERVIEW_SIGNALS[k](analysis) }));
+      // Interpretation data: themeData (Y1 ARV summed by theme, then bias-sorted), top 5
+      // active mechanisms in the same rank order the live Scenarios tab uses.
+      const activeScenarios = scenarios.filter(s => s.active);
+      const themeRaw = (() => {
+        const byTheme = {};
+        activeScenarios.forEach(s => {
+          const per = analysis?.perScenario?.find(p => p.scenario_id === s.scenario_id);
+          const t = s.value_theme || 'Other';
+          byTheme[t] = (byTheme[t] || 0) + (per?.arv || 0);
+        });
+        return Object.entries(byTheme).filter(([, v]) => v > 0).map(([k, v]) => ({ key: k, label: k, value: v })).sort((a, b) => b.value - a.value);
+      })();
+      const { data: themeBiased, topTheme } = applyThemeBias(themeRaw, behavior?.themeBias);
+      const themeMax = themeBiased.reduce((m, d) => Math.max(m, d.value), 0);
+      const headline = reportHeadline(tags, tone);
+      const rankCaption = behavior?.rankBy ? RANK_CAPTION[behavior.rankBy] : null;
+      const topMechs = (behavior?.rankBy ? rankScenarios(activeScenarios, analysis, behavior.rankBy) : activeScenarios).slice(0, 5);
       return (
         <div className="print-only">
           <section className="r-cover">
@@ -1947,6 +2007,47 @@
                 </div>
               ))}
             </div>
+          </section>
+          <section className="r-section">
+            <h2 className="r-section-h">VEF Interpretation</h2>
+            {rankCaption && <div className="r-rank-caption">{rankCaption}</div>}
+            {headline && <div className="r-interp-headline">{headline}</div>}
+            {themeBiased.length > 0 && (
+              <>
+                <div className="r-bias-h">Value themes by Y1 contribution</div>
+                {themeBiased.map(d => {
+                  const pct = themeMax > 0 ? Math.round((d.value / themeMax) * 100) : 0;
+                  const isTop = topTheme && d.label === topTheme;
+                  return (
+                    <div key={d.key} className="r-bias-row">
+                      <div className={isTop ? 'r-bias-name r-bias-top' : 'r-bias-name'}>{d.label}{isTop && ' (top theme)'}</div>
+                      <div className={isTop ? 'r-bias-bar r-bias-bar-top' : 'r-bias-bar'}><span style={{ width: pct + '%' }} /></div>
+                      <div className="r-bias-pct">{fmtMoney(d.value)}</div>
+                    </div>
+                  );
+                })}
+              </>
+            )}
+            <div className={'r-confline ' + confClass}>{reportConfSentence(conf.tier, tone)}</div>
+            {topMechs.length > 0 && (
+              <>
+                <div className="r-bias-h">Top mechanisms</div>
+                <div className="r-mech-list">
+                  {topMechs.map(s => {
+                    const per = analysis?.perScenario?.find(p => p.scenario_id === s.scenario_id);
+                    return (
+                      <div key={s.scenario_id} className="r-mech-row">
+                        <div className="r-mech-theme">{s.value_theme || 'Other'}</div>
+                        <div className="r-mech-label">{s.mechanism_label || s.scenario_label || s.scenario_id}</div>
+                        <div className="r-mech-arv">{fmtMoney(per?.arv || 0)}</div>
+                        <div className={'r-mech-ev r-ev-' + (s.evidence_strength || 'Moderate').toLowerCase()}>{s.evidence_strength || 'Moderate'}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+            <div className="r-why">{rankCaption ? rankCaption + ', mirroring the live workspace.' : 'Standard ranking applied. No buyer-lens bias active.'}</div>
           </section>
         </div>
       );
