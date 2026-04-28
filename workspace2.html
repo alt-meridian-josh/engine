@@ -103,6 +103,19 @@
     .print-only .r-mech-label { color: #000; }
     .print-only .r-mech-arv { font-family: 'DM Mono', ui-monospace, monospace; text-align: right; color: #d63b2f; font-weight: 600; }
     .print-only .r-mech-ev { font-family: 'DM Mono', ui-monospace, monospace; font-size: 8.5pt; text-align: right; text-transform: uppercase; letter-spacing: 0.06em; }
+    /* === SCENARIOS + EVIDENCE TABLES (R4) === */
+    .print-only .r-table { width: 100%; border-collapse: collapse; margin-top: 6pt; font-size: 9.5pt; }
+    .print-only .r-table thead { display: table-header-group; }
+    .print-only .r-table th { font-family: 'DM Mono', ui-monospace, monospace; font-size: 8.5pt; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #555; text-align: left; padding: 6pt 8pt; border-bottom: 1.5pt solid #999; }
+    .print-only .r-table td { padding: 7pt 8pt; border-bottom: 1px solid #ececec; vertical-align: top; line-height: 1.4; }
+    .print-only .r-table tr { page-break-inside: avoid; }
+    .print-only .r-table .r-num { text-align: right; font-family: 'DM Mono', ui-monospace, monospace; }
+    .print-only .r-table .r-th-num { text-align: right; }
+    .print-only .r-table .r-cell-theme { font-family: 'DM Mono', ui-monospace, monospace; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.06em; color: #555; white-space: nowrap; }
+    .print-only .r-table .r-cell-mech { font-weight: 500; color: #000; }
+    .print-only .r-table .r-cell-arv  { color: #d63b2f; font-weight: 600; }
+    .print-only .r-table .r-cell-ev   { font-family: 'DM Mono', ui-monospace, monospace; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.06em; }
+    .print-only .r-table-empty { font-style: italic; color: #888; padding: 8pt 0; font-size: 10pt; }
   </style>
 </head>
 <body class="bg-bg text-ink">
@@ -1982,6 +1995,22 @@
       const headline = reportHeadline(tags, tone);
       const rankCaption = behavior?.rankBy ? RANK_CAPTION[behavior.rankBy] : null;
       const topMechs = (behavior?.rankBy ? rankScenarios(activeScenarios, analysis, behavior.rankBy) : activeScenarios).slice(0, 5);
+      // Full scenarios table sorted in the same order as the live Scenarios tab.
+      const fullScenarios = behavior?.rankBy ? rankScenarios(activeScenarios, analysis, behavior.rankBy) : activeScenarios;
+      // Evidence: defensive field-pick since vef_evidence_registry schema varies by tenant.
+      const evidenceRows = (bundle.evidence || [])
+        .map(e => {
+          const sc = scenarios.find(s => s.scenario_id === e.scenario_id);
+          const desc = e.description || e.claim || e.note || e.evidence_text || e.summary || '';
+          const source = e.source || e.publisher || e.source_label || e.title || e.url || e.source_url || '';
+          const strength = e.evidence_strength || e.strength || sc?.evidence_strength || '';
+          return { id: e.evidence_id || e.id || `${e.scenario_id}-${desc.slice(0, 12)}`, scenario: sc?.mechanism_label || sc?.scenario_label || e.scenario_id || 'unattached', desc, source, strength };
+        })
+        .filter(r => r.desc || r.source)
+        .sort((a, b) => {
+          const order = { Strong: 0, Moderate: 1, Weak: 2, '': 3 };
+          return (order[a.strength] ?? 3) - (order[b.strength] ?? 3);
+        });
       return (
         <div className="print-only">
           <section className="r-cover">
@@ -2049,6 +2078,64 @@
             )}
             <div className="r-why">{rankCaption ? rankCaption + ', mirroring the live workspace.' : 'Standard ranking applied. No buyer-lens bias active.'}</div>
           </section>
+          {fullScenarios.length > 0 && (
+            <section className="r-section">
+              <h2 className="r-section-h">Active scenarios</h2>
+              <table className="r-table">
+                <thead>
+                  <tr>
+                    <th>Theme</th>
+                    <th>Mechanism</th>
+                    <th className="r-th-num">Y1 ARV</th>
+                    <th className="r-th-num">BCR</th>
+                    <th>Evidence</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {fullScenarios.map(s => {
+                    const per = analysis?.perScenario?.find(p => p.scenario_id === s.scenario_id);
+                    const impl = analysis?.impl || 0;
+                    const bcrLocal = impl > 0 ? ((per?.arv || 0) * 2.5) / impl : null;
+                    const ev = s.evidence_strength || 'Moderate';
+                    return (
+                      <tr key={s.scenario_id}>
+                        <td className="r-cell-theme">{s.value_theme || 'Other'}</td>
+                        <td className="r-cell-mech">{s.mechanism_label || s.scenario_label || s.scenario_id}</td>
+                        <td className="r-num r-cell-arv">{fmtMoney(per?.arv || 0)}</td>
+                        <td className="r-num">{bcrLocal != null ? bcrLocal.toFixed(2) + 'x' : 'pending'}</td>
+                        <td className={'r-cell-ev r-ev-' + ev.toLowerCase()}>{ev}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </section>
+          )}
+          {evidenceRows.length > 0 && (
+            <section className="r-section">
+              <h2 className="r-section-h">Evidence registry</h2>
+              <table className="r-table">
+                <thead>
+                  <tr>
+                    <th>Scenario</th>
+                    <th>Evidence</th>
+                    <th>Source</th>
+                    <th>Strength</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {evidenceRows.map(r => (
+                    <tr key={r.id}>
+                      <td className="r-cell-mech">{r.scenario}</td>
+                      <td>{r.desc || ''}</td>
+                      <td>{r.source || ''}</td>
+                      <td className={'r-cell-ev r-ev-' + (r.strength || 'moderate').toLowerCase()}>{r.strength || ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )}
         </div>
       );
     }
