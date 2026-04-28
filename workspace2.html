@@ -116,6 +116,14 @@
     .print-only .r-table .r-cell-arv  { color: #d63b2f; font-weight: 600; }
     .print-only .r-table .r-cell-ev   { font-family: 'DM Mono', ui-monospace, monospace; font-size: 8.5pt; text-transform: uppercase; letter-spacing: 0.06em; }
     .print-only .r-table-empty { font-style: italic; color: #888; padding: 8pt 0; font-size: 10pt; }
+    /* === TAGS + SNAPSHOTS + FOOTER (R5) === */
+    .print-only .r-tags-grid { display: grid; grid-template-columns: 1.3in 1fr; gap: 8pt 14pt; margin-top: 6pt; }
+    .print-only .r-tags-group { font-family: 'DM Mono', ui-monospace, monospace; font-size: 9pt; color: #666; text-transform: uppercase; letter-spacing: 0.08em; padding-top: 4pt; }
+    .print-only .r-tags-list { font-size: 10.5pt; color: #000; }
+    .print-only .r-tag-chip { display: inline-block; padding: 2pt 8pt; border: 1px solid #c0c0c0; margin: 0 6pt 4pt 0; font-size: 9.5pt; }
+    /* Footer page numbers on every page except the cover. */
+    @page { @bottom-right { content: 'Page ' counter(page) ' of ' counter(pages); font-family: 'DM Mono', ui-monospace, monospace; font-size: 8pt; color: #666; } }
+    @page :first { @bottom-right { content: ''; } }
   </style>
 </head>
 <body class="bg-bg text-ink">
@@ -1997,6 +2005,13 @@
       const topMechs = (behavior?.rankBy ? rankScenarios(activeScenarios, analysis, behavior.rankBy) : activeScenarios).slice(0, 5);
       // Full scenarios table sorted in the same order as the live Scenarios tab.
       const fullScenarios = behavior?.rankBy ? rankScenarios(activeScenarios, analysis, behavior.rankBy) : activeScenarios;
+      // Tag groups for the buyer-visible "Tags applied" block: keep the lens precedence
+      // order users see in vef2 step 1 (Buyer lens > Motion > Environment).
+      const tagGroupOrder = ['Buyer lens', 'Motion', 'Environment'];
+      const tagsByGroup = tagGroupOrder
+        .map(g => ({ group: g, items: [...tags].filter(k => TAG_BEHAVIOR[k]?.group === g) }))
+        .filter(g => g.items.length > 0);
+      const snapshots = bundle.snapshots || [];
       // Evidence: defensive field-pick since vef_evidence_registry schema varies by tenant.
       const evidenceRows = (bundle.evidence || [])
         .map(e => {
@@ -2130,6 +2145,46 @@
                       <td>{r.desc || ''}</td>
                       <td>{r.source || ''}</td>
                       <td className={'r-cell-ev r-ev-' + (r.strength || 'moderate').toLowerCase()}>{r.strength || ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          )}
+          {tagsByGroup.length > 0 && (
+            <section className="r-section">
+              <h2 className="r-section-h">Tags applied</h2>
+              <div className="r-tags-grid">
+                {tagsByGroup.map(g => (
+                  <React.Fragment key={g.group}>
+                    <div className="r-tags-group">{g.group}</div>
+                    <div className="r-tags-list">
+                      {g.items.map(k => <span key={k} className="r-tag-chip">{humanizeTagLabel(k)}</span>)}
+                    </div>
+                  </React.Fragment>
+                ))}
+              </div>
+            </section>
+          )}
+          {snapshots.length > 0 && (
+            <section className="r-section">
+              <h2 className="r-section-h">Snapshot history</h2>
+              <table className="r-table">
+                <thead>
+                  <tr>
+                    <th>Date</th>
+                    <th>Label</th>
+                    <th>Intent</th>
+                    <th className="r-th-num">Y1 ARV</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {snapshots.map(s => (
+                    <tr key={s.snapshot_id || s.created_at}>
+                      <td>{fmtDate(s.created_at)}</td>
+                      <td className="r-cell-mech">{s.snapshot_label || 'unlabeled'}</td>
+                      <td className="r-cell-theme">{s.intent || 'track'}</td>
+                      <td className="r-num r-cell-arv">{fmtMoney(s.annual_value)}</td>
                     </tr>
                   ))}
                 </tbody>
