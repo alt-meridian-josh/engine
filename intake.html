@@ -245,6 +245,7 @@
       const [responses, setResponses] = useState({});
       const [questionIndex, setQuestionIndex] = useState(0);
       const [busy, setBusy] = useState(false);
+      const [saveErr, setSaveErr] = useState('');
       useEffect(() => {
         if (!token) { setErr('This intake link is missing its session token.'); setStage('error'); return; }
         (async () => {
@@ -256,11 +257,13 @@
             const inputDefs = await loadCuratedInputDefs(eng.domain_id, sess.curated_input_keys);
             setEngagement(eng); setSession(sess); setDefs(inputDefs);
             setResponses(sess.responses || {});
-            // Resume to first unanswered question, else welcome.
-            const firstUn = (sess.curated_input_keys || []).findIndex(k => !(sess.responses || {})[k]);
-            if (firstUn > 0) setQuestionIndex(firstUn);
+            const keys = sess.curated_input_keys || [];
+            const firstUn = keys.findIndex(k => !(sess.responses || {})[k]);
+            // Resume rules: submitted/applied → thanks; all answered but unsubmitted → review;
+            // partial → resume to first unanswered; nothing → welcome.
             if (sess.status === 'submitted' || sess.status === 'applied') setStage('submitted');
-            else setStage('welcome');
+            else if (keys.length > 0 && firstUn === -1) setStage('review');
+            else { if (firstUn > 0) setQuestionIndex(firstUn); setStage('welcome'); }
           } catch (e) { setErr(e.message || 'Failed to load intake.'); setStage('error'); }
         })();
       }, [token]);
@@ -272,18 +275,30 @@
           const newNotes = await writeIntakeSession(engagement.engagement_id, engagement.notes, next);
           setEngagement(e => ({ ...e, notes: newNotes }));
           setSession(next);
-        } catch (e) { console.error('intake save failed', e); }
+          if (saveErr) setSaveErr('');
+        } catch (e) {
+          console.error('intake save failed', e);
+          setSaveErr('Save failed — your last answer didn\'t go through. Try the action again or check your connection.');
+          throw e;
+        }
       };
-      const onAnswer = ({ source, value }) => {
+      const onAnswer = async ({ source, value }) => {
         const def = defs[questionIndex]; if (!def) return;
         const r = { ...responses, [def.input_key]: { value, source, at: new Date().toISOString() } };
-        setResponses(r); persist(r);
+        setResponses(r);
+        try { await persist(r); }
+        catch { return; }  // save error is shown in the top banner; don't advance until they retry
         if (questionIndex + 1 < defs.length) setQuestionIndex(questionIndex + 1);
         else setStage('review');
       };
       const onBack = () => { if (questionIndex > 0) setQuestionIndex(questionIndex - 1); else setStage('welcome'); };
       const onJump = (idx) => { setQuestionIndex(idx); setStage('question'); };
-      const onSubmit = async () => { setBusy(true); try { await persist(responses, 'submitted'); setStage('submitted'); } finally { setBusy(false); } };
+      const onSubmit = async () => {
+        setBusy(true);
+        try { await persist(responses, 'submitted'); setStage('submitted'); }
+        catch {/* persist sets saveErr; stay on review */}
+        finally { setBusy(false); }
+      };
       let screen = null;
       if (stage === 'loading') screen = <Centered><div className="text-ink2 font-mono text-xs">Loading…</div></Centered>;
       else if (stage === 'error') screen = <Centered><div className="max-w-[420px] text-center"><div className="text-red font-mono text-sm leading-relaxed">{err}</div></div></Centered>;
@@ -296,7 +311,17 @@
       }
       else if (stage === 'review') screen = <Review defs={defs} responses={responses} onJump={onJump} onSubmit={onSubmit} busy={busy} />;
       else if (stage === 'submitted') screen = <Submitted engagement={engagement} session={session} defs={defs} />;
-      return <><PrintWorksheet engagement={engagement} defs={defs} />{screen}</>;
+      return (
+        <>
+          <PrintWorksheet engagement={engagement} defs={defs} />
+          {saveErr && (
+            <div className="screen-only fixed top-0 left-0 right-0 z-30 bg-red text-white text-[12px] font-mono px-4 py-2 text-center cursor-pointer" onClick={() => setSaveErr('')}>
+              {saveErr} <span className="underline ml-2">dismiss</span>
+            </div>
+          )}
+          {screen}
+        </>
+      );
     }
 
     function Welcome({ engagement, session, defs, onBegin }) {

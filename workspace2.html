@@ -1044,15 +1044,24 @@
 
     function ShareIntakeDialog({ engagement, defs, scenarios, values, onClose, onWritten }) {
       const [step, setStep] = useState(0);
-      const [email, setEmail] = useState(engagement.champion_email || '');
-      const [role, setRole] = useState('Champion');
-      const curated = useMemo(() => curateInputs(defs, scenarios, values, 5), [defs, scenarios, values]);
+      const existing = parseIntakeSession(engagement?.notes);
+      const [email, setEmail] = useState(existing?.shared_with_email || engagement.champion_email || '');
+      const [role, setRole] = useState(existing?.shared_with_role || 'Champion');
+      // On a resend, surface the previous selection so the seller doesn't lose
+      // their hand-curated set; only fall through to the heuristic on first send.
+      const heuristicCurated = useMemo(() => curateInputs(defs, scenarios, values, 5), [defs, scenarios, values]);
+      const curated = useMemo(() => {
+        if (existing?.curated_input_keys?.length) {
+          const fromExisting = existing.curated_input_keys.map(k => defs.find(d => d.input_key === k)).filter(Boolean);
+          if (fromExisting.length) return fromExisting;
+        }
+        return heuristicCurated;
+      }, [existing, defs, heuristicCurated]);
       const [selectedKeys, setSelectedKeys] = useState(() => new Set(curated.map(d => d.input_key)));
       const [intro, setIntro] = useState(() => DEFAULT_INTAKE_INTRO({ customer: engagement.prospect_name, analysisName: engagement.analysis_name }));
       const [busy, setBusy] = useState(false);
       const [copied, setCopied] = useState(false);
       const [err, setErr] = useState('');
-      const existing = parseIntakeSession(engagement?.notes);
       const toggleKey = (k) => setSelectedKeys(p => { const n = new Set(p); if (n.has(k)) n.delete(k); else if (n.size < 5) n.add(k); return n; });
       const buildAndWrite = async () => {
         const sessionObj = newIntakeSession({ shared_with_email: email || null, shared_with_role: role, curated_input_keys: [...selectedKeys] });
@@ -1183,7 +1192,13 @@
     function IntakeStatusBanner({ session, defs, onReview }) {
       if (!session) return null;
       const total = session.curated_input_keys?.length || defs.length || 0;
-      const answered = Object.keys(session.responses || {}).length;
+      const responses = session.responses || {};
+      const responded = Object.keys(responses).length;
+      const skipped = Object.values(responses).filter(r => r?.source === 'skipped').length;
+      const valued = responded - skipped;
+      const respondedLine = skipped > 0
+        ? `${valued} answered, ${skipped} skipped (${responded} of ${total})`
+        : `${responded} of ${total} answered`;
       const who = session.shared_with_email || 'prospect';
       const status = session.status || 'pending';
       if (status === 'submitted') {
@@ -1191,7 +1206,7 @@
           <div className="bg-red/10 border border-red px-4 py-3 mb-6 flex items-center justify-between gap-3 flex-wrap">
             <div>
               <div className="text-[11px] font-mono uppercase tracking-widest text-red">Submitted · {who}</div>
-              <div className="text-[12px] text-ink mt-1">{answered} of {total} answered · ready to review</div>
+              <div className="text-[12px] text-ink mt-1">{respondedLine} · ready to review</div>
             </div>
             <button onClick={onReview} className="bg-red hover:bg-red/90 text-white px-4 py-2 text-[11px] font-mono uppercase tracking-widest">Review responses →</button>
           </div>
@@ -1201,15 +1216,15 @@
         return (
           <div className="bg-green/15 border border-green/40 px-4 py-3 mb-6">
             <div className="text-[11px] font-mono uppercase tracking-widest text-green">✓ Applied · {who}</div>
-            <div className="text-[12px] text-ink2 mt-1">{answered} responses applied {fmtRelative(session.applied_at || session.shared_at)}</div>
+            <div className="text-[12px] text-ink2 mt-1">{valued} response{valued === 1 ? '' : 's'} applied {fmtRelative(session.applied_at || session.shared_at)}</div>
           </div>
         );
       }
-      if (answered > 0) {
+      if (responded > 0) {
         return (
           <div className="bg-surface border-l-2 border-amber px-4 py-3 mb-6">
             <div className="text-[11px] font-mono uppercase tracking-widest text-amber">In progress · {who}</div>
-            <div className="text-[12px] text-ink2 mt-1">{answered} of {total} answered · last touched {fmtRelative(session.shared_at)}</div>
+            <div className="text-[12px] text-ink2 mt-1">{respondedLine} · last touched {fmtRelative(session.shared_at)}</div>
           </div>
         );
       }
@@ -1328,15 +1343,19 @@
           const validKeys = new Set(defs.map(d => d.input_key));
           const responses = {};
           const importedKeys = [];
+          let nonFinite = 0;
           payload.questions.forEach(q => {
             if (!q?.input_key || !validKeys.has(q.input_key)) return;
             importedKeys.push(q.input_key);
             if (q.response && q.response.value != null) {
-              responses[q.input_key] = { value: Number(q.response.value), source: q.response.source || 'edited', at: q.response.at || new Date().toISOString() };
+              const n = Number(q.response.value);
+              if (!isFinite(n)) { nonFinite++; return; }  // skip malformed; don't pollute the session with NaN
+              responses[q.input_key] = { value: n, source: q.response.source || 'edited', at: q.response.at || new Date().toISOString() };
             } else if (q.response && q.response.source === 'skipped') {
               responses[q.input_key] = { value: null, source: 'skipped', at: q.response.at || new Date().toISOString() };
             }
           });
+          if (nonFinite > 0 && Object.keys(responses).length === 0) throw new Error(`Could not parse ${nonFinite} numeric response${nonFinite > 1 ? 's' : ''} — every value in the file was non-numeric.`);
           if (importedKeys.length === 0) throw new Error("None of the file's input_keys match this analysis.");
           const existing = parseIntakeSession(engagement.notes);
           const sess = existing
