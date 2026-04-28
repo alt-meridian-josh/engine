@@ -33,6 +33,33 @@
     body { background:#0e0e0e; color:#e8e8e8; font-family:'Syne', system-ui, sans-serif; }
     input, textarea, button, select { font-family: inherit; }
     input[type=range] { accent-color:#d63b2f; }
+
+    /* === PRINT REPORT (R1) ===
+       Trigger paths: body.print-mode (devtools/QA preview) OR @media print (real print).
+       Every selector below is scoped to .print-only ancestry, body.print-mode, or @media print
+       so the live UI cannot regress when neither path is active (lesson 2026-04-26). */
+    @media screen { .print-only { display: none !important; } }
+    body.print-mode .screen-only { display: none !important; }
+    @media print          { .screen-only { display: none !important; } }
+    body.print-mode .print-only { display: block !important; }
+    @media print          { .print-only { display: block !important; } }
+    body.print-mode { background: #fff !important; color: #000 !important; }
+    body.print-mode #root { background: #fff !important; }
+    @media print { html, body, #root { background: #fff !important; color: #000 !important; } }
+    @page { size: letter; margin: 0.6in; }
+    .print-only {
+      font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica, Arial, sans-serif;
+      font-size: 10pt; line-height: 1.5; color: #000; background: #fff;
+      max-width: 6.5in; margin: 0 auto;
+    }
+    .print-only h1, .print-only h2, .print-only h3 { font-family: 'Syne', sans-serif; color: #000; margin: 0; }
+    .print-only .r-mono { font-family: 'DM Mono', ui-monospace, monospace; }
+    /* Confidence palette darkened only in print: in-app uses #86efac/#fbbf24/#888 which
+       wash out on white paper. Semantic equivalents kept; hex darkened for legibility.
+       User-approved override of Hard Rule 5 (brand consistency intent, not literal hex). */
+    .print-only .r-conf-strong      { color: #16a34a; }
+    .print-only .r-conf-moderate    { color: #d97706; }
+    .print-only .r-conf-exploratory { color: #525252; }
   </style>
 </head>
 <body class="bg-bg text-ink">
@@ -739,11 +766,13 @@
       'Throughput': (a) => ({ label: 'BCR', value: fmtMultiple(a?.bcr), unit: '' }),  // throughput-as-secondary uses BCR proxy until throughput field exists
       'Evidence':   (a) => ({ label: 'BCR', value: fmtMultiple(a?.bcr), unit: '' })
     };
-    function orderedSignals(behavior) {
+    // limit defaults to 3 to match the live hero. Report passes 3 explicitly (R1) so
+    // the artifact stays in lockstep with what the buyer sees on screen.
+    function orderedSignals(behavior, limit = 3) {
       const seen = new Set();
       const seq = [behavior.signalEmphasis, behavior.signalSecondary, 'Payback', 'BCR', 'CoD']
         .filter(k => k && OVERVIEW_SIGNALS[k] && !seen.has(k) && (seen.add(k), true));
-      return seq.slice(0, 3);
+      return seq.slice(0, limit);
     }
     function OverviewTab({ bundle, scenarios, analysis, governed, onTab, tags, behavior, tone }) {
       const conf = useMemo(() => confidenceTier(scenarios), [scenarios]);
@@ -1843,6 +1872,29 @@
       { key: 'snapshots', label: 'Snapshots' }
     ];
 
+    /* ---------- PRINT REPORT TRIGGER (R1) ----------
+       Module-scope so a stray re-render of AnalysisShell can't stack listeners.
+       Guard flag prevents double-arming on rapid clicks; { once: true } self-removes
+       the cleanup after afterprint fires (which fires on print AND on dialog cancel). */
+    let _printArmed = false;
+    function openPrintReport() {
+      if (_printArmed) return;
+      _printArmed = true;
+      document.body.classList.add('print-mode');
+      window.addEventListener('afterprint', () => {
+        document.body.classList.remove('print-mode');
+        _printArmed = false;
+      }, { once: true });
+      window.print();
+    }
+
+    /* ---------- REPORT VIEW (R1 shell) ----------
+       Empty container in R1: wires the print plumbing without rendering content yet.
+       Cover/hero/interpretation/scenarios/evidence/tags/snapshots land in R2–R5. */
+    function ReportView({ bundle, scenarios, analysis, tags, behavior, tone }) {
+      return <div className="print-only" />;
+    }
+
     function AnalysisShell({ engagementId, onBack }) {
       const [bundle, setBundle] = useState(null);
       const [err, setErr] = useState('');
@@ -1930,7 +1982,7 @@
       const stage = friendlyStage(bundle.engagement.deal_stage);
       return (
         <div className="h-full flex flex-col bg-bg">
-          <header className="h-12 px-3 sm:px-4 border-b border-border bg-surface flex items-center justify-between flex-shrink-0 gap-3">
+          <header className="screen-only h-12 px-3 sm:px-4 border-b border-border bg-surface flex items-center justify-between flex-shrink-0 gap-3">
             <div className="flex items-center gap-2 sm:gap-3 min-w-0">
               <button onClick={onBack} className="text-ink2 hover:text-red text-sm font-mono flex-shrink-0">←</button>
               <button onClick={() => setNavOpen(o => !o)} className="md:hidden text-ink2 hover:text-red text-sm font-mono flex-shrink-0">☰</button>
@@ -1939,10 +1991,10 @@
             <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
               <StageBadge stage={bundle.engagement.deal_stage} />
               <button onClick={() => setDrawerOpen(o => !o)} className={`px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider border ${drawerOpen ? 'border-red text-red' : 'border-border2 text-ink2 hover:text-ink'}`}>Meridian ◆</button>
-              <button className="hidden sm:block bg-red hover:bg-red/90 text-white px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider">Report</button>
+              <button onClick={openPrintReport} className="hidden sm:block bg-red hover:bg-red/90 text-white px-2.5 py-1 text-[10px] font-mono uppercase tracking-wider">Report</button>
             </div>
           </header>
-          <div className="flex-1 flex min-h-0">
+          <div className="screen-only flex-1 flex min-h-0">
             <aside className={`${navOpen ? 'absolute inset-0 z-10 flex' : 'hidden'} md:relative md:flex md:w-[220px] bg-surface border-r border-border flex-col flex-shrink-0`}>
               <div className="px-4 pt-4 pb-3 border-b border-border">
                 <button onClick={() => { onBack(); setNavOpen(false); }}
@@ -1971,6 +2023,7 @@
             </main>
             {drawerOpen && <MeridianDrawer onClose={() => setDrawerOpen(false)} tab={tab} context={{ engagement: bundle.engagement, domain: bundle.domain, scenarios, analysis, tags, behavior, tone }} />}
           </div>
+          <ReportView bundle={bundle} scenarios={scenarios} analysis={analysis} tags={tags} behavior={behavior} tone={tone} />
         </div>
       );
     }
