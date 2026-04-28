@@ -60,6 +60,23 @@
     .print-only .r-conf-strong      { color: #16a34a; }
     .print-only .r-conf-moderate    { color: #d97706; }
     .print-only .r-conf-exploratory { color: #525252; }
+    /* === COVER + HERO + SIGNALS (R2) === */
+    .print-only .r-cover { padding-top: 1.4in; page-break-after: always; }
+    .print-only .r-cover-mark { font-family: 'Syne', sans-serif; font-size: 22pt; letter-spacing: 0.06em; font-weight: 700; }
+    .print-only .r-cover-mark .r-mark-alt { color: #d63b2f; }
+    .print-only .r-cover-name { font-size: 28pt; font-weight: 600; line-height: 1.15; margin-top: 1.1in; }
+    .print-only .r-cover-meta { margin-top: 1.4in; border-top: 1px solid #d0d0d0; padding-top: 18pt; font-size: 10pt; line-height: 1.9; color: #333; }
+    .print-only .r-cover-meta-label { display: inline-block; width: 1.2in; color: #666; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.08em; }
+    .print-only .r-hero { padding-top: 0.4in; page-break-after: always; }
+    .print-only .r-hero-title { font-size: 11pt; color: #555; text-transform: uppercase; letter-spacing: 0.08em; font-weight: 500; margin-bottom: 10pt; }
+    .print-only .r-hero-arv { font-family: 'Syne', sans-serif; font-size: 64pt; font-weight: 700; line-height: 1; color: #d63b2f; }
+    .print-only .r-hero-sub { font-family: 'DM Mono', ui-monospace, monospace; font-size: 10pt; color: #444; margin-top: 14pt; text-transform: uppercase; letter-spacing: 0.1em; }
+    .print-only .r-hero-conf { font-size: 11pt; margin-top: 26pt; font-weight: 600; }
+    .print-only .r-signals { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 24pt; margin-top: 36pt; padding-top: 20pt; border-top: 1px solid #d0d0d0; }
+    .print-only .r-signal { text-align: center; }
+    .print-only .r-signal-value { font-family: 'Syne', sans-serif; font-size: 22pt; font-weight: 600; color: #000; }
+    .print-only .r-signal-unit { font-family: 'DM Mono', ui-monospace, monospace; font-size: 11pt; color: #666; margin-left: 2pt; }
+    .print-only .r-signal-label { font-size: 9pt; color: #666; margin-top: 6pt; text-transform: uppercase; letter-spacing: 0.08em; }
   </style>
 </head>
 <body class="bg-bg text-ink">
@@ -1888,11 +1905,51 @@
       window.print();
     }
 
-    /* ---------- REPORT VIEW (R1 shell) ----------
-       Empty container in R1: wires the print plumbing without rendering content yet.
-       Cover/hero/interpretation/scenarios/evidence/tags/snapshots land in R2–R5. */
+    /* ---------- REPORT VIEW (R2: cover + hero + signals) ----------
+       Reuses live-UI helpers: confidenceTier, TONE_COPY, OVERVIEW_SIGNALS, orderedSignals,
+       fmtMoney. Signal value strings inherit the live formatters' '—' fallback when a
+       metric is unset (e.g. NPV without implementation_cost); the report swaps that to
+       'pending' since em-dashes are disallowed in user-facing copy (Hard Rule 6). */
+    const reportSafeValue = (v) => String(v).replace(/—/g, 'pending');
     function ReportView({ bundle, scenarios, analysis, tags, behavior, tone }) {
-      return <div className="print-only" />;
+      const eng = bundle.engagement;
+      const outcome = bundle.domain?.primary_outcome;
+      const conf = confidenceTier(scenarios);
+      const heroSub = TONE_COPY[tone].heroSubtitle(outcome);
+      const confVerb = TONE_COPY[tone].confidenceVerb;
+      const confClass = 'r-conf-' + conf.tier.toLowerCase();
+      const coverDate = eng.intake_date
+        ? new Date(eng.intake_date).toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })
+        : '';
+      const signals = orderedSignals(behavior, 3).map(k => ({ key: k, ...OVERVIEW_SIGNALS[k](analysis) }));
+      return (
+        <div className="print-only">
+          <section className="r-cover">
+            <div className="r-cover-mark"><span className="r-mark-alt">ALT</span> MERIDIAN</div>
+            <h1 className="r-cover-name">{eng.analysis_name || eng.vendor_name || 'Untitled analysis'}</h1>
+            <div className="r-cover-meta">
+              {eng.prospect_name && <div><span className="r-cover-meta-label">Prepared for</span>{eng.prospect_name}</div>}
+              <div><span className="r-cover-meta-label">Prepared by</span>Alt Meridian</div>
+              {coverDate && <div><span className="r-cover-meta-label">Date</span>{coverDate}</div>}
+            </div>
+          </section>
+          <section className="r-hero">
+            <div className="r-hero-title">{eng.analysis_name || 'Value case'}</div>
+            <div className="r-hero-arv">{fmtMoney(analysis?.arvY1 || 0)}</div>
+            <div className="r-hero-sub">{heroSub}</div>
+            <div className={'r-hero-conf ' + confClass}>{confVerb}, {conf.tier} confidence</div>
+            <div className="r-signals">
+              {signals.map(s => (
+                <div key={s.key} className="r-signal">
+                  <span className="r-signal-value">{reportSafeValue(s.value)}</span>
+                  {s.unit && <span className="r-signal-unit">{s.unit}</span>}
+                  <div className="r-signal-label">{s.label}</div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      );
     }
 
     function AnalysisShell({ engagementId, onBack }) {
