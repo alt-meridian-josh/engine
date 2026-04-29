@@ -97,3 +97,21 @@
 **Prevention rule:** When a tag/config schema declares a flag, the chunk that adds the flag must also add (or stub with a TODO) the consumer in the same commit. Dead-config audits are now part of the schema-vs-consumer gap-analysis pass: every field on a behavior object should have at least one read site outside the merger.
 **Status:** RESOLVED
 **Project:** alt-meridian
+
+## BUG-009 2026-04-29 — `vef_scenario_selections.is_active` column referenced in code but not in schema
+**File(s):** vef2.html:1002 (createAnalysis upsert), workspace2.html:643 (mergeScenarios read), workspace2.html:2278 (auto-activation effect), workspace2.html:2296 (manual toggle)
+**Symptom:** Creating an analysis via vef2 (or toggling a scenario in workspace2) failed with PostgREST error `column "is_active" of relation "vef_scenario_selections" does not exist`. Code paths uniformly used `is_active` (the new name); the table still had the original `active` column.
+**Root cause:** During the v3 rebuild on 2026-04-27 (commits `ce6db4c` W5, `7044a12` W7, `d54cc17` A7 on workspace2; `e7a1f22` V8 on vef2), the React rebuild standardized read/write column names on `is_active` to match later schema intent — but the matching DDL `ALTER TABLE … RENAME COLUMN active TO is_active` was never authored in the same chunk. The rename existed as an assumption in code with no migration to back it.
+**Fix applied:** Direct DDL in Supabase dashboard: `ALTER TABLE vef_scenario_selections RENAME COLUMN active TO is_active`. No code changes.
+**Prevention rule:** Any column rename or addition referenced in code must ship with a same-chunk DDL note (in the commit body or in a `migrations/` artifact). Audit step before merging a chunk that names a non-trivial column: run a quick `select <column>` smoke test or paste the DDL in the commit message so the next session has a paper trail. Also: legacy code paths must be checked when renaming. **workspace.html:717 and :2442 still reference the OLD `active` column** (legacy v1 surface, last touched 2026-04-27). Per the no-fix-other-code constraint of this session, those references are NOT patched here, but legacy v1 toggling/save paths will now fail with the inverse error (`column "active" does not exist`) until either the v1 file is updated or v1 is retired.
+**Status:** RESOLVED (DDL applied)
+**Project:** alt-meridian
+
+## BUG-010 2026-04-29 — `vef_scenario_selections` missing UNIQUE constraint for ON CONFLICT
+**File(s):** vef2.html:1002 (createAnalysis), workspace2.html:2278/:2296 (auto-activation + toggle), workspace.html:1612/:1697/:2442 (legacy v1 save paths)
+**Symptom:** After BUG-009 was fixed, the upsert still failed: PostgREST error `there is no unique or exclusion constraint matching the ON CONFLICT specification`. Six call sites pass `'engagement_id,scenario_id'` as the `onConflict` argument to `sbUpsert`, and the table had no matching unique constraint. Without the constraint, PostgREST refuses the upsert path entirely.
+**Root cause:** The ON CONFLICT clause was authored in v3 rebuild commits (same set as BUG-009: `ce6db4c`, `7044a12`, `d54cc17`, `e7a1f22`, plus older legacy paths in `workspace.html`) on the assumption that a unique constraint on `(engagement_id, scenario_id)` already existed. It didn't; the table presumably had only a generic primary key. Same root cause as BUG-009 — code-side schema assumptions outran DDL.
+**Fix applied:** Direct DDL in Supabase dashboard: `ALTER TABLE vef_scenario_selections ADD CONSTRAINT vef_scenario_selections_engagement_scenario_unique UNIQUE (engagement_id, scenario_id)`. No code changes.
+**Prevention rule:** Any new `sbUpsert` call with an `onConflict` argument must verify that a matching UNIQUE or EXCLUSION constraint exists on the named columns before merge. Tables in this codebase with ON CONFLICT upserts: `vef_scenario_selections (engagement_id, scenario_id)` — now constrained as of this fix; `vef_input_values (engagement_id, input_key)` — constraint status NOT verified in this session, has been working in production but worth confirming exists. Audit step: before merging a chunk that adds an upsert with a new conflict tuple, paste a `\d <table>` output or the DDL in the commit message.
+**Status:** RESOLVED (DDL applied)
+**Project:** alt-meridian
