@@ -782,6 +782,11 @@
     }
     // Pre-engagement scenarios don't have computed values; only `evidence` rank is meaningful here.
     // Workspace2 supports the full bcr/delay/arv set.
+    // NOTE: behavior.weakLast and behavior.hideNonBiasedWeak (gap analysis #5, #6b) are
+    // intentionally NOT consumed in vef2 — Step 2 is the seller's pre-engagement picker,
+    // where tags are still being chosen and hiding scenarios would break the picker UX.
+    // Both flags only apply post-engagement in workspace2 where the buyer-facing render
+    // and ARV are at stake. See workspace2.html applyHideNonBiasedWeak / applyWeakLast.
     function rankScenariosForVef(scenarios, rankBy) {
       if (!scenarios?.length) return [];
       const sorted = scenarios.slice();

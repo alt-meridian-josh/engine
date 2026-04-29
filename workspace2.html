@@ -1011,6 +1011,41 @@
       if (!rankBy || !scenarios?.length) return scenarios;
       return scenarios.slice().sort((a, b) => scoreScenarioBy(b, analysis, rankBy) - scoreScenarioBy(a, analysis, rankBy));
     }
+    /* ---------- TAG-DRIVEN VISIBILITY + DEMOTION (gap analysis #5, #6b) ----------
+       Two flags that ship in TAG_BEHAVIOR but had no consumers:
+         - new_footprint.weakLast        → demote weak rows to the end of the list
+         - compliance_driven.hideNonBiasedWeak → hide weak rows in non-biased themes
+       Compose: filter (hide) → rank → demote (weakLast).
+       autoActiveThemes is the literal source of truth for "biased themes" per spec;
+       fall back to themeBias for forward flexibility (future tags may declare bias
+       without auto-activation). */
+    const biasedThemesOf = (behavior) => behavior?.autoActiveThemes ?? behavior?.themeBias ?? [];
+    // Hide weak non-biased scenarios. NOTE: predicate restricted to active rows because
+    // workspace2 has no tag-toggle UX today (no UI to mutate the TAGS line in
+    // engagement.notes; only path is direct DB edit or recreate via vef2). Hiding
+    // inactive weak non-biased rows would strand them — the seller would have to
+    // remove the tag (destructive) to surface them again. Trade-off: activating an
+    // inactive weak non-biased row while compliance_driven is on makes the card
+    // disappear. When a tag-edit affordance ships, drop the s.active guard so the
+    // hide rule applies regardless of active state per the original spec.
+    function applyHideNonBiasedWeak(scenarios, behavior) {
+      if (!behavior?.hideNonBiasedWeak || !scenarios?.length) return scenarios;
+      const biased = biasedThemesOf(behavior);
+      return scenarios.filter(s => {
+        if (s.evidence_strength !== 'Weak') return true;
+        if (biased.includes(s.value_theme)) return true;
+        return !s.active;
+      });
+    }
+    // Stable two-bucket partition: non-weak rows first (preserving incoming order),
+    // weak rows last (also preserving incoming order). Apply AFTER rankScenarios so
+    // the primary score order is preserved within each bucket.
+    function applyWeakLast(scenarios, on) {
+      if (!on || !scenarios?.length) return scenarios;
+      const nonWeak = [], weak = [];
+      scenarios.forEach(s => (s.evidence_strength === 'Weak' ? weak : nonWeak).push(s));
+      return nonWeak.concat(weak);
+    }
 
     function ScenariosTab({ scenarios, analysis, onToggle, behavior }) {
       const themeData = useMemo(() => {
@@ -1024,7 +1059,11 @@
       }, [scenarios, analysis]);
       const { data: themeDataSorted, topTheme, biasUnmatched } = applyThemeBias(themeData, behavior?.themeBias);
       const biasArr = behavior?.themeBias || [];
-      const rankedScenarios = useMemo(() => behavior?.rankBy ? rankScenarios(scenarios, analysis, behavior.rankBy) : scenarios, [scenarios, analysis, behavior?.rankBy]);
+      const visibleScenarios = useMemo(() => applyHideNonBiasedWeak(scenarios, behavior), [scenarios, behavior]);
+      const rankedScenarios = useMemo(() => {
+        const ranked = behavior?.rankBy ? rankScenarios(visibleScenarios, analysis, behavior.rankBy) : visibleScenarios;
+        return applyWeakLast(ranked, behavior?.weakLast);
+      }, [visibleScenarios, analysis, behavior?.rankBy, behavior?.weakLast]);
       const rankCaption = behavior?.rankBy ? RANK_CAPTION[behavior.rankBy] : null;
       if (!scenarios.length) return <div className="p-8 font-mono text-xs text-ink3">No scenarios loaded for this domain.</div>;
       return (
@@ -1988,10 +2027,13 @@
       const signals = orderedSignals(behavior, 3).map(k => ({ key: k, ...OVERVIEW_SIGNALS[k](analysis) }));
       // Interpretation data: themeData (Y1 ARV summed by theme, then bias-sorted), top 5
       // active mechanisms in the same rank order the live Scenarios tab uses.
+      // Apply tag-driven visibility (hideNonBiasedWeak) before any aggregation so theme
+      // totals, top mechanisms, and the full table all reflect the buyer-visible set.
       const activeScenarios = scenarios.filter(s => s.active);
+      const visibleActive = applyHideNonBiasedWeak(activeScenarios, behavior);
       const themeRaw = (() => {
         const byTheme = {};
-        activeScenarios.forEach(s => {
+        visibleActive.forEach(s => {
           const per = analysis?.perScenario?.find(p => p.scenario_id === s.scenario_id);
           const t = s.value_theme || 'Other';
           byTheme[t] = (byTheme[t] || 0) + (per?.arv || 0);
@@ -2002,9 +2044,11 @@
       const themeMax = themeBiased.reduce((m, d) => Math.max(m, d.value), 0);
       const headline = reportHeadline(tags, tone);
       const rankCaption = behavior?.rankBy ? RANK_CAPTION[behavior.rankBy] : null;
-      const topMechs = (behavior?.rankBy ? rankScenarios(activeScenarios, analysis, behavior.rankBy) : activeScenarios).slice(0, 5);
+      const rankedVisible = behavior?.rankBy ? rankScenarios(visibleActive, analysis, behavior.rankBy) : visibleActive;
+      const orderedVisible = applyWeakLast(rankedVisible, behavior?.weakLast);
+      const topMechs = orderedVisible.slice(0, 5);
       // Full scenarios table sorted in the same order as the live Scenarios tab.
-      const fullScenarios = behavior?.rankBy ? rankScenarios(activeScenarios, analysis, behavior.rankBy) : activeScenarios;
+      const fullScenarios = orderedVisible;
       // Tag groups for the buyer-visible "Tags applied" block: keep the lens precedence
       // order users see in vef2 step 1 (Buyer lens > Motion > Environment).
       const tagGroupOrder = ['Buyer lens', 'Motion', 'Environment'];
