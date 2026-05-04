@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Alt Meridian · Constellation</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { theme: { extend: {
+      colors: {
+        bg:'#0e0e0e', surface:'#141414', surface2:'#1a1a1a',
+        border:'#222222', border2:'#2d2d2d',
+        ink:'#e8e8e8', ink2:'#888888', ink3:'#444444',
+        red:'#d63b2f', 'red-dim':'rgba(214,59,47,0.10)',
+        green:'#2d7d4f', amber:'#b45309', blue:'#1d4ed8', teal:'#0f766e'
+      },
+      fontFamily: {
+        display:['Syne','sans-serif'],
+        mono:['"DM Mono"','monospace'],
+        sans:['Syne','system-ui','sans-serif']
+      }
+    } } };
+  </script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    html, body, #root { height: 100%; }
+    body { background:#0e0e0e; color:#e8e8e8; font-family:'Syne', system-ui, sans-serif; }
+    input, textarea, button, select { font-family: inherit; }
+    input[type=range] { accent-color:#d63b2f; }
+    .cn-region { border: 1px dashed #222; }
+  </style>
+</head>
+<body class="bg-bg text-ink">
+  <div id="root"></div>
+  <script type="text/babel" data-presets="react">
+    const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+    /* ---------- SUPABASE ---------- */
+    const SUPABASE_URL = 'https://kpecdezcolcycgpuqbgs.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwZWNkZXpjb2xjeWNncHVxYmdzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU2ODIyMDYsImV4cCI6MjA5MTI1ODIwNn0.rKHzdjjkYToEZWdS0ngg3Kgigh_gDWt5cRbLBCE44rg';
+    const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    async function sbSelect(table, q) {
+      let b = sb.from(table).select('*');
+      if (q?.eq) Object.entries(q.eq).forEach(([k, v]) => b = b.eq(k, v));
+      if (q?.in) Object.entries(q.in).forEach(([k, vs]) => b = b.in(k, vs));
+      if (q?.is) Object.entries(q.is).forEach(([k, v]) => b = b.is(k, v));
+      const { data, error } = await b;
+      if (error) throw error;
+      return data || [];
+    }
+
+    /* ---------- LAYOUT REGIONS (placeholders — wired in C2–C8) ---------- */
+    function MacroStrip({ engagement }) {
+      return (
+        <div className="cn-region h-14 px-4 flex items-center gap-6 text-[11px] font-mono uppercase tracking-widest text-ink2 flex-shrink-0">
+          <span className="text-ink3">macro summary</span>
+          <span className="text-ink3">·</span>
+          <span>{engagement?.vendor_name || '—'} <span className="text-ink3">→</span> {engagement?.prospect_name || '—'}</span>
+          <span className="text-ink3 ml-auto">wired in C4</span>
+        </div>
+      );
+    }
+
+    function Constellation({ bundle }) {
+      return (
+        <div className="cn-region flex-1 m-2 grid place-items-center text-ink3 font-mono text-xs">
+          <div className="text-center">
+            <div className="text-ink2">graph renders here</div>
+            <div className="mt-1 text-[10px]">columns: signals · themes · mechanisms · levers</div>
+            <div className="mt-1 text-[10px]">wired in C2 + C3</div>
+          </div>
+        </div>
+      );
+    }
+
+    function NodePanel({ open, onClose }) {
+      if (!open) return null;
+      return (
+        <aside className="cn-region w-[360px] m-2 ml-0 p-4 flex flex-col">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-[10px] font-mono uppercase tracking-widest text-ink3">node panel</div>
+            <button onClick={onClose} className="text-ink2 hover:text-red text-xs font-mono">close</button>
+          </div>
+          <div className="text-xs text-ink3 font-mono">wired in C5</div>
+        </aside>
+      );
+    }
+
+    function InsightsBar() {
+      return (
+        <div className="cn-region h-12 mx-2 mb-2 px-4 flex items-center gap-3 text-[11px] font-mono uppercase tracking-widest text-ink3 flex-shrink-0">
+          <span>insights</span>
+          <span>·</span>
+          <span>orphan signal · thin lever · evidence gap</span>
+          <span className="ml-auto">wired in C8</span>
+        </div>
+      );
+    }
+
+    /* ---------- SHELL ---------- */
+    function ConstellationShell({ engagementId }) {
+      const [bundle, setBundle] = useState(null);
+      const [err, setErr] = useState(null);
+      const [panelOpen, setPanelOpen] = useState(false);
+
+      // C1 loader stub: pulls just the engagement row to prove the round-trip.
+      // Full bundle (signals, scenarios, defs, evidence) loads in C2.
+      useEffect(() => {
+        let cancelled = false;
+        (async () => {
+          try {
+            const rows = await sbSelect('vef_engagements', { eq: { engagement_id: engagementId } });
+            if (cancelled) return;
+            if (!rows.length) throw new Error(`No engagement found: ${engagementId}`);
+            setBundle({ engagement: rows[0] });
+          } catch (e) { if (!cancelled) setErr(e.message || String(e)); }
+        })();
+        return () => { cancelled = true; };
+      }, [engagementId]);
+
+      if (err) return (
+        <div className="h-full grid place-items-center text-red font-mono text-xs px-4 text-center">
+          {err}
+          <a href={`workspace2.html?engagement=${encodeURIComponent(engagementId)}`} className="mt-3 text-ink2 hover:text-red underline">← back to workspace</a>
+        </div>
+      );
+      if (!bundle) return <div className="h-full grid place-items-center text-ink2 font-mono text-xs">Loading constellation…</div>;
+
+      return (
+        <div className="h-full flex flex-col">
+          <header className="h-12 px-4 border-b border-border bg-surface flex items-center justify-between flex-shrink-0 gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <a href={`workspace2.html?engagement=${encodeURIComponent(engagementId)}`}
+                 className="text-ink2 hover:text-red text-sm font-mono">←</a>
+              <div className="font-display text-sm tracking-wide flex items-center gap-2">
+                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" vectorEffect="non-scaling-stroke" className="text-red" aria-hidden="true">
+                  <path d="M8 1 L9.4 6.6 L15 8 L9.4 9.4 L8 15 L6.6 9.4 L1 8 L6.6 6.6 Z" />
+                </svg>
+                <span><span className="text-red">ALT</span> <span className="text-ink">MERIDIAN</span> <span className="text-ink2">· Constellation</span></span>
+              </div>
+            </div>
+            <div className="text-[10px] font-mono uppercase tracking-wider text-ink3">v1 · shell</div>
+          </header>
+          <MacroStrip engagement={bundle.engagement} />
+          <div className="flex-1 flex min-h-0">
+            <Constellation bundle={bundle} />
+            <NodePanel open={panelOpen} onClose={() => setPanelOpen(false)} />
+          </div>
+          <InsightsBar />
+        </div>
+      );
+    }
+
+    function App() {
+      const engagementId = new URLSearchParams(location.search).get('engagement');
+      if (!engagementId) return (
+        <div className="h-full grid place-items-center text-ink2 font-mono text-xs px-4 text-center">
+          No engagement specified.
+          <a href="workspace2.html" className="mt-3 text-ink2 hover:text-red underline">← workspace</a>
+        </div>
+      );
+      return <ConstellationShell engagementId={engagementId} />;
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
