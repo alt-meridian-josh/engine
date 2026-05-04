@@ -170,6 +170,82 @@
       return { signals: signalNodes, mechs: mechNodes, levers: leverNodes, edges, drift };
     }
 
+    /* ---------- CALC (PINNED COPY from workspace2.html @ 937777a) ----------
+     * DO NOT MODIFY in this file. If a constellation-specific case forces a
+     * change, that's the trigger to extract to a shared module (calc.js)
+     * NOW — not later. Two divergent copies = the macro strip silently
+     * lying. When workspace2's calc moves, audit this block and re-pin. */
+    const RAMPS = [0.5, 1.0, 1.0];
+    const DISCOUNT = 0.10;
+
+    function evalFormula(formula, inputs) {
+      if (!formula || typeof formula !== 'string') return null;
+      const keys = Object.keys(inputs || {});
+      const vals = keys.map(k => {
+        const v = inputs[k];
+        return (v == null || isNaN(Number(v))) ? 0 : Number(v);
+      });
+      try {
+        const fn = new Function(...keys, '"use strict"; return (' + formula + ');');
+        const r = fn(...vals);
+        return (typeof r === 'number' && isFinite(r)) ? r : null;
+      } catch (_) { return null; }
+    }
+
+    function resolvedInputs(inputsMap, inputDefs) {
+      const out = {};
+      (inputDefs || []).forEach(d => {
+        const p = inputsMap?.[d.input_key]?.provided_value;
+        out[d.input_key] = p != null ? Number(p) : Number(d.typical_value ?? d.default_value ?? 0);
+      });
+      return out;
+    }
+
+    function computeAnalysis(scenarios, inputsMap, inputDefs) {
+      const inputs = resolvedInputs(inputsMap, inputDefs);
+      const per = (scenarios || []).map(s => {
+        const arv = evalFormula(s.value_scenario_formula, inputs) || 0;
+        const delay = evalFormula(s.delay_cost_formula, inputs) || (arv / 12);
+        const coi = evalFormula(s.cost_of_inaction_formula, inputs) || (arv * 3);
+        return { scenario_id: s.scenario_id, theme: s.value_theme || 'other', active: !!s.active, arv, delay, coi, pool_shadow: false };
+      });
+      const best = {};
+      per.filter(p => p.active).forEach(p => { if (!best[p.theme] || p.arv > best[p.theme].arv) best[p.theme] = p; });
+      per.forEach(p => { if (p.active && best[p.theme] && best[p.theme].scenario_id !== p.scenario_id) p.pool_shadow = true; });
+      const counted = per.filter(p => p.active && !p.pool_shadow);
+      const arvFull = counted.reduce((s, p) => s + p.arv, 0);
+      const arvY1 = arvFull * RAMPS[0], arvY2 = arvFull * RAMPS[1], arvY3 = arvFull * RAMPS[2];
+      const monthlyDelay = counted.reduce((s, p) => s + p.delay, 0);
+      const coi3yr = counted.reduce((s, p) => s + p.coi, 0);
+      const impl = Number(inputsMap?.implementation_cost?.provided_value) || 0;
+      const npv = impl > 0 ? arvY1 + arvY2 / (1 + DISCOUNT) + arvY3 / (1 + DISCOUNT) ** 2 - impl : null;
+      const payback = impl > 0 && arvY1 > 0 ? impl / (arvY1 / 12) : null;
+      const bcr = impl > 0 ? (arvY1 + arvY2 + arvY3) / impl : null;
+      return { arvY1, arvY2, arvY3, arvFull, monthlyDelay, coi3yr, npv, payback, bcr, perScenario: per, impl };
+    }
+
+    function confidenceTier(scenarios) {
+      const active = (scenarios || []).filter(s => s.active);
+      if (!active.length) return { tier: 'EXPLORATORY', pct: 25, color: '#888' };
+      const t = { Strong: 0, Moderate: 0, Weak: 0 };
+      active.forEach(s => { const e = s.evidence_strength || 'Moderate'; if (t[e] != null) t[e]++; });
+      const score = (t.Strong + t.Moderate * 0.6 + t.Weak * 0.3) / active.length;
+      if (score >= 0.75) return { tier: 'STRONG', pct: 90, color: '#86efac' };
+      if (score >= 0.45) return { tier: 'MODERATE', pct: 60, color: '#fbbf24' };
+      return { tier: 'EXPLORATORY', pct: 30, color: '#888' };
+    }
+
+    /* ---------- FORMAT HELPERS (also from workspace2 @ 937777a) ---------- */
+    function fmtMoney(n) {
+      if (n == null || !isFinite(n)) return '—';
+      const a = Math.abs(n);
+      if (a >= 1e9) return '$' + (n / 1e9).toFixed(1) + 'B';
+      if (a >= 1e6) return '$' + (n / 1e6).toFixed(1) + 'M';
+      if (a >= 1e3) return '$' + (n / 1e3).toFixed(0) + 'K';
+      return '$' + Math.round(n).toLocaleString();
+    }
+    const fmtMultiple = (n) => (n == null || !isFinite(n)) ? '—' : n.toFixed(2) + 'x';
+
     /* ---------- THEME PALETTE (copied from workspace2.html @ 937777a) ---------- */
     const THEME_COLORS = {
       'Operational Efficiency':'#fbbf24', 'Compliance & Risk':'#c4b5fd', 'Asset Performance':'#86efac',
@@ -295,14 +371,36 @@
       );
     }
 
-    /* ---------- LAYOUT REGIONS (placeholders — wired in C4–C8) ---------- */
-    function MacroStrip({ engagement }) {
+    /* ---------- LAYOUT REGIONS ---------- */
+    function MacroNum({ label, value, accent }) {
       return (
-        <div className="cn-region h-14 px-4 flex items-center gap-6 text-[11px] font-mono uppercase tracking-widest text-ink2 flex-shrink-0">
-          <span className="text-ink3">macro summary</span>
-          <span className="text-ink3">·</span>
-          <span>{engagement?.vendor_name || '—'} <span className="text-ink3">→</span> {engagement?.prospect_name || '—'}</span>
-          <span className="text-ink3 ml-auto">wired in C4</span>
+        <div className="flex flex-col">
+          <div className={`font-display font-bold leading-none ${accent || 'text-ink'}`} style={{ fontSize: '20px' }}>{value}</div>
+          <div className="mt-1 text-[9px] font-mono uppercase tracking-widest text-ink3">{label}</div>
+        </div>
+      );
+    }
+    function MacroStrip({ engagement, analysis, scenarios, evidenceCount }) {
+      const conf = useMemo(() => confidenceTier(scenarios || []), [scenarios]);
+      const activeMechs = (scenarios || []).filter(s => s.active).length;
+      const monthlyDelay = analysis?.monthlyDelay || 0;
+      return (
+        <div className="h-16 px-4 border-b border-border bg-surface flex items-center gap-7 flex-shrink-0 overflow-x-auto">
+          <div className="flex flex-col flex-shrink-0">
+            <div className="text-[11px] text-ink truncate max-w-[200px]">{engagement?.vendor_name || '—'} <span className="text-ink3">→</span> {engagement?.prospect_name || '—'}</div>
+            <div className="mt-1 text-[9px] font-mono uppercase tracking-widest text-ink3">case</div>
+          </div>
+          <div className="w-px h-8 bg-border flex-shrink-0" />
+          <MacroNum label="annual value" value={fmtMoney(analysis?.arvFull)} accent="text-red" />
+          <MacroNum label="npv (3yr)" value={fmtMoney(analysis?.npv)} />
+          <MacroNum label="bcr" value={fmtMultiple(analysis?.bcr)} />
+          <MacroNum label="cost of delay /mo" value={fmtMoney(monthlyDelay)} />
+          <MacroNum label="mechanisms" value={`${activeMechs}`} />
+          <MacroNum label="evidence" value={`${evidenceCount || 0}`} />
+          <div className="ml-auto flex flex-col flex-shrink-0">
+            <div className="font-display font-bold leading-none" style={{ fontSize: '14px', color: conf.color }}>{conf.tier}</div>
+            <div className="mt-1 text-[9px] font-mono uppercase tracking-widest text-ink3">confidence</div>
+          </div>
         </div>
       );
     }
@@ -365,6 +463,12 @@
       }, [engagementId]);
 
       const graph = useMemo(() => bundle ? buildGraph(bundle) : null, [bundle]);
+      // Reconstitute the merged scenarios computeAnalysis expects: raw scenario rows
+      // with the per-engagement `active` flag merged in. Mech nodes already carry both.
+      const mergedScenarios = useMemo(() => graph ? graph.mechs.map(m => ({ ...m.raw, active: m.active })) : [], [graph]);
+      const analysis = useMemo(() =>
+        bundle ? computeAnalysis(mergedScenarios, bundle.values, bundle.defs) : null,
+        [bundle, mergedScenarios]);
 
       if (err) return (
         <div className="h-full grid place-items-center text-red font-mono text-xs px-4 text-center">
@@ -389,7 +493,7 @@
             </div>
             <div className="text-[10px] font-mono uppercase tracking-wider text-ink3">v1 · shell</div>
           </header>
-          <MacroStrip engagement={bundle.engagement} />
+          <MacroStrip engagement={bundle.engagement} analysis={analysis} scenarios={mergedScenarios} evidenceCount={(bundle.evidence || []).length} />
           <div className="flex-1 flex min-h-0">
             <Constellation graph={graph} onSelect={() => setPanelOpen(true)} />
             <NodePanel open={panelOpen} onClose={() => setPanelOpen(false)} />
