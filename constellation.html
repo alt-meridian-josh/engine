@@ -170,7 +170,132 @@
       return { signals: signalNodes, mechs: mechNodes, levers: leverNodes, edges, drift };
     }
 
-    /* ---------- LAYOUT REGIONS (placeholders — wired in C2–C8) ---------- */
+    /* ---------- THEME PALETTE (copied from workspace2.html @ 937777a) ---------- */
+    const THEME_COLORS = {
+      'Operational Efficiency':'#fbbf24', 'Compliance & Risk':'#c4b5fd', 'Asset Performance':'#86efac',
+      'Inventory Accuracy':'#93c5fd', 'Throughput':'#f59e0b', 'Visibility':'#60a5fa',
+      'Revenue':'#6ee7b7', 'Labor Productivity':'#5eead4'
+    };
+    const themeColor = (t) => THEME_COLORS[t] || '#888';
+
+    /* ---------- GRAPH CANVAS (C3: three columns + SVG edge overlay) ----------
+       HTML tiles for nodes (click handling + text wrapping); absolutely-positioned
+       SVG overlay for edges. Edges are measured after layout via ResizeObserver
+       so they re-flow on container resize without a full React re-render. */
+
+    function NodeTile({ node, hovered, isHoverConnected, onHover, onClick }) {
+      const dim = hovered && !isHoverConnected ? 'opacity-30' : '';
+      const inactive = node.kind === 'mech' && !node.active ? 'opacity-50' : '';
+      if (node.kind === 'mech') {
+        const c = themeColor(node.theme);
+        return (
+          <button data-node-id={node.id} onMouseEnter={() => onHover(node.id)} onMouseLeave={() => onHover(null)} onClick={() => onClick(node)}
+            className={`w-full text-left flex border border-border2 bg-surface hover:border-red ${dim} ${inactive} transition-opacity`}>
+            <span className="w-1 flex-shrink-0" style={{ background: c }} />
+            <span className="px-2 py-1.5 text-[11px] text-ink leading-snug line-clamp-2">{node.label}</span>
+          </button>
+        );
+      }
+      if (node.kind === 'signal') {
+        return (
+          <button data-node-id={node.id} onMouseEnter={() => onHover(node.id)} onMouseLeave={() => onHover(null)} onClick={() => onClick(node)}
+            className={`w-full text-left px-2 py-1.5 text-[11px] text-ink2 hover:text-ink border border-border2 bg-surface hover:border-red ${dim} transition-opacity`}>
+            <div className="font-mono text-[9px] uppercase tracking-wider text-ink3">{node.id}</div>
+            <div className="leading-snug line-clamp-2">{node.label}</div>
+          </button>
+        );
+      }
+      // lever
+      return (
+        <button data-node-id={node.id} onMouseEnter={() => onHover(node.id)} onMouseLeave={() => onHover(null)} onClick={() => onClick(node)}
+          className={`w-full text-left px-2 py-1.5 text-[11px] text-ink border border-border2 bg-surface hover:border-red ${dim} transition-opacity`}>
+          <span className="font-mono text-[10px]">{node.label}</span>
+        </button>
+      );
+    }
+
+    function Column({ title, count, nodes, hovered, connected, onHover, onClick, emptyHint }) {
+      return (
+        <div className="flex-1 min-w-0 flex flex-col">
+          <div className="px-3 py-2 border-b border-border flex items-center justify-between flex-shrink-0">
+            <span className="text-[10px] font-mono uppercase tracking-widest text-ink2">{title}</span>
+            <span className="text-[10px] font-mono text-ink3">{count}</span>
+          </div>
+          <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
+            {nodes.length === 0 ? (
+              <div className="text-[10px] font-mono text-ink3 text-center py-8 px-2 leading-relaxed">{emptyHint}</div>
+            ) : nodes.map(n => (
+              <NodeTile key={n.id} node={n} hovered={hovered} isHoverConnected={!hovered || connected.has(n.id)} onHover={onHover} onClick={onClick} />
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function GraphCanvas({ graph, onSelect }) {
+      const containerRef = useRef(null);
+      const [hovered, setHovered] = useState(null);
+      const [positions, setPositions] = useState({});
+
+      // Measure node tile centers (left edge of right column, right edge of left column for clean edge endpoints).
+      useEffect(() => {
+        if (!containerRef.current) return;
+        const measure = () => {
+          const root = containerRef.current;
+          if (!root) return;
+          const cb = root.getBoundingClientRect();
+          const map = {};
+          root.querySelectorAll('[data-node-id]').forEach(el => {
+            const r = el.getBoundingClientRect();
+            map[el.getAttribute('data-node-id')] = {
+              top: r.top - cb.top, bottom: r.bottom - cb.top,
+              left: r.left - cb.left, right: r.right - cb.left,
+              cy: (r.top + r.bottom) / 2 - cb.top
+            };
+          });
+          setPositions(map);
+        };
+        measure();
+        const ro = new ResizeObserver(measure);
+        ro.observe(containerRef.current);
+        return () => ro.disconnect();
+      }, [graph]);
+
+      // Connected-set for hover highlight: includes hovered node + every neighbor on either edge type.
+      const connected = useMemo(() => {
+        const s = new Set();
+        if (!hovered) return s;
+        s.add(hovered);
+        graph.edges.forEach(e => { if (e.from === hovered) s.add(e.to); if (e.to === hovered) s.add(e.from); });
+        return s;
+      }, [hovered, graph]);
+
+      const sigEmpty  = 'No signals defined for this domain. Mechanisms still wire to levers below.';
+      const mechEmpty = 'No mechanisms in this engagement yet. Use the library (C7) to add some.';
+      const levEmpty  = 'No input definitions configured for this domain. Mechanism math runs from formula constants only.';
+
+      return (
+        <div ref={containerRef} className="relative flex-1 m-2 border border-border bg-bg flex min-h-0">
+          <Column title="signals" count={graph.signals.length} nodes={graph.signals} hovered={hovered} connected={connected} onHover={setHovered} onClick={onSelect} emptyHint={sigEmpty} />
+          <div className="w-px bg-border flex-shrink-0" />
+          <Column title="mechanisms" count={`${graph.mechs.filter(m => m.active).length}/${graph.mechs.length}`} nodes={graph.mechs} hovered={hovered} connected={connected} onHover={setHovered} onClick={onSelect} emptyHint={mechEmpty} />
+          <div className="w-px bg-border flex-shrink-0" />
+          <Column title="levers" count={graph.levers.length} nodes={graph.levers} hovered={hovered} connected={connected} onHover={setHovered} onClick={onSelect} emptyHint={levEmpty} />
+          <svg className="absolute inset-0 pointer-events-none" width="100%" height="100%" style={{ overflow: 'visible' }}>
+            {graph.edges.map((e, i) => {
+              const a = positions[e.from], b = positions[e.to];
+              if (!a || !b) return null;
+              const lit = !hovered || (connected.has(e.from) && connected.has(e.to));
+              const stroke = e.primary ? '#d63b2f' : '#2d2d2d';
+              const sw = e.primary ? 1.5 : 0.75;
+              return <line key={i} x1={a.right} y1={a.cy} x2={b.left} y2={b.cy} stroke={stroke} strokeWidth={sw} opacity={lit ? 0.85 : 0.1} vectorEffect="non-scaling-stroke" />;
+            })}
+          </svg>
+        </div>
+      );
+    }
+
+    /* ---------- LAYOUT REGIONS (placeholders — wired in C4–C8) ---------- */
     function MacroStrip({ engagement }) {
       return (
         <div className="cn-region h-14 px-4 flex items-center gap-6 text-[11px] font-mono uppercase tracking-widest text-ink2 flex-shrink-0">
@@ -182,31 +307,8 @@
       );
     }
 
-    function Constellation({ graph }) {
-      const activeMechs = graph.mechs.filter(m => m.active).length;
-      const empty = (label, n) => (
-        <div className="text-center px-3">
-          <div className={`text-2xl font-display ${n === 0 ? 'text-ink3' : 'text-ink'}`}>{n}</div>
-          <div className="mt-1 text-[10px] font-mono uppercase tracking-widest text-ink3">{label}</div>
-        </div>
-      );
-      return (
-        <div className="cn-region flex-1 m-2 grid place-items-center text-ink2 font-mono text-xs">
-          <div>
-            <div className="flex items-center gap-8 justify-center">
-              {empty('signals', graph.signals.length)}
-              <span className="text-ink3">→</span>
-              {empty(`mechanisms (${activeMechs} active)`, graph.mechs.length)}
-              <span className="text-ink3">→</span>
-              {empty('levers', graph.levers.length)}
-            </div>
-            <div className="mt-6 text-center text-[10px] text-ink3">
-              {graph.edges.length} edges · drift: signal {graph.drift.signalEdge} · lever {graph.drift.leverEdge}
-            </div>
-            <div className="mt-1 text-center text-[10px] text-ink3">SVG layout lands in C3</div>
-          </div>
-        </div>
-      );
+    function Constellation({ graph, onSelect }) {
+      return <GraphCanvas graph={graph} onSelect={onSelect} />;
     }
 
     function NodePanel({ open, onClose }) {
@@ -289,7 +391,7 @@
           </header>
           <MacroStrip engagement={bundle.engagement} />
           <div className="flex-1 flex min-h-0">
-            <Constellation graph={graph} />
+            <Constellation graph={graph} onSelect={() => setPanelOpen(true)} />
             <NodePanel open={panelOpen} onClose={() => setPanelOpen(false)} />
           </div>
           <InsightsBar />
