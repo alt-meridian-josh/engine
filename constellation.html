@@ -6,40 +6,63 @@
   <title>Alt Meridian · Constellation</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Syne:wght@500;600;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <script src="https://cdn.tailwindcss.com"></script>
-  <script>
-    tailwind.config = { theme: { extend: {
-      colors: {
-        bg:'#0e0e0e', surface:'#141414', surface2:'#1a1a1a',
-        border:'#222222', border2:'#2d2d2d',
-        ink:'#e8e8e8', ink2:'#888888', ink3:'#444444',
-        red:'#d63b2f', 'red-dim':'rgba(214,59,47,0.10)',
-        green:'#2d7d4f', amber:'#b45309', blue:'#1d4ed8', teal:'#0f766e'
-      },
-      fontFamily: {
-        display:['Syne','sans-serif'],
-        mono:['"DM Mono"','monospace'],
-        sans:['Syne','system-ui','sans-serif']
-      }
-    } } };
-  </script>
   <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    html, body, #root { height: 100%; }
-    body { background:#0e0e0e; color:#e8e8e8; font-family:'Syne', system-ui, sans-serif; }
-    input, textarea, button, select { font-family: inherit; }
-    input[type=range] { accent-color:#d63b2f; }
-    .cn-region { border: 1px dashed #222; }
+    :root {
+      --bg-0: #0a0a0b;       --bg-1: #111113;       --bg-2: #16161a;
+      --line: #26262c;       --line-soft: #1c1c22;
+      --ink: #e8e6df;        --ink-soft: #98968e;   --ink-mute: #5a584f;
+      --coral: #ff5b3c;      --coral-soft: #ff7a5c;
+      --gold: #d4a85f;       --moss: #6b8f6b;
+      --plum: #8b6f9b;       --sky: #5a8fa8;
+    }
+    html, body, #root { height: 100%; margin: 0; }
+    body {
+      background: var(--bg-0);
+      color: var(--ink);
+      font-family: 'JetBrains Mono', ui-monospace, monospace;
+      font-size: 12px;
+      -webkit-font-smoothing: antialiased;
+    }
+    .display { font-family: 'Fraunces', Georgia, serif; }
+    .mono    { font-family: 'JetBrains Mono', ui-monospace, monospace; }
+    .eyebrow { font-family: 'JetBrains Mono', ui-monospace, monospace; font-size: 9.5px; font-weight: 500; letter-spacing: 0.18em; text-transform: uppercase; color: var(--ink-mute); }
+
+    /* Atmosphere — radial glow + faint film grain. Both pointer-events:none, fixed. */
+    .bg-glow {
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background:
+        radial-gradient(60% 50% at 12% 18%, rgba(255, 91, 60, 0.05), transparent 60%),
+        radial-gradient(50% 50% at 88% 82%, rgba(107, 143, 107, 0.035), transparent 60%);
+    }
+    .grain {
+      position: fixed; inset: 0; pointer-events: none; z-index: 100;
+      opacity: 0.025; mix-blend-mode: overlay;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+    }
+
+    .panel-bg {
+      background: linear-gradient(180deg, rgba(17,17,19,0.78) 0%, rgba(22,22,26,0.72) 100%);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-left: 1px solid var(--line);
+    }
+
+    a { color: inherit; text-decoration: none; }
+    button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
   </style>
 </head>
-<body class="bg-bg text-ink">
+<body>
+  <div class="bg-glow"></div>
+  <div class="grain"></div>
   <div id="root"></div>
   <script type="text/babel" data-presets="react">
-    const { useState, useEffect, useMemo, useRef, useCallback } = React;
+    const { useState, useEffect, useMemo } = React;
 
     /* ---------- SUPABASE ---------- */
     const SUPABASE_URL = 'https://kpecdezcolcycgpuqbgs.supabase.co';
@@ -49,469 +72,176 @@
     async function sbSelect(table, q) {
       let b = sb.from(table).select('*');
       if (q?.eq) Object.entries(q.eq).forEach(([k, v]) => b = b.eq(k, v));
-      if (q?.in) Object.entries(q.in).forEach(([k, vs]) => b = b.in(k, vs));
-      if (q?.is) Object.entries(q.is).forEach(([k, v]) => b = b.is(k, v));
-      if (q?.order) b = b.order(q.order[0], { ascending: q.order[1] !== false });
       const { data, error } = await b;
       if (error) throw error;
       return data || [];
     }
 
-    /* ---------- LOADERS (ported verbatim from workspace2.html @ 937777a) ----------
-       Same fallback logic: RFID vertical domains read shared scenarios/inputs from
-       'RFD' parent. Drift here = drift in workspace2. */
-    const loadEngagement   = (id) => sbSelect('vef_engagements', { eq: { engagement_id: id } }).then(r => r[0] || null);
-    const loadDomain       = (id) => sbSelect('vef_domains', { eq: { domain_id: id } }).then(r => r[0] || null);
-    const loadSignals      = (domainId) => sbSelect('vef_value_signals', { eq: { domain_id: domainId } }).catch(() => []);
-    const loadEvidence     = (domainId) => sbSelect('vef_evidence_registry', { eq: { domain_id: domainId } }).catch(() => []);
-    const loadSelections   = (engId) => sbSelect('vef_scenario_selections', { eq: { engagement_id: engId } }).catch(() => []);
-    const loadInputValues  = async (engId) => {
-      const arr = await sbSelect('vef_input_values', { eq: { engagement_id: engId } }).catch(() => []);
-      const m = {}; arr.forEach(iv => m[iv.input_key] = iv); return m;
-    };
-    async function loadScenarios(domainId, domain) {
-      let s = await sbSelect('vef_value_scenarios', { eq: { domain_id: domainId } }).catch(() => []);
-      if (!s.length && domain?.technology === 'RFID' && domainId !== 'RFD') {
-        s = await sbSelect('vef_value_scenarios', { eq: { domain_id: 'RFD' } }).catch(() => []);
-      }
-      return s;
-    }
-    async function loadInputDefs(domainId, domain) {
-      let r = await sbSelect('vef_input_definitions', { eq: { domain_id: domainId } }).catch(() => []);
-      if (!r.length && domain?.technology === 'RFID' && domainId !== 'RFD') {
-        r = await sbSelect('vef_input_definitions', { eq: { domain_id: 'RFD' } }).catch(() => []);
-      }
-      const seen = new Set();
-      return r.filter(d => seen.has(d.input_key) ? false : (seen.add(d.input_key), true));
-    }
+    const loadEngagement = (id) => sbSelect('vef_engagements', { eq: { engagement_id: id } }).then(r => r[0] || null);
 
-    /* ---------- GRAPH DERIVATION ----------
-       Why three columns (Signals → Mechanisms → Levers) and not four:
-       `vef_value_signals` has no `value_theme` column — signal→theme would be a
-       composed edge, not a schema-asserted FK. Per the rule "structural or doesn't
-       ship" we shipped only direct-FK edges. Theme is a visual property on
-       mechanism nodes (color band, optional sort) instead of its own column.
-       v2 unlock: add a value_theme FK to vef_value_signals → reintroduce as a column. */
-
-    // Parse "key1, key2, key3" → ['key1','key2','key3']. Tolerates whitespace, empty.
-    const splitCsv = (s) => (s || '').split(',').map(t => t.trim()).filter(Boolean);
-
-    // Tokenize a formula string into candidate input_key identifiers.
-    // Matches lower_snake_case words of length >=3; drops common math/number tokens.
-    const FORMULA_STOPWORDS = new Set(['and','or','not','if','min','max','log','exp','sqrt','abs']);
-    const tokenizeFormula = (f) =>
-      (f || '').match(/[a-z][a-z0-9_]{2,}/g)?.filter(t => !FORMULA_STOPWORDS.has(t)) || [];
-
-    // Per-mechanism lever derivation: union of inputs_required + formula tokens,
-    // filtered against the domain's loaded input_defs. Records drift on disagreement.
-    function deriveMechLevers(scenario, defKeys, drift) {
-      const declared = new Set(splitCsv(scenario.inputs_required));
-      const tokens = new Set([
-        ...tokenizeFormula(scenario.value_scenario_formula),
-        ...tokenizeFormula(scenario.delay_cost_formula),
-        ...tokenizeFormula(scenario.cost_of_inaction_formula)
-      ]);
-      const unionResolved = new Set();
-      [...declared, ...tokens].forEach(k => { if (defKeys.has(k)) unionResolved.add(k); });
-      const disagree = [...declared].some(k => !tokens.has(k) && defKeys.has(k))
-        || [...tokens].some(k => !declared.has(k) && defKeys.has(k));
-      if (disagree) drift.leverEdge++;
-      return [...unionResolved];
-    }
-
-    // Build the constellation graph from the loaded bundle.
-    // Nodes: signals (column 0), mechanisms (column 1), levers (column 2).
-    // Edges: signal→mech (signal.scenario_ids ∪ scenario.linked_vl_nums reverse),
-    //        mech→lever (deriveMechLevers), with primary_lever flag on signal→lever.
-    function buildGraph(bundle) {
-      const drift = { signalEdge: 0, leverEdge: 0 };
-      const defKeys = new Set((bundle.defs || []).map(d => d.input_key));
-      const selById = Object.fromEntries((bundle.selections || []).map(s => [s.scenario_id, s]));
-
-      const mechNodes = (bundle.scenarios || []).map(s => ({
-        kind: 'mech', id: s.scenario_id,
-        label: s.mechanism_label || s.scenario_id,
-        theme: s.value_theme || null,
-        active: selById[s.scenario_id] ? selById[s.scenario_id].is_active !== false : !!s.active_by_default,
-        levers: deriveMechLevers(s, defKeys, drift),
-        raw: s
-      }));
-      const mechById = Object.fromEntries(mechNodes.map(m => [m.id, m]));
-
-      const signalNodes = (bundle.signals || []).map(sig => {
-        const fromCsv = splitCsv(sig.scenario_ids);
-        // Reverse: any mechanism whose linked_vl_nums lists this signal.
-        const fromReverse = (bundle.scenarios || [])
-          .filter(s => splitCsv(s.linked_vl_nums).includes(sig.signal_id))
-          .map(s => s.scenario_id);
-        const union = Array.from(new Set([...fromCsv, ...fromReverse])).filter(id => mechById[id]);
-        const disagree = fromCsv.some(id => !fromReverse.includes(id) && mechById[id])
-          || fromReverse.some(id => !fromCsv.includes(id));
-        if (disagree) drift.signalEdge++;
-        return {
-          kind: 'signal', id: sig.signal_id, label: sig.signal_name || sig.signal_id,
-          primary_lever: sig.primary_lever || null, mechIds: union, raw: sig
-        };
-      });
-
-      const leverNodes = (bundle.defs || []).map(d => ({
-        kind: 'lever', id: d.input_key, label: d.label || d.input_key, raw: d
-      }));
-
-      // Edges: signal→mech, mech→lever, plus primary_lever flag on signal→lever pairs.
-      const edges = [];
-      signalNodes.forEach(sig => sig.mechIds.forEach(mid => edges.push({ from: sig.id, to: mid, kind: 'signal-mech' })));
-      mechNodes.forEach(m => m.levers.forEach(k => {
-        const primary = signalNodes.some(sig => sig.primary_lever === k && sig.mechIds.includes(m.id));
-        edges.push({ from: m.id, to: k, kind: 'mech-lever', primary });
-      }));
-
-      window.__constellation_drift = drift;
-      return { signals: signalNodes, mechs: mechNodes, levers: leverNodes, edges, drift };
-    }
-
-    /* ---------- CALC (PINNED COPY from workspace2.html @ 937777a) ----------
-     * DO NOT MODIFY in this file. If a constellation-specific case forces a
-     * change, that's the trigger to extract to a shared module (calc.js)
-     * NOW — not later. Two divergent copies = the macro strip silently
-     * lying. When workspace2's calc moves, audit this block and re-pin. */
-    const RAMPS = [0.5, 1.0, 1.0];
-    const DISCOUNT = 0.10;
-
-    function evalFormula(formula, inputs) {
-      if (!formula || typeof formula !== 'string') return null;
-      const keys = Object.keys(inputs || {});
-      const vals = keys.map(k => {
-        const v = inputs[k];
-        return (v == null || isNaN(Number(v))) ? 0 : Number(v);
-      });
-      try {
-        const fn = new Function(...keys, '"use strict"; return (' + formula + ');');
-        const r = fn(...vals);
-        return (typeof r === 'number' && isFinite(r)) ? r : null;
-      } catch (_) { return null; }
-    }
-
-    function resolvedInputs(inputsMap, inputDefs) {
-      const out = {};
-      (inputDefs || []).forEach(d => {
-        const p = inputsMap?.[d.input_key]?.provided_value;
-        out[d.input_key] = p != null ? Number(p) : Number(d.typical_value ?? d.default_value ?? 0);
-      });
-      return out;
-    }
-
-    function computeAnalysis(scenarios, inputsMap, inputDefs) {
-      const inputs = resolvedInputs(inputsMap, inputDefs);
-      const per = (scenarios || []).map(s => {
-        const arv = evalFormula(s.value_scenario_formula, inputs) || 0;
-        const delay = evalFormula(s.delay_cost_formula, inputs) || (arv / 12);
-        const coi = evalFormula(s.cost_of_inaction_formula, inputs) || (arv * 3);
-        return { scenario_id: s.scenario_id, theme: s.value_theme || 'other', active: !!s.active, arv, delay, coi, pool_shadow: false };
-      });
-      const best = {};
-      per.filter(p => p.active).forEach(p => { if (!best[p.theme] || p.arv > best[p.theme].arv) best[p.theme] = p; });
-      per.forEach(p => { if (p.active && best[p.theme] && best[p.theme].scenario_id !== p.scenario_id) p.pool_shadow = true; });
-      const counted = per.filter(p => p.active && !p.pool_shadow);
-      const arvFull = counted.reduce((s, p) => s + p.arv, 0);
-      const arvY1 = arvFull * RAMPS[0], arvY2 = arvFull * RAMPS[1], arvY3 = arvFull * RAMPS[2];
-      const monthlyDelay = counted.reduce((s, p) => s + p.delay, 0);
-      const coi3yr = counted.reduce((s, p) => s + p.coi, 0);
-      const impl = Number(inputsMap?.implementation_cost?.provided_value) || 0;
-      const npv = impl > 0 ? arvY1 + arvY2 / (1 + DISCOUNT) + arvY3 / (1 + DISCOUNT) ** 2 - impl : null;
-      const payback = impl > 0 && arvY1 > 0 ? impl / (arvY1 / 12) : null;
-      const bcr = impl > 0 ? (arvY1 + arvY2 + arvY3) / impl : null;
-      return { arvY1, arvY2, arvY3, arvFull, monthlyDelay, coi3yr, npv, payback, bcr, perScenario: per, impl };
-    }
-
-    function confidenceTier(scenarios) {
-      const active = (scenarios || []).filter(s => s.active);
-      if (!active.length) return { tier: 'EXPLORATORY', pct: 25, color: '#888' };
-      const t = { Strong: 0, Moderate: 0, Weak: 0 };
-      active.forEach(s => { const e = s.evidence_strength || 'Moderate'; if (t[e] != null) t[e]++; });
-      const score = (t.Strong + t.Moderate * 0.6 + t.Weak * 0.3) / active.length;
-      if (score >= 0.75) return { tier: 'STRONG', pct: 90, color: '#86efac' };
-      if (score >= 0.45) return { tier: 'MODERATE', pct: 60, color: '#fbbf24' };
-      return { tier: 'EXPLORATORY', pct: 30, color: '#888' };
-    }
-
-    /* ---------- FORMAT HELPERS (also from workspace2 @ 937777a) ---------- */
+    /* ---------- FORMAT ---------- */
     function fmtMoney(n) {
       if (n == null || !isFinite(n)) return '—';
       const a = Math.abs(n);
       if (a >= 1e9) return '$' + (n / 1e9).toFixed(1) + 'B';
-      if (a >= 1e6) return '$' + (n / 1e6).toFixed(1) + 'M';
+      if (a >= 1e6) return '$' + (n / 1e6).toFixed(2) + 'M';
       if (a >= 1e3) return '$' + (n / 1e3).toFixed(0) + 'K';
       return '$' + Math.round(n).toLocaleString();
     }
-    const fmtMultiple = (n) => (n == null || !isFinite(n)) ? '—' : n.toFixed(2) + 'x';
 
-    /* ---------- THEME PALETTE (copied from workspace2.html @ 937777a) ---------- */
-    const THEME_COLORS = {
-      'Operational Efficiency':'#fbbf24', 'Compliance & Risk':'#c4b5fd', 'Asset Performance':'#86efac',
-      'Inventory Accuracy':'#93c5fd', 'Throughput':'#f59e0b', 'Visibility':'#60a5fa',
-      'Revenue':'#6ee7b7', 'Labor Productivity':'#5eead4'
-    };
-    const themeColor = (t) => THEME_COLORS[t] || '#888';
-
-    /* ---------- GRAPH CANVAS (C3: three columns + SVG edge overlay) ----------
-       HTML tiles for nodes (click handling + text wrapping); absolutely-positioned
-       SVG overlay for edges. Edges are measured after layout via ResizeObserver
-       so they re-flow on container resize without a full React re-render. */
-
-    function NodeTile({ node, hovered, isHoverConnected, onHover, onClick }) {
-      const dim = hovered && !isHoverConnected ? 'opacity-30' : '';
-      const inactive = node.kind === 'mech' && !node.active ? 'opacity-50' : '';
-      if (node.kind === 'mech') {
-        const c = themeColor(node.theme);
-        return (
-          <button data-node-id={node.id} onMouseEnter={() => onHover(node.id)} onMouseLeave={() => onHover(null)} onClick={() => onClick(node)}
-            className={`w-full text-left flex border border-border2 bg-surface hover:border-red ${dim} ${inactive} transition-opacity`}>
-            <span className="w-1 flex-shrink-0" style={{ background: c }} />
-            <span className="px-2 py-1.5 text-[11px] text-ink leading-snug line-clamp-2">{node.label}</span>
-          </button>
-        );
-      }
-      if (node.kind === 'signal') {
-        return (
-          <button data-node-id={node.id} onMouseEnter={() => onHover(node.id)} onMouseLeave={() => onHover(null)} onClick={() => onClick(node)}
-            className={`w-full text-left px-2 py-1.5 text-[11px] text-ink2 hover:text-ink border border-border2 bg-surface hover:border-red ${dim} transition-opacity`}>
-            <div className="font-mono text-[9px] uppercase tracking-wider text-ink3">{node.id}</div>
-            <div className="leading-snug line-clamp-2">{node.label}</div>
-          </button>
-        );
-      }
-      // lever
+    /* ---------- GLYPH ---------- */
+    function StarGlyph({ size = 12, color = 'var(--coral)' }) {
       return (
-        <button data-node-id={node.id} onMouseEnter={() => onHover(node.id)} onMouseLeave={() => onHover(null)} onClick={() => onClick(node)}
-          className={`w-full text-left px-2 py-1.5 text-[11px] text-ink border border-border2 bg-surface hover:border-red ${dim} transition-opacity`}>
-          <span className="font-mono text-[10px]">{node.label}</span>
+        <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color}
+             strokeWidth="1.4" strokeLinejoin="round" vectorEffect="non-scaling-stroke" aria-hidden="true">
+          <path d="M8 1 L9.4 6.6 L15 8 L9.4 9.4 L8 15 L6.6 9.4 L1 8 L6.6 6.6 Z" />
+        </svg>
+      );
+    }
+
+    /* ---------- FLOATING HEADER (top-left) ---------- */
+    function FloatingHeader({ engagement }) {
+      const stage = (engagement?.deal_stage || '').toLowerCase();
+      const meta = `${engagement ? '— mechanisms · ' : ''}${stage || '—'} stage`;
+      return (
+        <div className="absolute top-5 left-6 z-10 select-none">
+          <div className="flex items-center gap-2">
+            <a href={`workspace2.html?engagement=${encodeURIComponent(engagement?.engagement_id || '')}`}
+               className="text-[var(--ink-mute)] hover:text-[var(--ink)] transition-colors text-[13px]">←</a>
+            <StarGlyph size={11} />
+            <span className="eyebrow">Constellation</span>
+          </div>
+          <div className="display mt-2.5 text-[var(--ink)]" style={{ fontSize: '22px', fontWeight: 400, lineHeight: 1.15 }}>
+            {engagement?.analysis_name || engagement?.vendor_name || 'Untitled'}
+          </div>
+          <div className="mt-1 text-[10.5px] text-[var(--ink-mute)] tracking-wide">
+            {meta}
+          </div>
+        </div>
+      );
+    }
+
+    /* ---------- HEADLINE NUMBER (top-right, clickable in C8) ---------- */
+    function HeadlineNumber({ annualValue, secondary, onTrace, traceOn }) {
+      return (
+        <button onClick={onTrace}
+          className={`absolute top-5 z-10 text-right select-none transition-opacity ${traceOn ? 'opacity-100' : 'opacity-90 hover:opacity-100'}`}
+          style={{ right: '404px' }}
+          title="Click to trace contributors (C8)">
+          <div className="eyebrow">Annual Value</div>
+          <div className="display mt-1" style={{ fontSize: '34px', fontWeight: 300, color: 'var(--coral)', lineHeight: 1 }}>
+            {fmtMoney(annualValue)}
+          </div>
+          <div className="mt-1.5 text-[10px] text-[var(--ink-mute)] tracking-wider">
+            {secondary || 'NPV — · BCR — · CoD —'}
+          </div>
         </button>
       );
     }
 
-    function Column({ title, count, nodes, hovered, connected, onHover, onClick, emptyHint }) {
+    /* ---------- CANVAS (graph lands in C3) ---------- */
+    // Three column bands by x-coordinate per spec. Lane labels float at y≈90.
+    const COLS = { signals: 220, mechs: 640, levers: 1100 };
+
+    function Canvas({ counts }) {
       return (
-        <div className="flex-1 min-w-0 flex flex-col">
-          <div className="px-3 py-2 border-b border-border flex items-center justify-between flex-shrink-0">
-            <span className="text-[10px] font-mono uppercase tracking-widest text-ink2">{title}</span>
-            <span className="text-[10px] font-mono text-ink3">{count}</span>
-          </div>
-          <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
-            {nodes.length === 0 ? (
-              <div className="text-[10px] font-mono text-ink3 text-center py-8 px-2 leading-relaxed">{emptyHint}</div>
-            ) : nodes.map(n => (
-              <NodeTile key={n.id} node={n} hovered={hovered} isHoverConnected={!hovered || connected.has(n.id)} onHover={onHover} onClick={onClick} />
-            ))}
-          </div>
-        </div>
+        <svg className="absolute inset-0" style={{ right: '380px' }}
+             viewBox="0 0 1400 700" preserveAspectRatio="xMidYMid meet">
+          <g style={{ opacity: 0.4 }}>
+            <text x={COLS.signals} y={90} textAnchor="middle" fill="var(--ink-mute)"
+                  fontFamily="JetBrains Mono" fontSize="9.5" letterSpacing="2.5">
+              SIGNALS · {counts.signals}
+            </text>
+            <text x={COLS.mechs} y={90} textAnchor="middle" fill="var(--ink-mute)"
+                  fontFamily="JetBrains Mono" fontSize="9.5" letterSpacing="2.5">
+              MECHANISMS · {counts.mechsActive}/{counts.mechs}
+            </text>
+            <text x={COLS.levers} y={90} textAnchor="middle" fill="var(--ink-mute)"
+                  fontFamily="JetBrains Mono" fontSize="9.5" letterSpacing="2.5">
+              LEVERS · {counts.levers}
+            </text>
+          </g>
+        </svg>
       );
     }
 
-    function GraphCanvas({ graph, onSelect }) {
-      const containerRef = useRef(null);
-      const [hovered, setHovered] = useState(null);
-      const [positions, setPositions] = useState({});
-
-      // Measure node tile centers (left edge of right column, right edge of left column for clean edge endpoints).
-      useEffect(() => {
-        if (!containerRef.current) return;
-        const measure = () => {
-          const root = containerRef.current;
-          if (!root) return;
-          const cb = root.getBoundingClientRect();
-          const map = {};
-          root.querySelectorAll('[data-node-id]').forEach(el => {
-            const r = el.getBoundingClientRect();
-            map[el.getAttribute('data-node-id')] = {
-              top: r.top - cb.top, bottom: r.bottom - cb.top,
-              left: r.left - cb.left, right: r.right - cb.left,
-              cy: (r.top + r.bottom) / 2 - cb.top
-            };
-          });
-          setPositions(map);
-        };
-        measure();
-        const ro = new ResizeObserver(measure);
-        ro.observe(containerRef.current);
-        return () => ro.disconnect();
-      }, [graph]);
-
-      // Connected-set for hover highlight: includes hovered node + every neighbor on either edge type.
-      const connected = useMemo(() => {
-        const s = new Set();
-        if (!hovered) return s;
-        s.add(hovered);
-        graph.edges.forEach(e => { if (e.from === hovered) s.add(e.to); if (e.to === hovered) s.add(e.from); });
-        return s;
-      }, [hovered, graph]);
-
-      const sigEmpty  = 'No signals defined for this domain. Mechanisms still wire to levers below.';
-      const mechEmpty = 'No mechanisms in this engagement yet. Use the library (C7) to add some.';
-      const levEmpty  = 'No input definitions configured for this domain. Mechanism math runs from formula constants only.';
-
+    /* ---------- PANEL (always visible, ~380px right) ---------- */
+    function Panel({ engagement }) {
+      // Case-level default state. Real narrative + structural read land in C5.
       return (
-        <div ref={containerRef} className="relative flex-1 m-2 border border-border bg-bg flex min-h-0">
-          <Column title="signals" count={graph.signals.length} nodes={graph.signals} hovered={hovered} connected={connected} onHover={setHovered} onClick={onSelect} emptyHint={sigEmpty} />
-          <div className="w-px bg-border flex-shrink-0" />
-          <Column title="mechanisms" count={`${graph.mechs.filter(m => m.active).length}/${graph.mechs.length}`} nodes={graph.mechs} hovered={hovered} connected={connected} onHover={setHovered} onClick={onSelect} emptyHint={mechEmpty} />
-          <div className="w-px bg-border flex-shrink-0" />
-          <Column title="levers" count={graph.levers.length} nodes={graph.levers} hovered={hovered} connected={connected} onHover={setHovered} onClick={onSelect} emptyHint={levEmpty} />
-          <svg className="absolute inset-0 pointer-events-none" width="100%" height="100%" style={{ overflow: 'visible' }}>
-            {graph.edges.map((e, i) => {
-              const a = positions[e.from], b = positions[e.to];
-              if (!a || !b) return null;
-              const lit = !hovered || (connected.has(e.from) && connected.has(e.to));
-              const stroke = e.primary ? '#d63b2f' : '#2d2d2d';
-              const sw = e.primary ? 1.5 : 0.75;
-              return <line key={i} x1={a.right} y1={a.cy} x2={b.left} y2={b.cy} stroke={stroke} strokeWidth={sw} opacity={lit ? 0.85 : 0.1} vectorEffect="non-scaling-stroke" />;
-            })}
-          </svg>
-        </div>
-      );
-    }
+        <aside className="panel-bg absolute top-0 right-0 bottom-0 z-20 overflow-y-auto"
+               style={{ width: '380px' }}>
+          <div className="px-7 py-9">
+            <div className="eyebrow" style={{ color: 'var(--coral)' }}>Case Read</div>
+            <div className="display mt-3" style={{ fontSize: '24px', fontWeight: 400, lineHeight: 1.2 }}>
+              {engagement?.analysis_name || engagement?.vendor_name || 'Untitled'}
+            </div>
+            <div className="mt-1.5 text-[11px] text-[var(--ink-mute)]">
+              {engagement?.vendor_name || '—'} <span className="text-[var(--ink-mute)]">→</span> {engagement?.prospect_name || '—'}
+            </div>
 
-    /* ---------- LAYOUT REGIONS ---------- */
-    function MacroNum({ label, value, accent }) {
-      return (
-        <div className="flex flex-col">
-          <div className={`font-display font-bold leading-none ${accent || 'text-ink'}`} style={{ fontSize: '20px' }}>{value}</div>
-          <div className="mt-1 text-[9px] font-mono uppercase tracking-widest text-ink3">{label}</div>
-        </div>
-      );
-    }
-    function MacroStrip({ engagement, analysis, scenarios, evidenceCount }) {
-      const conf = useMemo(() => confidenceTier(scenarios || []), [scenarios]);
-      const activeMechs = (scenarios || []).filter(s => s.active).length;
-      const monthlyDelay = analysis?.monthlyDelay || 0;
-      return (
-        <div className="h-16 px-4 border-b border-border bg-surface flex items-center gap-7 flex-shrink-0 overflow-x-auto">
-          <div className="flex flex-col flex-shrink-0">
-            <div className="text-[11px] text-ink truncate max-w-[200px]">{engagement?.vendor_name || '—'} <span className="text-ink3">→</span> {engagement?.prospect_name || '—'}</div>
-            <div className="mt-1 text-[9px] font-mono uppercase tracking-widest text-ink3">case</div>
+            <div className="mt-7 text-[12px] leading-relaxed text-[var(--ink-soft)]">
+              <span className="text-[var(--ink-mute)] italic">Narrative read lands in C5 — a few sentences describing what this case is actually arguing, in plain English.</span>
+            </div>
+
+            <div className="mt-9 eyebrow">Structure</div>
+            <div className="mt-3 text-[12px] leading-relaxed text-[var(--ink-soft)] space-y-3">
+              <p className="text-[var(--ink-mute)] italic">Concentration · evidence shape · lever profile — three short observations land in C5.</p>
+            </div>
           </div>
-          <div className="w-px h-8 bg-border flex-shrink-0" />
-          <MacroNum label="annual value" value={fmtMoney(analysis?.arvFull)} accent="text-red" />
-          <MacroNum label="npv (3yr)" value={fmtMoney(analysis?.npv)} />
-          <MacroNum label="bcr" value={fmtMultiple(analysis?.bcr)} />
-          <MacroNum label="cost of delay /mo" value={fmtMoney(monthlyDelay)} />
-          <MacroNum label="mechanisms" value={`${activeMechs}`} />
-          <MacroNum label="evidence" value={`${evidenceCount || 0}`} />
-          <div className="ml-auto flex flex-col flex-shrink-0">
-            <div className="font-display font-bold leading-none" style={{ fontSize: '14px', color: conf.color }}>{conf.tier}</div>
-            <div className="mt-1 text-[9px] font-mono uppercase tracking-widest text-ink3">confidence</div>
-          </div>
-        </div>
-      );
-    }
-
-    function Constellation({ graph, onSelect }) {
-      return <GraphCanvas graph={graph} onSelect={onSelect} />;
-    }
-
-    function NodePanel({ open, onClose }) {
-      if (!open) return null;
-      return (
-        <aside className="cn-region w-[360px] m-2 ml-0 p-4 flex flex-col">
-          <div className="flex items-center justify-between mb-3">
-            <div className="text-[10px] font-mono uppercase tracking-widest text-ink3">node panel</div>
-            <button onClick={onClose} className="text-ink2 hover:text-red text-xs font-mono">close</button>
-          </div>
-          <div className="text-xs text-ink3 font-mono">wired in C5</div>
         </aside>
-      );
-    }
-
-    function InsightsBar() {
-      return (
-        <div className="cn-region h-12 mx-2 mb-2 px-4 flex items-center gap-3 text-[11px] font-mono uppercase tracking-widest text-ink3 flex-shrink-0">
-          <span>insights</span>
-          <span>·</span>
-          <span>orphan signal · thin lever · evidence gap</span>
-          <span className="ml-auto">wired in C8</span>
-        </div>
       );
     }
 
     /* ---------- SHELL ---------- */
     function ConstellationShell({ engagementId }) {
-      const [bundle, setBundle] = useState(null);
+      const [engagement, setEngagement] = useState(null);
       const [err, setErr] = useState(null);
-      const [panelOpen, setPanelOpen] = useState(false);
 
-      // Full bundle load: engagement + domain + signals + scenarios + selections + defs + evidence + values.
       useEffect(() => {
         let cancelled = false;
         (async () => {
           try {
-            const eng = await loadEngagement(engagementId);
-            if (!eng) throw new Error(`No engagement found: ${engagementId}`);
-            const domain = eng.domain_id ? await loadDomain(eng.domain_id) : null;
-            const [signals, scenarios, defs, evidence, selections, values] = await Promise.all([
-              loadSignals(eng.domain_id),
-              loadScenarios(eng.domain_id, domain),
-              loadInputDefs(eng.domain_id, domain),
-              loadEvidence(eng.domain_id),
-              loadSelections(engagementId),
-              loadInputValues(engagementId)
-            ]);
+            const e = await loadEngagement(engagementId);
             if (cancelled) return;
-            setBundle({ engagement: eng, domain, signals, scenarios, defs, evidence, selections, values });
+            if (!e) throw new Error(`No engagement found: ${engagementId}`);
+            setEngagement(e);
           } catch (e) { if (!cancelled) setErr(e.message || String(e)); }
         })();
         return () => { cancelled = true; };
       }, [engagementId]);
 
-      const graph = useMemo(() => bundle ? buildGraph(bundle) : null, [bundle]);
-      // Reconstitute the merged scenarios computeAnalysis expects: raw scenario rows
-      // with the per-engagement `active` flag merged in. Mech nodes already carry both.
-      const mergedScenarios = useMemo(() => graph ? graph.mechs.map(m => ({ ...m.raw, active: m.active })) : [], [graph]);
-      const analysis = useMemo(() =>
-        bundle ? computeAnalysis(mergedScenarios, bundle.values, bundle.defs) : null,
-        [bundle, mergedScenarios]);
-
       if (err) return (
-        <div className="h-full grid place-items-center text-red font-mono text-xs px-4 text-center">
+        <div className="h-full grid place-items-center text-[var(--coral)] text-xs px-4 text-center">
           {err}
-          <a href={`workspace2.html?engagement=${encodeURIComponent(engagementId)}`} className="mt-3 text-ink2 hover:text-red underline">← back to workspace</a>
+          <a href={`workspace2.html?engagement=${encodeURIComponent(engagementId)}`}
+             className="mt-3 text-[var(--ink-mute)] hover:text-[var(--ink)] underline">← back to workspace</a>
         </div>
       );
-      if (!bundle) return <div className="h-full grid place-items-center text-ink2 font-mono text-xs">Loading constellation…</div>;
+      if (!engagement) return <div className="h-full grid place-items-center text-[var(--ink-mute)] text-xs">Loading…</div>;
+
+      // Counts + macro values fill in starting C2/C4. Stub zeros for now.
+      const counts = { signals: 0, mechs: 0, mechsActive: 0, levers: 0 };
 
       return (
-        <div className="h-full flex flex-col">
-          <header className="h-12 px-4 border-b border-border bg-surface flex items-center justify-between flex-shrink-0 gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <a href={`workspace2.html?engagement=${encodeURIComponent(engagementId)}`}
-                 className="text-ink2 hover:text-red text-sm font-mono">←</a>
-              <div className="font-display text-sm tracking-wide flex items-center gap-2">
-                <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round" vectorEffect="non-scaling-stroke" className="text-red" aria-hidden="true">
-                  <path d="M8 1 L9.4 6.6 L15 8 L9.4 9.4 L8 15 L6.6 9.4 L1 8 L6.6 6.6 Z" />
-                </svg>
-                <span><span className="text-red">ALT</span> <span className="text-ink">MERIDIAN</span> <span className="text-ink2">· Constellation</span></span>
-              </div>
-            </div>
-            <div className="text-[10px] font-mono uppercase tracking-wider text-ink3">v1 · shell</div>
-          </header>
-          <MacroStrip engagement={bundle.engagement} analysis={analysis} scenarios={mergedScenarios} evidenceCount={(bundle.evidence || []).length} />
-          <div className="flex-1 flex min-h-0">
-            <Constellation graph={graph} onSelect={() => setPanelOpen(true)} />
-            <NodePanel open={panelOpen} onClose={() => setPanelOpen(false)} />
-          </div>
-          <InsightsBar />
+        <div className="relative h-full overflow-hidden">
+          <Canvas counts={counts} />
+          <FloatingHeader engagement={engagement} />
+          <HeadlineNumber annualValue={null} secondary={null} onTrace={() => {}} traceOn={false} />
+          <Panel engagement={engagement} />
         </div>
       );
     }
 
     function App() {
-      const engagementId = new URLSearchParams(location.search).get('engagement');
-      if (!engagementId) return (
-        <div className="h-full grid place-items-center text-ink2 font-mono text-xs px-4 text-center">
+      const id = new URLSearchParams(location.search).get('engagement');
+      if (!id) return (
+        <div className="h-full grid place-items-center text-[var(--ink-mute)] text-xs px-4 text-center">
           No engagement specified.
-          <a href="workspace2.html" className="mt-3 text-ink2 hover:text-red underline">← workspace</a>
+          <a href="workspace2.html" className="mt-3 text-[var(--ink-mute)] hover:text-[var(--ink)] underline">← workspace</a>
         </div>
       );
-      return <ConstellationShell engagementId={engagementId} />;
+      return <ConstellationShell engagementId={id} />;
     }
 
     ReactDOM.createRoot(document.getElementById('root')).render(<App />);
