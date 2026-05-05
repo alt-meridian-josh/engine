@@ -55,6 +55,7 @@
 
     a { color: inherit; text-decoration: none; }
     button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+    @keyframes cn-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
   </style>
 </head>
 <body>
@@ -370,13 +371,13 @@
       );
     }
 
-    /* ---------- HEADLINE NUMBER (top-right, clickable in C8) ---------- */
+    /* ---------- HEADLINE NUMBER (top-right, click → trace mode) ---------- */
     function HeadlineNumber({ annualValue, secondary, onTrace, traceOn }) {
       return (
         <button onClick={onTrace}
           className={`absolute top-5 z-10 text-right select-none transition-opacity ${traceOn ? 'opacity-100' : 'opacity-90 hover:opacity-100'}`}
-          style={{ right: '404px' }}
-          title="Click to trace contributors (C8)">
+          style={{ right: '404px', animation: traceOn ? 'cn-pulse 2s ease-in-out infinite' : 'none' }}
+          title={traceOn ? 'Click to clear trace' : 'Click to trace contributors'}>
           <div className="eyebrow">Annual Value</div>
           <div className="display mt-1" style={{ fontSize: '34px', fontWeight: 300, color: 'var(--coral)', lineHeight: 1 }}>
             {fmtMoney(annualValue)}
@@ -431,7 +432,7 @@
       return pos;
     }
 
-    function Canvas({ graph, counts, hovered, onHover, selectedId, onSelect }) {
+    function Canvas({ graph, counts, hovered, onHover, selectedId, onSelect, trace }) {
       const pos = useMemo(() => laidOut(graph), [graph]);
       const connected = useMemo(() => {
         const s = new Set();
@@ -440,7 +441,12 @@
         graph.edges.forEach(e => { if (e.from === hovered) s.add(e.to); if (e.to === hovered) s.add(e.from); });
         return s;
       }, [hovered, graph]);
-      const isLit = (id) => !hovered || connected.has(id);
+      // Hover-lit overrides trace dimming when both are active.
+      const isLit = (id) => {
+        if (hovered) return connected.has(id);
+        if (trace?.active) return trace.contributorSet.has(id);
+        return true;
+      };
 
       // Edges: cubic bezier. Control points pulled horizontally toward midline
       // for soft S-curves that read as flow rather than wires.
@@ -473,12 +479,18 @@
               const a = pos[e.from], b = pos[e.to];
               if (!a || !b) return null;
               const lit = isLit(e.from) && isLit(e.to);
-              const stroke = e.primary ? 'var(--coral)' : 'var(--line)';
-              const sw = e.primary ? 1.6 : 1;
-              const baseOpacity = e.primary ? 0.85 : 0.5;
+              const traceWeight = trace?.active ? (trace.edgeWeight[e.from + '|' + e.to] || 0) : 0;
+              // In trace mode, edge thickness scales with the contributing
+              // mechanism's share of arvFull (0.6 → 3.5px). Outside trace
+              // mode, primary edges keep the gold-tier 1.6px treatment.
+              const stroke = e.primary ? 'var(--coral)' : (trace?.active && lit ? 'var(--coral-soft)' : 'var(--line)');
+              const sw = trace?.active && lit
+                ? Math.max(0.6, 0.6 + traceWeight * 3)
+                : (e.primary ? 1.6 : 1);
+              const baseOpacity = e.primary ? 0.85 : (trace?.active && lit ? 0.7 : 0.5);
               return <path key={i} d={edgePath(a, b)} fill="none" stroke={stroke}
-                strokeWidth={sw} opacity={lit ? baseOpacity : 0.08}
-                filter={e.primary ? 'url(#cn-glow)' : undefined}
+                strokeWidth={sw} opacity={lit ? baseOpacity : 0.06}
+                filter={(e.primary || (trace?.active && lit)) ? 'url(#cn-glow)' : undefined}
                 vectorEffect="non-scaling-stroke" />;
             })}
           </g>
@@ -724,7 +736,37 @@
     }
 
     /* ---------- PANEL (always visible, ~380px right) ---------- */
-    function Panel({ engagement, analysis, graph, evidence, selectedId, onJump }) {
+    function ContributorsView({ trace, analysis, onJump }) {
+      const total = analysis?.arvFull || 0;
+      return (
+        <div>
+          <div className="eyebrow" style={{ color: 'var(--coral)' }}>Contributors</div>
+          <div className="display mt-3" style={{ fontSize: '20px', fontWeight: 400, lineHeight: 1.25 }}>
+            What carries the {fmtMoney(total)}
+          </div>
+          <p className="mt-3 text-[12px] leading-[1.65] text-[var(--ink-soft)]">
+            {trace.ranked.length} mechanism{trace.ranked.length === 1 ? '' : 's'} contribute to the headline number, ranked by share. Click any to focus.
+          </p>
+          <div className="mt-6 space-y-2.5">
+            {trace.ranked.map(({ mech, arv, share }) => (
+              <button key={mech.id} onClick={() => onJump(mech.id)}
+                className="block w-full text-left py-1.5 hover:opacity-90 transition-opacity">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-[12px] text-[var(--ink-soft)] truncate">{mech.label}</span>
+                  <span className="display text-[var(--coral)] flex-shrink-0" style={{ fontSize: '13px' }}>{fmtMoney(arv)}</span>
+                </div>
+                <div className="mt-1 h-px relative" style={{ background: 'var(--line-soft)' }}>
+                  <div className="absolute left-0 top-0 bottom-0" style={{ width: `${share * 100}%`, background: 'var(--coral)', height: '2px', marginTop: '-0.5px' }} />
+                </div>
+                <div className="mt-1 text-[10px] text-[var(--ink-mute)]">{(share * 100).toFixed(0)}% of case</div>
+              </button>
+            ))}
+          </div>
+        </div>
+      );
+    }
+
+    function Panel({ engagement, analysis, graph, evidence, selectedId, onJump, trace }) {
       // Find the selected node across all three columns.
       const sel = useMemo(() => {
         if (!selectedId || !graph) return null;
@@ -747,7 +789,8 @@
             {sel?.kind === 'mech'   && <MechFocus   node={sel} analysis={analysis} graph={graph} evidence={evidence} onJump={onJump} />}
             {sel?.kind === 'signal' && <SignalFocus node={sel} analysis={analysis} graph={graph} onJump={onJump} />}
             {sel?.kind === 'lever'  && <LeverFocus  node={sel} analysis={analysis} graph={graph} onJump={onJump} />}
-            {!sel && (
+            {!sel && trace?.active && <ContributorsView trace={trace} analysis={analysis} onJump={onJump} />}
+            {!sel && !trace?.active && (
               <>
                 <div className="eyebrow" style={{ color: 'var(--coral)' }}>Case Read</div>
                 <div className="display mt-3" style={{ fontSize: '24px', fontWeight: 400, lineHeight: 1.2 }}>
@@ -780,13 +823,18 @@
       const [err, setErr] = useState(null);
       const [hovered, setHovered] = useState(null);
       const [selectedId, setSelectedId] = useState(null);
+      const [traceOn, setTraceOn] = useState(false);
 
-      // Esc clears selection.
+      // Esc clears trace first, then selection (one Esc per layer).
       useEffect(() => {
-        const onKey = (e) => { if (e.key === 'Escape') setSelectedId(null); };
+        const onKey = (e) => {
+          if (e.key !== 'Escape') return;
+          if (traceOn) setTraceOn(false);
+          else if (selectedId) setSelectedId(null);
+        };
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
-      }, []);
+      }, [traceOn, selectedId]);
 
       useEffect(() => {
         let cancelled = false;
@@ -823,6 +871,31 @@
       );
       if (!bundle || !graph) return <div className="h-full grid place-items-center text-[var(--ink-mute)] text-xs">Loading…</div>;
 
+      // Trace context: only computed when traceOn. Identifies contributors
+      // (active+counted mechs), signals/levers connected to them, and each
+      // edge's weight as a share of arvFull for proportional thickness.
+      const trace = (() => {
+        if (!traceOn || !analysis) return { active: false };
+        const contribs = (analysis.perScenario || []).filter(p => p.active && !p.pool_shadow && p.arv > 0);
+        const total = contribs.reduce((s, p) => s + p.arv, 0) || 1;
+        const contribById = Object.fromEntries(contribs.map(p => [p.scenario_id, p.arv / total]));
+        const set = new Set();
+        contribs.forEach(p => set.add(p.scenario_id));
+        graph.signals.forEach(s => { if (s.mechIds.some(id => contribById[id])) set.add(s.id); });
+        graph.mechs.forEach(m => { if (contribById[m.id]) m.levers.forEach(k => set.add(k)); });
+        const edgeWeight = {};
+        graph.edges.forEach(e => {
+          const w = e.kind === 'sig-mech' ? (contribById[e.to] || 0)
+                  : e.kind === 'mech-lev' ? (contribById[e.from] || 0) : 0;
+          if (w > 0) edgeWeight[e.from + '|' + e.to] = w;
+        });
+        const ranked = contribs.map(p => ({
+          mech: graph.mechs.find(m => m.id === p.scenario_id),
+          arv: p.arv, share: p.arv / total
+        })).sort((a, b) => b.arv - a.arv);
+        return { active: true, contributorSet: set, edgeWeight, ranked };
+      })();
+
       const counts = {
         signals: graph.signals.length,
         mechs: graph.mechs.length,
@@ -833,13 +906,13 @@
       return (
         <div className="relative h-full overflow-hidden">
           <Canvas graph={graph} counts={counts} hovered={hovered} onHover={setHovered}
-                  selectedId={selectedId} onSelect={setSelectedId} />
+                  selectedId={selectedId} onSelect={setSelectedId} trace={trace} />
           <FloatingHeader engagement={bundle.engagement} mechCount={counts.mechsActive} />
           <HeadlineNumber annualValue={analysis?.arvFull}
             secondary={`NPV ${fmtMoney(analysis?.npv)} · BCR ${fmtMultiple(analysis?.bcr)} · CoD ${fmtMoney(analysis?.monthlyDelay)}/mo`}
-            onTrace={() => {}} traceOn={false} />
+            onTrace={() => setTraceOn(t => !t)} traceOn={traceOn} />
           <Panel engagement={bundle.engagement} analysis={analysis} graph={graph} evidence={bundle.evidence}
-                 selectedId={selectedId} onJump={setSelectedId} />
+                 selectedId={selectedId} onJump={setSelectedId} trace={trace} />
         </div>
       );
     }
