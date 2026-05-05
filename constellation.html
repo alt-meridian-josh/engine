@@ -185,9 +185,15 @@
                  primary_lever: sig.primary_lever || null, mechIds: union, raw: sig };
       });
 
-      const levers = (bundle.defs || []).map(d => ({
-        kind: 'lever', id: d.input_key, label: d.label || d.input_key, raw: d
-      }));
+      // Levers: only those at least one mechanism actually pulls. The full
+      // vef_input_definitions table can run to 130+ rows per domain — most
+      // of which no mechanism references in this case. Showing all of them
+      // creates an unreadable wall and lies about the case's lever surface.
+      const usedLeverKeys = new Set();
+      mechs.forEach(m => m.levers.forEach(k => usedLeverKeys.add(k)));
+      const levers = (bundle.defs || [])
+        .filter(d => usedLeverKeys.has(d.input_key))
+        .map(d => ({ kind: 'lever', id: d.input_key, label: d.label || d.input_key, raw: d }));
 
       // Edges with primary flag: a lever is "primary" if it appears as
       // signal.primary_lever for any signal that answers an active mechanism
@@ -651,24 +657,26 @@
             const h = n.active ? Math.round(36 + (share / maxShare) * 24) : 32;
             const w = 200;
             const x0 = p.x - w/2, y0 = p.y - h/2;
-            const stroke = selected ? 'var(--coral)' : (n.active ? 'var(--coral)' : 'var(--ink-mute)');
-            const sw = selected ? '1.5' : '1';
-            const fill = selected ? 'rgba(255,91,60,0.18)' : (n.active ? 'rgba(255,91,60,0.08)' : 'transparent');
+            // No surrounding rect stroke — the rect-with-stroke pattern reads
+            // as a Visio shape regardless of color. Theme color band on the
+            // left carries the form; faint coral fill indicates active.
+            const fill = selected ? 'rgba(255,91,60,0.18)'
+                       : n.active ? 'rgba(255,91,60,0.06)'
+                       : 'transparent';
             return (
-              <g key={n.id} className="cn-node" opacity={lit ? 1 : 0.25} style={{ cursor: 'pointer' }}
+              <g key={n.id} className="cn-node" opacity={lit ? 1 : 0.5} style={{ cursor: 'pointer' }}
                  onMouseEnter={() => onHover(n.id)} onMouseLeave={() => onHover(null)}
                  onClick={(e) => { e.stopPropagation(); onSelect(n.id); }}>
-                <rect x={x0} y={y0} width={w} height={h} rx="3" ry="3"
-                      fill={fill} stroke={stroke} strokeWidth={sw}
-                      strokeDasharray={n.active || selected ? undefined : '3 3'}
-                      filter={selected ? 'url(#cn-glow)' : undefined}
-                      vectorEffect="non-scaling-stroke" />
-                <rect x={x0} y={y0} width="3" height={h} fill={themeBand(n.theme)} />
-                <text x={x0 + 12} y={p.y - 4} fill={n.active ? 'var(--ink)' : 'var(--ink-mute)'}
+                <rect x={x0} y={y0} width={w} height={h} rx="2" ry="2"
+                      fill={fill} stroke="none"
+                      filter={selected ? 'url(#cn-glow)' : undefined} />
+                <rect x={x0} y={y0} width={n.active ? 4 : 2} height={h}
+                      fill={themeBand(n.theme)} opacity={n.active ? 1 : 0.55} />
+                <text x={x0 + 14} y={p.y - 4} fill={n.active ? 'var(--ink)' : 'var(--ink-mute)'}
                       fontFamily="JetBrains Mono" fontSize="10.5">
                   {(n.label || '').slice(0, 32)}{(n.label || '').length > 32 ? '…' : ''}
                 </text>
-                <text x={x0 + 12} y={p.y + 11} fill="var(--ink-mute)" fontFamily="JetBrains Mono"
+                <text x={x0 + 14} y={p.y + 11} fill="var(--ink-mute)" fontFamily="JetBrains Mono"
                       fontSize="8.5" letterSpacing="1.2">
                   {(n.theme || 'untyped').toUpperCase()}
                 </text>
