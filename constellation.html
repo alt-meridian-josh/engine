@@ -561,6 +561,39 @@
       );
     }
 
+    function EvidenceItem({ ev }) {
+      const [open, setOpen] = useState(false);
+      const claim = ev.quantified_claim_summary || ev.evidence_title || '';
+      const truncated = claim.length > 220;
+      return (
+        <button onClick={() => setOpen(o => !o)}
+          className="block w-full text-left pl-3 py-1.5 transition-colors hover:bg-[rgba(107,143,107,0.08)]"
+          style={{ borderLeft: '2px solid var(--moss)', background: 'rgba(107,143,107,0.04)' }}>
+          <div className="text-[9.5px] text-[var(--ink-mute)]" style={{ letterSpacing: '0.12em' }}>
+            {(ev.evidence_publisher || ev.evidence_type || '—').toUpperCase()}{ev.evidence_year ? ` · ${ev.evidence_year}` : ''}
+          </div>
+          {ev.evidence_title && open && (
+            <div className="mt-1 text-[10.5px] text-[var(--ink-soft)]">{ev.evidence_title}</div>
+          )}
+          <div className="mt-1 text-[11.5px] text-[var(--ink-soft)] italic leading-[1.5]">
+            {open ? claim : (truncated ? claim.slice(0, 220) + '…' : claim)}
+          </div>
+          {open && ev.haircut_applied != null && Number(ev.haircut_applied) !== 0 && (
+            <div className="mt-2 text-[10px] text-[var(--ink-mute)]">
+              Haircut applied: {(Number(ev.haircut_applied) * 100).toFixed(0)}%
+            </div>
+          )}
+          {open && ev.evidence_link && (
+            <a href={ev.evidence_link} target="_blank" rel="noopener"
+               onClick={e => e.stopPropagation()}
+               className="mt-2 inline-block text-[10px] text-[var(--coral-soft)] hover:text-[var(--coral)] underline">
+              Source ↗
+            </a>
+          )}
+        </button>
+      );
+    }
+
     function MechFocus({ node, analysis, graph, evidence, onJump }) {
       const per = (analysis?.perScenario || []).find(p => p.scenario_id === node.id);
       const arv = per?.arv || 0;
@@ -588,17 +621,8 @@
           {evRows.length > 0 && (
             <>
               <div className="mt-7 eyebrow">Evidence ({evRows.length})</div>
-              <div className="mt-3 space-y-3">
-                {evRows.map(ev => (
-                  <div key={ev.evidence_id} className="pl-3 py-1" style={{ borderLeft: '2px solid var(--moss)', background: 'rgba(107,143,107,0.04)' }}>
-                    <div className="text-[9.5px] text-[var(--ink-mute)]" style={{ letterSpacing: '0.12em' }}>
-                      {(ev.evidence_publisher || ev.evidence_type || '—').toUpperCase()}{ev.evidence_year ? ` · ${ev.evidence_year}` : ''}
-                    </div>
-                    <div className="mt-1 text-[11.5px] text-[var(--ink-soft)] italic leading-[1.5]">
-                      {(ev.quantified_claim_summary || ev.evidence_title || '').slice(0, 220)}
-                    </div>
-                  </div>
-                ))}
+              <div className="mt-3 space-y-2.5">
+                {evRows.map(ev => <EvidenceItem key={ev.evidence_id} ev={ev} />)}
               </div>
             </>
           )}
