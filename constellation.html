@@ -182,6 +182,58 @@
       return { signals, mechs, levers, edges, drift };
     }
 
+    /* ---------- CALC (PINNED COPY from workspace2.html @ 937777a) ----------
+     * DO NOT MODIFY in this file. If a constellation case forces a change,
+     * extract calc.js NOW — not later. Two divergent copies = silent lying. */
+    const RAMPS = [0.5, 1.0, 1.0];
+    const DISCOUNT = 0.10;
+
+    function evalFormula(formula, inputs) {
+      if (!formula || typeof formula !== 'string') return null;
+      const keys = Object.keys(inputs || {});
+      const vals = keys.map(k => {
+        const v = inputs[k];
+        return (v == null || isNaN(Number(v))) ? 0 : Number(v);
+      });
+      try {
+        const fn = new Function(...keys, '"use strict"; return (' + formula + ');');
+        const r = fn(...vals);
+        return (typeof r === 'number' && isFinite(r)) ? r : null;
+      } catch (_) { return null; }
+    }
+
+    function resolvedInputs(inputsMap, inputDefs) {
+      const out = {};
+      (inputDefs || []).forEach(d => {
+        const p = inputsMap?.[d.input_key]?.provided_value;
+        out[d.input_key] = p != null ? Number(p) : Number(d.typical_value ?? d.default_value ?? 0);
+      });
+      return out;
+    }
+
+    function computeAnalysis(scenarios, inputsMap, inputDefs) {
+      const inputs = resolvedInputs(inputsMap, inputDefs);
+      const per = (scenarios || []).map(s => {
+        const arv = evalFormula(s.value_scenario_formula, inputs) || 0;
+        const delay = evalFormula(s.delay_cost_formula, inputs) || (arv / 12);
+        const coi = evalFormula(s.cost_of_inaction_formula, inputs) || (arv * 3);
+        return { scenario_id: s.scenario_id, theme: s.value_theme || 'other', active: !!s.active, arv, delay, coi, pool_shadow: false };
+      });
+      const best = {};
+      per.filter(p => p.active).forEach(p => { if (!best[p.theme] || p.arv > best[p.theme].arv) best[p.theme] = p; });
+      per.forEach(p => { if (p.active && best[p.theme] && best[p.theme].scenario_id !== p.scenario_id) p.pool_shadow = true; });
+      const counted = per.filter(p => p.active && !p.pool_shadow);
+      const arvFull = counted.reduce((s, p) => s + p.arv, 0);
+      const arvY1 = arvFull * RAMPS[0], arvY2 = arvFull * RAMPS[1], arvY3 = arvFull * RAMPS[2];
+      const monthlyDelay = counted.reduce((s, p) => s + p.delay, 0);
+      const coi3yr = counted.reduce((s, p) => s + p.coi, 0);
+      const impl = Number(inputsMap?.implementation_cost?.provided_value) || 0;
+      const npv = impl > 0 ? arvY1 + arvY2 / (1 + DISCOUNT) + arvY3 / (1 + DISCOUNT) ** 2 - impl : null;
+      const payback = impl > 0 && arvY1 > 0 ? impl / (arvY1 / 12) : null;
+      const bcr = impl > 0 ? (arvY1 + arvY2 + arvY3) / impl : null;
+      return { arvY1, arvY2, arvY3, arvFull, monthlyDelay, coi3yr, npv, payback, bcr, perScenario: per, impl };
+    }
+
     /* ---------- FORMAT ---------- */
     function fmtMoney(n) {
       if (n == null || !isFinite(n)) return '—';
@@ -191,6 +243,7 @@
       if (a >= 1e3) return '$' + (n / 1e3).toFixed(0) + 'K';
       return '$' + Math.round(n).toLocaleString();
     }
+    const fmtMultiple = (n) => (n == null || !isFinite(n)) ? '—' : n.toFixed(1) + '×';
 
     /* ---------- GLYPH ---------- */
     function StarGlyph({ size = 12, color = 'var(--coral)' }) {
@@ -456,6 +509,11 @@
       }, [engagementId]);
 
       const graph = useMemo(() => bundle ? buildGraph(bundle) : null, [bundle]);
+      // Reconstitute scenarios with the per-engagement active flag for the calc.
+      const scenarios = useMemo(() => graph ? graph.mechs.map(m => ({ ...m.raw, active: m.active })) : [], [graph]);
+      const analysis = useMemo(() =>
+        bundle ? computeAnalysis(scenarios, bundle.values, bundle.defs) : null,
+        [bundle, scenarios]);
 
       if (err) return (
         <div className="h-full grid place-items-center text-[var(--coral)] text-xs px-4 text-center">
@@ -477,7 +535,9 @@
         <div className="relative h-full overflow-hidden">
           <Canvas graph={graph} counts={counts} hovered={hovered} onHover={setHovered} />
           <FloatingHeader engagement={bundle.engagement} mechCount={counts.mechsActive} />
-          <HeadlineNumber annualValue={null} secondary={null} onTrace={() => {}} traceOn={false} />
+          <HeadlineNumber annualValue={analysis?.arvFull}
+            secondary={`NPV ${fmtMoney(analysis?.npv)} · BCR ${fmtMultiple(analysis?.bcr)} · CoD ${fmtMoney(analysis?.monthlyDelay)}/mo`}
+            onTrace={() => {}} traceOn={false} />
           <Panel engagement={bundle.engagement} />
         </div>
       );
