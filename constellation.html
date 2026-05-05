@@ -242,28 +242,162 @@
       );
     }
 
-    /* ---------- CANVAS (graph lands in C3) ---------- */
-    // Three column bands by x-coordinate per spec. Lane labels float at y≈90.
+    /* ---------- CANVAS ----------
+       Single SVG, viewBox 1400x700. Three column bands by x. Y-distribute
+       nodes evenly within each band starting at y=120 to leave room for
+       the floating header. Edges render before nodes (z-order). */
     const COLS = { signals: 220, mechs: 640, levers: 1100 };
+    const Y_TOP = 120, Y_BOTTOM = 660;
 
-    function Canvas({ counts }) {
+    // Curated theme→accent map. Limited palette per spec (--coral-soft, --gold,
+    // --moss, --plum, --sky). Themes outside the map fall back to ink-mute.
+    const THEME_BAND = {
+      'Operational Efficiency': 'var(--coral-soft)',
+      'Compliance & Risk':       'var(--plum)',
+      'Asset Performance':       'var(--moss)',
+      'Inventory Accuracy':      'var(--sky)',
+      'Throughput':              'var(--gold)',
+      'Visibility':              'var(--sky)',
+      'Revenue':                 'var(--moss)',
+      'Labor Productivity':      'var(--gold)'
+    };
+    const themeBand = (t) => THEME_BAND[t] || 'var(--ink-mute)';
+
+    // Distribute n items evenly between Y_TOP and Y_BOTTOM. Minimum spacing
+    // ~64px for legibility; if n is dense, the band auto-tightens.
+    function distributeY(n) {
+      if (n <= 0) return [];
+      if (n === 1) return [(Y_TOP + Y_BOTTOM) / 2];
+      const step = (Y_BOTTOM - Y_TOP) / (n - 1);
+      return Array.from({ length: n }, (_, i) => Y_TOP + i * step);
+    }
+
+    function laidOut(graph) {
+      const ys = {
+        signals: distributeY(graph.signals.length),
+        mechs:   distributeY(graph.mechs.length),
+        levers:  distributeY(graph.levers.length)
+      };
+      const pos = {};
+      graph.signals.forEach((n, i) => pos[n.id] = { x: COLS.signals, y: ys.signals[i], col: 'signals' });
+      graph.mechs.forEach((n, i) => pos[n.id]   = { x: COLS.mechs,   y: ys.mechs[i],   col: 'mechs' });
+      graph.levers.forEach((n, i) => pos[n.id]  = { x: COLS.levers,  y: ys.levers[i],  col: 'levers' });
+      return pos;
+    }
+
+    function Canvas({ graph, counts, hovered, onHover }) {
+      const pos = useMemo(() => laidOut(graph), [graph]);
+      const connected = useMemo(() => {
+        const s = new Set();
+        if (!hovered) return s;
+        s.add(hovered);
+        graph.edges.forEach(e => { if (e.from === hovered) s.add(e.to); if (e.to === hovered) s.add(e.from); });
+        return s;
+      }, [hovered, graph]);
+      const isLit = (id) => !hovered || connected.has(id);
+
+      // Edges: cubic bezier. Control points pulled horizontally toward midline
+      // for soft S-curves that read as flow rather than wires.
+      const edgePath = (a, b) => {
+        const mx = (a.x + b.x) / 2;
+        return `M ${a.x + 14} ${a.y} C ${mx} ${a.y}, ${mx} ${b.y}, ${b.x - 14} ${b.y}`;
+      };
+
       return (
         <svg className="absolute inset-0" style={{ right: '380px' }}
              viewBox="0 0 1400 700" preserveAspectRatio="xMidYMid meet">
+          <defs>
+            <filter id="cn-glow" x="-30%" y="-30%" width="160%" height="160%">
+              <feGaussianBlur stdDeviation="2" result="b" />
+              <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+            </filter>
+          </defs>
+
+          {/* Lane labels */}
           <g style={{ opacity: 0.4 }}>
-            <text x={COLS.signals} y={90} textAnchor="middle" fill="var(--ink-mute)"
-                  fontFamily="JetBrains Mono" fontSize="9.5" letterSpacing="2.5">
-              SIGNALS · {counts.signals}
-            </text>
-            <text x={COLS.mechs} y={90} textAnchor="middle" fill="var(--ink-mute)"
-                  fontFamily="JetBrains Mono" fontSize="9.5" letterSpacing="2.5">
-              MECHANISMS · {counts.mechsActive}/{counts.mechs}
-            </text>
-            <text x={COLS.levers} y={90} textAnchor="middle" fill="var(--ink-mute)"
-                  fontFamily="JetBrains Mono" fontSize="9.5" letterSpacing="2.5">
-              LEVERS · {counts.levers}
-            </text>
+            <text x={COLS.signals} y={90} textAnchor="middle" fill="var(--ink-mute)" fontFamily="JetBrains Mono" fontSize="9.5" letterSpacing="2.5">SIGNALS · {counts.signals}</text>
+            <text x={COLS.mechs}   y={90} textAnchor="middle" fill="var(--ink-mute)" fontFamily="JetBrains Mono" fontSize="9.5" letterSpacing="2.5">MECHANISMS · {counts.mechsActive}/{counts.mechs}</text>
+            <text x={COLS.levers}  y={90} textAnchor="middle" fill="var(--ink-mute)" fontFamily="JetBrains Mono" fontSize="9.5" letterSpacing="2.5">LEVERS · {counts.levers}</text>
           </g>
+
+          {/* Edges first (under nodes) */}
+          <g>
+            {graph.edges.map((e, i) => {
+              const a = pos[e.from], b = pos[e.to];
+              if (!a || !b) return null;
+              const lit = isLit(e.from) && isLit(e.to);
+              const stroke = e.primary ? 'var(--coral)' : 'var(--line)';
+              const sw = e.primary ? 1.6 : 1;
+              const baseOpacity = e.primary ? 0.85 : 0.5;
+              return <path key={i} d={edgePath(a, b)} fill="none" stroke={stroke}
+                strokeWidth={sw} opacity={lit ? baseOpacity : 0.08}
+                filter={e.primary ? 'url(#cn-glow)' : undefined}
+                vectorEffect="non-scaling-stroke" />;
+            })}
+          </g>
+
+          {/* Signal nodes (diamond) */}
+          {graph.signals.map(n => {
+            const p = pos[n.id]; const lit = isLit(n.id);
+            return (
+              <g key={n.id} opacity={lit ? 1 : 0.25} style={{ cursor: 'pointer' }}
+                 onMouseEnter={() => onHover(n.id)} onMouseLeave={() => onHover(null)}>
+                <polygon points={`${p.x-7},${p.y} ${p.x},${p.y-7} ${p.x+7},${p.y} ${p.x},${p.y+7}`}
+                  fill="var(--bg-2)" stroke="var(--ink-soft)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+                <text x={p.x + 14} y={p.y - 2} fill="var(--ink-mute)" fontFamily="JetBrains Mono"
+                      fontSize="8.5" letterSpacing="1.5">{n.id}</text>
+                <text x={p.x + 14} y={p.y + 9} fill="var(--ink-soft)" fontFamily="JetBrains Mono"
+                      fontSize="10">{(n.label || '').slice(0, 36)}</text>
+              </g>
+            );
+          })}
+
+          {/* Mechanism nodes (rounded rect with theme band) */}
+          {graph.mechs.map(n => {
+            const p = pos[n.id]; const lit = isLit(n.id);
+            const w = 200, h = 44;
+            const x0 = p.x - w/2, y0 = p.y - h/2;
+            const stroke = n.active ? 'var(--coral)' : 'var(--ink-mute)';
+            const fill = n.active ? 'rgba(255,91,60,0.08)' : 'transparent';
+            return (
+              <g key={n.id} opacity={lit ? 1 : 0.25} style={{ cursor: 'pointer' }}
+                 onMouseEnter={() => onHover(n.id)} onMouseLeave={() => onHover(null)}>
+                <rect x={x0} y={y0} width={w} height={h} rx="3" ry="3"
+                      fill={fill} stroke={stroke} strokeWidth="1"
+                      strokeDasharray={n.active ? undefined : '3 3'}
+                      vectorEffect="non-scaling-stroke" />
+                <rect x={x0} y={y0} width="3" height={h} fill={themeBand(n.theme)} />
+                <text x={x0 + 12} y={p.y - 2} fill={n.active ? 'var(--ink)' : 'var(--ink-mute)'}
+                      fontFamily="JetBrains Mono" fontSize="10.5">
+                  {(n.label || '').slice(0, 32)}{(n.label || '').length > 32 ? '…' : ''}
+                </text>
+                <text x={x0 + 12} y={p.y + 13} fill="var(--ink-mute)" fontFamily="JetBrains Mono"
+                      fontSize="8.5" letterSpacing="1.2">
+                  {(n.theme || 'untyped').toUpperCase()}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Lever nodes (circle, primary = gold + larger) */}
+          {graph.levers.map(n => {
+            const p = pos[n.id]; const lit = isLit(n.id);
+            const isPrimary = graph.edges.some(e => e.kind === 'mech-lev' && e.to === n.id && e.primary);
+            const r = isPrimary ? 11 : 9;
+            const stroke = isPrimary ? 'var(--gold)' : 'var(--ink-mute)';
+            const sw = isPrimary ? 1.5 : 1;
+            return (
+              <g key={n.id} opacity={lit ? 1 : 0.25} style={{ cursor: 'pointer' }}
+                 onMouseEnter={() => onHover(n.id)} onMouseLeave={() => onHover(null)}>
+                <circle cx={p.x} cy={p.y} r={r} fill="var(--bg-2)" stroke={stroke}
+                        strokeWidth={sw} vectorEffect="non-scaling-stroke" />
+                <text x={p.x + 16} y={p.y + 4} fill={lit ? 'var(--ink-soft)' : 'var(--ink-mute)'}
+                      fontFamily="JetBrains Mono" fontSize="10">
+                  {(n.label || '').slice(0, 28)}
+                </text>
+              </g>
+            );
+          })}
         </svg>
       );
     }
@@ -300,6 +434,7 @@
     function ConstellationShell({ engagementId }) {
       const [bundle, setBundle] = useState(null);
       const [err, setErr] = useState(null);
+      const [hovered, setHovered] = useState(null);
 
       useEffect(() => {
         let cancelled = false;
@@ -340,7 +475,7 @@
 
       return (
         <div className="relative h-full overflow-hidden">
-          <Canvas counts={counts} />
+          <Canvas graph={graph} counts={counts} hovered={hovered} onHover={setHovered} />
           <FloatingHeader engagement={bundle.engagement} mechCount={counts.mechsActive} />
           <HeadlineNumber annualValue={null} secondary={null} onTrace={() => {}} traceOn={false} />
           <Panel engagement={bundle.engagement} />
