@@ -56,6 +56,13 @@
     a { color: inherit; text-decoration: none; }
     button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
     @keyframes cn-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+    @keyframes cn-fade-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+    .cn-fade-in { animation: cn-fade-in 600ms ease-out both; }
+    .cn-fade-in-2 { animation: cn-fade-in 700ms ease-out 120ms both; }
+    .cn-fade-in-3 { animation: cn-fade-in 800ms ease-out 240ms both; }
+    /* Smooth edge opacity transitions on hover. */
+    .cn-edge { transition: opacity 180ms ease-out, stroke-width 180ms ease-out; }
+    .cn-node { transition: opacity 200ms ease-out; }
   </style>
 </head>
 <body>
@@ -472,6 +479,17 @@
             <text x={COLS.mechs}   y={90} textAnchor="middle" fill="var(--ink-mute)" fontFamily="JetBrains Mono" fontSize="9.5" letterSpacing="2.5">MECHANISMS · {counts.mechsActive}/{counts.mechs}</text>
             <text x={COLS.levers}  y={90} textAnchor="middle" fill="var(--ink-mute)" fontFamily="JetBrains Mono" fontSize="9.5" letterSpacing="2.5">LEVERS · {counts.levers}</text>
           </g>
+          {/* Thin-engagement hint: case is at intake, no active mechs to draw. */}
+          {counts.mechsActive === 0 && (
+            <g style={{ opacity: 0.55 }}>
+              <text x={700} y={380} textAnchor="middle" fill="var(--ink-mute)" fontFamily="Fraunces" fontSize="20" fontStyle="italic">
+                This case has no active mechanisms yet.
+              </text>
+              <text x={700} y={410} textAnchor="middle" fill="var(--ink-mute)" fontFamily="JetBrains Mono" fontSize="10" letterSpacing="2">
+                ACTIVATE MECHANISMS IN WORKSPACE2 TO POPULATE THE GRAPH
+              </text>
+            </g>
+          )}
 
           {/* Edges first (under nodes) */}
           <g>
@@ -488,7 +506,7 @@
                 ? Math.max(0.6, 0.6 + traceWeight * 3)
                 : (e.primary ? 1.6 : 1);
               const baseOpacity = e.primary ? 0.85 : (trace?.active && lit ? 0.7 : 0.5);
-              return <path key={i} d={edgePath(a, b)} fill="none" stroke={stroke}
+              return <path key={i} className="cn-edge" d={edgePath(a, b)} fill="none" stroke={stroke}
                 strokeWidth={sw} opacity={lit ? baseOpacity : 0.06}
                 filter={(e.primary || (trace?.active && lit)) ? 'url(#cn-glow)' : undefined}
                 vectorEffect="non-scaling-stroke" />;
@@ -496,14 +514,20 @@
           </g>
 
           {/* Signal nodes (diamond) */}
+          <g className="cn-fade-in">
           {graph.signals.map(n => {
             const p = pos[n.id]; const lit = isLit(n.id);
+            const selected = selectedId === n.id;
             return (
-              <g key={n.id} opacity={lit ? 1 : 0.25} style={{ cursor: 'pointer' }}
+              <g key={n.id} className="cn-node" opacity={lit ? 1 : 0.25} style={{ cursor: 'pointer' }}
                  onMouseEnter={() => onHover(n.id)} onMouseLeave={() => onHover(null)}
                  onClick={(e) => { e.stopPropagation(); onSelect(n.id); }}>
                 <polygon points={`${p.x-7},${p.y} ${p.x},${p.y-7} ${p.x+7},${p.y} ${p.x},${p.y+7}`}
-                  fill="var(--bg-2)" stroke="var(--ink-soft)" strokeWidth="1" vectorEffect="non-scaling-stroke" />
+                  fill={selected ? 'rgba(255,91,60,0.18)' : 'var(--bg-2)'}
+                  stroke={selected ? 'var(--coral)' : 'var(--ink-soft)'}
+                  strokeWidth={selected ? '1.5' : '1'}
+                  filter={selected ? 'url(#cn-glow)' : undefined}
+                  vectorEffect="non-scaling-stroke" />
                 <text x={p.x + 14} y={p.y - 2} fill="var(--ink-mute)" fontFamily="JetBrains Mono"
                       fontSize="8.5" letterSpacing="1.5">{n.id}</text>
                 <text x={p.x + 14} y={p.y + 9} fill="var(--ink-soft)" fontFamily="JetBrains Mono"
@@ -512,20 +536,25 @@
             );
           })}
 
+          </g>
           {/* Mechanism nodes (rounded rect with theme band) */}
+          <g className="cn-fade-in-2">
           {graph.mechs.map(n => {
             const p = pos[n.id]; const lit = isLit(n.id);
+            const selected = selectedId === n.id;
             const w = 200, h = 44;
             const x0 = p.x - w/2, y0 = p.y - h/2;
-            const stroke = n.active ? 'var(--coral)' : 'var(--ink-mute)';
-            const fill = n.active ? 'rgba(255,91,60,0.08)' : 'transparent';
+            const stroke = selected ? 'var(--coral)' : (n.active ? 'var(--coral)' : 'var(--ink-mute)');
+            const sw = selected ? '1.5' : '1';
+            const fill = selected ? 'rgba(255,91,60,0.18)' : (n.active ? 'rgba(255,91,60,0.08)' : 'transparent');
             return (
-              <g key={n.id} opacity={lit ? 1 : 0.25} style={{ cursor: 'pointer' }}
+              <g key={n.id} className="cn-node" opacity={lit ? 1 : 0.25} style={{ cursor: 'pointer' }}
                  onMouseEnter={() => onHover(n.id)} onMouseLeave={() => onHover(null)}
                  onClick={(e) => { e.stopPropagation(); onSelect(n.id); }}>
                 <rect x={x0} y={y0} width={w} height={h} rx="3" ry="3"
-                      fill={fill} stroke={stroke} strokeWidth="1"
-                      strokeDasharray={n.active ? undefined : '3 3'}
+                      fill={fill} stroke={stroke} strokeWidth={sw}
+                      strokeDasharray={n.active || selected ? undefined : '3 3'}
+                      filter={selected ? 'url(#cn-glow)' : undefined}
                       vectorEffect="non-scaling-stroke" />
                 <rect x={x0} y={y0} width="3" height={h} fill={themeBand(n.theme)} />
                 <text x={x0 + 12} y={p.y - 2} fill={n.active ? 'var(--ink)' : 'var(--ink-mute)'}
@@ -540,19 +569,25 @@
             );
           })}
 
+          </g>
           {/* Lever nodes (circle, primary = gold + larger) */}
+          <g className="cn-fade-in-3">
           {graph.levers.map(n => {
             const p = pos[n.id]; const lit = isLit(n.id);
+            const selected = selectedId === n.id;
             const isPrimary = graph.edges.some(e => e.kind === 'mech-lev' && e.to === n.id && e.primary);
-            const r = isPrimary ? 11 : 9;
-            const stroke = isPrimary ? 'var(--gold)' : 'var(--ink-mute)';
-            const sw = isPrimary ? 1.5 : 1;
+            const r = (selected || isPrimary) ? 11 : 9;
+            const stroke = selected ? 'var(--coral)' : (isPrimary ? 'var(--gold)' : 'var(--ink-mute)');
+            const sw = (selected || isPrimary) ? 1.5 : 1;
             return (
-              <g key={n.id} opacity={lit ? 1 : 0.25} style={{ cursor: 'pointer' }}
+              <g key={n.id} className="cn-node" opacity={lit ? 1 : 0.25} style={{ cursor: 'pointer' }}
                  onMouseEnter={() => onHover(n.id)} onMouseLeave={() => onHover(null)}
                  onClick={(e) => { e.stopPropagation(); onSelect(n.id); }}>
-                <circle cx={p.x} cy={p.y} r={r} fill="var(--bg-2)" stroke={stroke}
-                        strokeWidth={sw} vectorEffect="non-scaling-stroke" />
+                <circle cx={p.x} cy={p.y} r={r}
+                        fill={selected ? 'rgba(255,91,60,0.18)' : 'var(--bg-2)'}
+                        stroke={stroke} strokeWidth={sw}
+                        filter={selected ? 'url(#cn-glow)' : undefined}
+                        vectorEffect="non-scaling-stroke" />
                 <text x={p.x + 16} y={p.y + 4} fill={lit ? 'var(--ink-soft)' : 'var(--ink-mute)'}
                       fontFamily="JetBrains Mono" fontSize="10">
                   {(n.label || '').slice(0, 28)}
@@ -560,6 +595,7 @@
               </g>
             );
           })}
+          </g>
         </svg>
       );
     }
