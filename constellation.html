@@ -89,7 +89,25 @@
 
     /* ---------- LOADERS (RFID-vertical fallback mirrors workspace2 @ 937777a) ---------- */
     const loadDomain      = (id) => sbSelect('vef_domains', { eq: { domain_id: id } }).then(r => r[0] || null);
-    const loadSignals     = (domainId) => sbSelect('vef_value_signals', { eq: { domain_id: domainId } }).catch(() => []);
+    /* loadSignals: RFID-vertical fallback mirrors tool.html @ line 752.
+       For domains where vef_value_signals.domain_id exactly matches, use
+       those. For *-RFD vertical domains (which have no rows under their
+       own domain_id), fetch the NULL-domain RFID-family signals and filter
+       to those whose scenario_ids CSV references at least one scenario
+       with the vertical's prefix. Without this, every -RFD engagement
+       loads zero signals — that was the cause of the empty Signals
+       column reported on iPad. */
+    async function loadSignals(domainId) {
+      try {
+        let rows = await sbSelect('vef_value_signals', { eq: { domain_id: domainId } });
+        if (!rows.length && /-RFD$/.test(domainId)) {
+          const all = await sbSelect('vef_value_signals', { is: { domain_id: null } });
+          const prefix = domainId + '-';
+          rows = all.filter(sig => splitCsv(sig.scenario_ids).some(id => id.startsWith(prefix)));
+        }
+        return rows || [];
+      } catch (_) { return []; }
+    }
     const loadEvidence    = (domainId) => sbSelect('vef_evidence_registry', { eq: { domain_id: domainId } }).catch(() => []);
     const loadSelections  = (engId) => sbSelect('vef_scenario_selections', { eq: { engagement_id: engId } }).catch(() => []);
     const loadInputValues = async (engId) => {
@@ -378,12 +396,15 @@
       );
     }
 
-    /* ---------- HEADLINE NUMBER (top-right, click → trace mode) ---------- */
+    /* ---------- HEADLINE NUMBER (panel header, click → trace mode) ---------- */
+    // Lives at the top of the panel, not floating over the canvas. The
+    // original "right: 404px" anchor put $X over the mechanism column at
+    // iPad widths. Inside the panel it never collides with graph content.
     function HeadlineNumber({ annualValue, secondary, onTrace, traceOn }) {
       return (
         <button onClick={onTrace}
-          className={`absolute top-5 z-10 text-right select-none transition-opacity ${traceOn ? 'opacity-100' : 'opacity-90 hover:opacity-100'}`}
-          style={{ right: '404px', animation: traceOn ? 'cn-pulse 2s ease-in-out infinite' : 'none' }}
+          className={`block w-full text-left select-none transition-opacity ${traceOn ? 'opacity-100' : 'opacity-90 hover:opacity-100'}`}
+          style={{ animation: traceOn ? 'cn-pulse 2s ease-in-out infinite' : 'none' }}
           title={traceOn ? 'Click to clear trace' : 'Click to trace contributors'}>
           <div className="eyebrow">Annual Value</div>
           <div className="display mt-1" style={{ fontSize: '34px', fontWeight: 300, color: 'var(--coral)', lineHeight: 1 }}>
@@ -501,11 +522,15 @@
               // In trace mode, edge thickness scales with the contributing
               // mechanism's share of arvFull (0.6 → 3.5px). Outside trace
               // mode, primary edges keep the gold-tier 1.6px treatment.
-              const stroke = e.primary ? 'var(--coral)' : (trace?.active && lit ? 'var(--coral-soft)' : 'var(--line)');
+              // Standard edges lifted to ink-mute @ 1.2px / 0.65 — visible on
+              // dark canvas without dominating. The original line/0.5 was
+              // imperceptible; a graph that doesn't show its connections
+              // doesn't read as a graph.
+              const stroke = e.primary ? 'var(--coral)' : (trace?.active && lit ? 'var(--coral-soft)' : 'var(--ink-mute)');
               const sw = trace?.active && lit
                 ? Math.max(0.6, 0.6 + traceWeight * 3)
-                : (e.primary ? 1.6 : 1);
-              const baseOpacity = e.primary ? 0.85 : (trace?.active && lit ? 0.7 : 0.5);
+                : (e.primary ? 1.6 : 1.2);
+              const baseOpacity = e.primary ? 0.85 : (trace?.active && lit ? 0.7 : 0.65);
               return <path key={i} className="cn-edge" d={edgePath(a, b)} fill="none" stroke={stroke}
                 strokeWidth={sw} opacity={lit ? baseOpacity : 0.06}
                 filter={(e.primary || (trace?.active && lit)) ? 'url(#cn-glow)' : undefined}
@@ -802,7 +827,7 @@
       );
     }
 
-    function Panel({ engagement, analysis, graph, evidence, selectedId, onJump, trace }) {
+    function Panel({ engagement, analysis, graph, evidence, selectedId, onJump, trace, onTrace, traceOn }) {
       // Find the selected node across all three columns.
       const sel = useMemo(() => {
         if (!selectedId || !graph) return null;
@@ -821,7 +846,12 @@
       return (
         <aside className="panel-bg absolute top-0 right-0 bottom-0 z-20 overflow-y-auto"
                style={{ width: '380px' }}>
-          <div className="px-7 py-9">
+          <div className="px-7 pt-7 pb-3 border-b" style={{ borderColor: 'var(--line-soft)' }}>
+            <HeadlineNumber annualValue={analysis?.arvFull}
+              secondary={`NPV ${fmtMoney(analysis?.npv)} · BCR ${fmtMultiple(analysis?.bcr)} · CoD ${fmtMoney(analysis?.monthlyDelay)}/mo`}
+              onTrace={onTrace} traceOn={traceOn} />
+          </div>
+          <div className="px-7 py-7">
             {sel?.kind === 'mech'   && <MechFocus   node={sel} analysis={analysis} graph={graph} evidence={evidence} onJump={onJump} />}
             {sel?.kind === 'signal' && <SignalFocus node={sel} analysis={analysis} graph={graph} onJump={onJump} />}
             {sel?.kind === 'lever'  && <LeverFocus  node={sel} analysis={analysis} graph={graph} onJump={onJump} />}
@@ -944,11 +974,9 @@
           <Canvas graph={graph} counts={counts} hovered={hovered} onHover={setHovered}
                   selectedId={selectedId} onSelect={setSelectedId} trace={trace} />
           <FloatingHeader engagement={bundle.engagement} mechCount={counts.mechsActive} />
-          <HeadlineNumber annualValue={analysis?.arvFull}
-            secondary={`NPV ${fmtMoney(analysis?.npv)} · BCR ${fmtMultiple(analysis?.bcr)} · CoD ${fmtMoney(analysis?.monthlyDelay)}/mo`}
-            onTrace={() => setTraceOn(t => !t)} traceOn={traceOn} />
           <Panel engagement={bundle.engagement} analysis={analysis} graph={graph} evidence={bundle.evidence}
-                 selectedId={selectedId} onJump={setSelectedId} trace={trace} />
+                 selectedId={selectedId} onJump={setSelectedId} trace={trace}
+                 onTrace={() => setTraceOn(t => !t)} traceOn={traceOn} />
         </div>
       );
     }
