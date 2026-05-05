@@ -255,6 +255,99 @@
       );
     }
 
+    /* ---------- NARRATIVE GENERATORS ----------
+       Templates that produce prose, not form fields. Branch on data shape;
+       speak in real sentences with semicolons; never label what the reader
+       already knows. Read aloud as written. */
+
+    function caseNarrative({ engagement, analysis, graph, evidence }) {
+      const arv = analysis?.arvFull || 0;
+      const activeMechs = graph.mechs.filter(m => m.active);
+      const activeSignals = graph.signals.filter(s =>
+        s.mechIds.some(id => activeMechs.find(m => m.id === id))
+      );
+      const sorted = (analysis?.perScenario || [])
+        .filter(p => p.active && !p.pool_shadow)
+        .sort((a, b) => b.arv - a.arv);
+      const phrases = sorted.slice(0, 3).map(p => {
+        const m = graph.mechs.find(x => x.id === p.scenario_id);
+        const ph = (m?.raw?.one_liner || m?.label || '').trim().replace(/\.$/, '');
+        return ph.length > 0 ? ph[0].toLowerCase() + ph.slice(1) : '';
+      }).filter(Boolean);
+      const themes = [...new Set(activeMechs.map(m => m.theme).filter(Boolean))];
+      const themeClause = themes.length === 0 ? 'operational friction'
+        : themes.length === 1 ? themes[0].toLowerCase()
+        : themes.length === 2 ? `${themes[0].toLowerCase()} and ${themes[1].toLowerCase()}`
+        : `${themes[0].toLowerCase()}, ${themes[1].toLowerCase()}, and adjacent themes`;
+      const subj = engagement.prospect_name ? `${engagement.prospect_name}'s` : 'this case\'s';
+
+      let s1;
+      if (arv > 0 && phrases.length >= 2) {
+        s1 = `This case argues that ${subj} operations are losing ${fmtMoney(arv)} annually to ${themeClause} — ${phrases.join('; ')}.`;
+      } else if (arv > 0) {
+        s1 = `This case argues that ${subj} operations are losing ${fmtMoney(arv)} annually to ${themeClause}.`;
+      } else if (activeMechs.length > 0) {
+        s1 = `This case is taking shape around ${themeClause}, anchored to ${activeMechs.length} active mechanism${activeMechs.length === 1 ? '' : 's'} but not yet quantified.`;
+      } else {
+        s1 = `This case is at intake — no mechanisms have been activated yet.`;
+      }
+      const s2 = activeSignals.length > 0
+        ? `${activeMechs.length} mechanism${activeMechs.length === 1 ? '' : 's'} carry the value, anchored to ${activeSignals.length} operational signal${activeSignals.length === 1 ? '' : 's'}.`
+        : (activeMechs.length > 0 ? `${activeMechs.length} mechanism${activeMechs.length === 1 ? '' : 's'} carry the value.` : '');
+      const stage = (engagement.deal_stage || '').toLowerCase();
+      const ev = (evidence || []).length;
+      const s3 = `The case is at ${stage || 'an unknown'} stage${ev > 0 ? ` with ${ev} evidence source${ev === 1 ? '' : 's'} attached` : ''}.`;
+      return [s1, s2, s3].filter(Boolean).join(' ');
+    }
+
+    function structuralRead({ analysis, graph }) {
+      const out = [];
+      const sorted = (analysis?.perScenario || [])
+        .filter(p => p.active && !p.pool_shadow).sort((a, b) => b.arv - a.arv);
+      const total = analysis?.arvFull || 0;
+
+      // Concentration
+      if (sorted.length && total > 0) {
+        const topPct = sorted[0].arv / total;
+        const topMech = graph.mechs.find(m => m.id === sorted[0].scenario_id);
+        const topName = topMech?.label || 'the top mechanism';
+        if (topPct >= 0.4) {
+          out.push(`${Math.round(topPct * 100)}% of annual value rests on ${topName}; the case is sensitive to changes in that mechanism's assumptions.`);
+        } else if (topPct >= 0.25) {
+          out.push(`${topName} carries ${Math.round(topPct * 100)}% of the value — the case leans on it without depending on it.`);
+        } else {
+          out.push(`Value is spread across ${sorted.length} contributing mechanisms; no single one dominates the case.`);
+        }
+      }
+
+      // Evidence shape
+      const active = graph.mechs.filter(m => m.active);
+      const tiers = { Strong: 0, Moderate: 0, Weak: 0 };
+      active.forEach(m => { const t = m.raw.evidence_strength || 'Moderate'; if (tiers[t] != null) tiers[t]++; });
+      const noEv = active.filter(m => !splitCsv(m.raw.evidence_ids).length);
+      let evLine = '';
+      if (tiers.Strong) evLine += `${tiers.Strong} mechanism${tiers.Strong === 1 ? ' has' : 's have'} strong evidence`;
+      if (tiers.Moderate) evLine += `${evLine ? '; ' : ''}${tiers.Moderate} ${tiers.Moderate === 1 ? 'is' : 'are'} moderate`;
+      if (tiers.Weak) evLine += `${evLine ? '; ' : ''}${tiers.Weak} ${tiers.Weak === 1 ? 'is' : 'are'} thin`;
+      if (evLine) evLine += '.';
+      if (noEv.length === 1) evLine += ` ${noEv[0].label} has no evidence attached.`;
+      else if (noEv.length > 1) evLine += ` ${noEv[0].label} and ${noEv.length - 1} other${noEv.length === 2 ? '' : 's'} have no evidence attached.`;
+      if (evLine) out.push(evLine);
+
+      // Lever profile (thin levers — pulled by exactly one active mech)
+      const counts = {};
+      active.forEach(m => m.levers.forEach(k => { counts[k] = (counts[k] || 0) + 1; }));
+      const thin = Object.entries(counts).filter(([_, n]) => n === 1).map(([k]) => k);
+      if (thin.length === 0 && Object.keys(counts).length > 0) {
+        out.push(`Every active lever is pulled by at least two mechanisms; the case has no single-point fragilities at the input layer.`);
+      } else if (thin.length > 0) {
+        const ex = thin.slice(0, 2).map(k => graph.levers.find(l => l.id === k)?.label).filter(Boolean);
+        const exClause = ex.length === 0 ? '' : ex.length === 1 ? ` (e.g. ${ex[0]})` : ` (e.g. ${ex[0]}; ${ex[1]})`;
+        out.push(`${thin.length} lever${thin.length === 1 ? ' is' : 's are'} pulled by only one active mechanism${exClause} — fragile if those mechanisms shift.`);
+      }
+      return out;
+    }
+
     /* ---------- FLOATING HEADER (top-left) ---------- */
     function FloatingHeader({ engagement, mechCount }) {
       const stage = (engagement?.deal_stage || '').toLowerCase() || '—';
@@ -456,8 +549,14 @@
     }
 
     /* ---------- PANEL (always visible, ~380px right) ---------- */
-    function Panel({ engagement }) {
-      // Case-level default state. Real narrative + structural read land in C5.
+    function Panel({ engagement, analysis, graph, evidence }) {
+      const narrative = useMemo(() => (graph && analysis)
+        ? caseNarrative({ engagement, analysis, graph, evidence }) : null,
+        [engagement, analysis, graph, evidence]);
+      const observations = useMemo(() => (graph && analysis)
+        ? structuralRead({ analysis, graph }) : [],
+        [analysis, graph]);
+      const stage = (engagement?.deal_stage || '').toLowerCase() || '—';
       return (
         <aside className="panel-bg absolute top-0 right-0 bottom-0 z-20 overflow-y-auto"
                style={{ width: '380px' }}>
@@ -467,17 +566,23 @@
               {engagement?.analysis_name || engagement?.vendor_name || 'Untitled'}
             </div>
             <div className="mt-1.5 text-[11px] text-[var(--ink-mute)]">
-              {engagement?.vendor_name || '—'} <span className="text-[var(--ink-mute)]">→</span> {engagement?.prospect_name || '—'}
+              {engagement?.vendor_name || '—'} <span className="text-[var(--ink-mute)]">→</span> {engagement?.prospect_name || '—'} <span className="text-[var(--ink-mute)]">·</span> {stage}
             </div>
 
-            <div className="mt-7 text-[12px] leading-relaxed text-[var(--ink-soft)]">
-              <span className="text-[var(--ink-mute)] italic">Narrative read lands in C5 — a few sentences describing what this case is actually arguing, in plain English.</span>
-            </div>
+            {narrative && (
+              <p className="mt-7 text-[12.5px] leading-[1.65] text-[var(--ink-soft)]">{narrative}</p>
+            )}
 
-            <div className="mt-9 eyebrow">Structure</div>
-            <div className="mt-3 text-[12px] leading-relaxed text-[var(--ink-soft)] space-y-3">
-              <p className="text-[var(--ink-mute)] italic">Concentration · evidence shape · lever profile — three short observations land in C5.</p>
-            </div>
+            {observations.length > 0 && (
+              <>
+                <div className="mt-9 eyebrow">Structure</div>
+                <div className="mt-3 space-y-4">
+                  {observations.map((line, i) => (
+                    <p key={i} className="text-[12px] leading-[1.65] text-[var(--ink-soft)]">{line}</p>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </aside>
       );
@@ -538,7 +643,7 @@
           <HeadlineNumber annualValue={analysis?.arvFull}
             secondary={`NPV ${fmtMoney(analysis?.npv)} · BCR ${fmtMultiple(analysis?.bcr)} · CoD ${fmtMoney(analysis?.monthlyDelay)}/mo`}
             onTrace={() => {}} traceOn={false} />
-          <Panel engagement={bundle.engagement} />
+          <Panel engagement={bundle.engagement} analysis={analysis} graph={graph} evidence={bundle.evidence} />
         </div>
       );
     }
