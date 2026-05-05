@@ -418,10 +418,15 @@
     }
 
     /* ---------- CANVAS ----------
-       Single SVG, viewBox 1400x700. Three column bands by x. Y-distribute
-       nodes evenly within each band starting at y=120 to leave room for
-       the floating header. Edges render before nodes (z-order). */
-    const COLS = { signals: 220, mechs: 640, levers: 1100 };
+       Single SVG, viewBox 1400x700. Three column BANDS by x-coordinate
+       (not strict columns — see laidOut). Y-coordinates cluster by theme.
+       Edges render before nodes (z-order). */
+    // Column bands: x varies within band by a meaningful node property.
+    const BAND = {
+      signals: [180, 320],   // x = f(mechanisms answered) — heavier sigs further right
+      mechs:   [560, 760],   // x = f(rank) — top contributor central, smaller drift to edges
+      levers:  [1020, 1180]  // x = f(primary) — primary at left edge, standard at right
+    };
     const Y_TOP = 120, Y_BOTTOM = 660;
 
     // Curated theme→accent map. Limited palette per spec (--coral-soft, --gold,
@@ -447,21 +452,94 @@
       return Array.from({ length: n }, (_, i) => Y_TOP + i * step);
     }
 
-    function laidOut(graph) {
-      const ys = {
-        signals: distributeY(graph.signals.length),
-        mechs:   distributeY(graph.mechs.length),
-        levers:  distributeY(graph.levers.length)
-      };
+    function laidOut(graph, analysis) {
+      // Per-mech contribution share — drives mech x-rank, theme group totals,
+      // and rect height (contribution-weighted sizing).
+      const total = analysis?.arvFull || 0;
+      const shareById = {};
+      (analysis?.perScenario || []).filter(p => p.active && !p.pool_shadow)
+        .forEach(p => { shareById[p.scenario_id] = total > 0 ? p.arv / total : 0; });
+      const maxShare = Math.max(...Object.values(shareById), 0.001);
+
+      // Theme grouping. Mechs cluster by value_theme; groups ranked by
+      // total contribution. Signals + levers inherit theme from the first
+      // mech they touch so neighborhoods read across columns.
+      const groups = {};
+      graph.mechs.forEach(m => {
+        const t = m.theme || '__none';
+        if (!groups[t]) groups[t] = { theme: m.theme, mechs: [], total: 0 };
+        groups[t].mechs.push(m);
+        groups[t].total += shareById[m.id] || 0;
+      });
+      const themeOrder = Object.values(groups)
+        .sort((a, b) => b.total - a.total)
+        .map(g => g.theme || '__none');
+      const orderedMechs = [];
+      themeOrder.forEach(t => {
+        const grp = groups[t === null ? '__none' : t] || groups['__none'];
+        if (!grp) return;
+        grp.mechs.sort((a, b) => (shareById[b.id] || 0) - (shareById[a.id] || 0));
+        orderedMechs.push(...grp.mechs);
+      });
+
+      // Mech x: rank-driven. Top contributor at band center; alternating
+      // outward as rank descends so the band reads as "central mass."
+      const rank = {};
+      graph.mechs.slice().sort((a, b) => (shareById[b.id] || 0) - (shareById[a.id] || 0))
+        .forEach((m, i) => { rank[m.id] = i; });
+      const mechCx = (BAND.mechs[0] + BAND.mechs[1]) / 2;
+      const mechHalf = (BAND.mechs[1] - BAND.mechs[0]) / 2;
+      const mechYs = distributeY(orderedMechs.length);
       const pos = {};
-      graph.signals.forEach((n, i) => pos[n.id] = { x: COLS.signals, y: ys.signals[i], col: 'signals' });
-      graph.mechs.forEach((n, i) => pos[n.id]   = { x: COLS.mechs,   y: ys.mechs[i],   col: 'mechs' });
-      graph.levers.forEach((n, i) => pos[n.id]  = { x: COLS.levers,  y: ys.levers[i],  col: 'levers' });
+      orderedMechs.forEach((m, i) => {
+        const r = rank[m.id];
+        const sign = r % 2 === 0 ? 1 : -1;
+        const mag = Math.ceil(r / 2) / Math.max(1, Math.ceil(orderedMechs.length / 2));
+        pos[m.id] = { x: mechCx + sign * mag * mechHalf, y: mechYs[i], col: 'mechs', theme: m.theme };
+      });
+
+      // Signals: theme from first answered mech; ordered by theme then by
+      // mechCount desc within theme. x = f(mechCount): heavily-answered
+      // signals further right, closer to mechanisms.
+      const sigTheme = (s) => (graph.mechs.find(m => s.mechIds.includes(m.id))?.theme) || '__none';
+      const orderedSigs = graph.signals.slice().sort((a, b) => {
+        const ai = themeOrder.indexOf(sigTheme(a));
+        const bi = themeOrder.indexOf(sigTheme(b));
+        if (ai !== bi) return ai - bi;
+        return b.mechIds.length - a.mechIds.length;
+      });
+      const maxAnswers = Math.max(...graph.signals.map(s => s.mechIds.length), 1);
+      const sigYs = distributeY(orderedSigs.length);
+      orderedSigs.forEach((s, i) => {
+        const ratio = s.mechIds.length / maxAnswers;
+        pos[s.id] = { x: BAND.signals[0] + ratio * (BAND.signals[1] - BAND.signals[0]),
+                      y: sigYs[i], col: 'signals' };
+      });
+
+      // Levers: theme from first pulling mech; primary levers pull in to
+      // the band's left edge (closer to mechanisms), standard at right.
+      const isPrimary = (id) => graph.edges.some(e => e.kind === 'mech-lev' && e.to === id && e.primary);
+      const levTheme = (l) => (graph.mechs.find(m => m.levers.includes(l.id))?.theme) || '__none';
+      const orderedLevs = graph.levers.slice().sort((a, b) => {
+        const ai = themeOrder.indexOf(levTheme(a));
+        const bi = themeOrder.indexOf(levTheme(b));
+        if (ai !== bi) return ai - bi;
+        return (isPrimary(b.id) ? 1 : 0) - (isPrimary(a.id) ? 1 : 0);
+      });
+      const levYs = distributeY(orderedLevs.length);
+      orderedLevs.forEach((l, i) => {
+        pos[l.id] = { x: isPrimary(l.id) ? BAND.levers[0] : BAND.levers[1],
+                      y: levYs[i], col: 'levers' };
+      });
+
+      pos._shareById = shareById;
+      pos._maxShare = maxShare;
       return pos;
     }
 
-    function Canvas({ graph, counts, hovered, onHover, selectedId, onSelect, trace }) {
-      const pos = useMemo(() => laidOut(graph), [graph]);
+    function Canvas({ graph, analysis, counts, hovered, onHover, selectedId, onSelect, trace }) {
+      const pos = useMemo(() => laidOut(graph, analysis), [graph, analysis]);
+      const maxShare = pos._maxShare || 0.001;
       const connected = useMemo(() => {
         const s = new Set();
         if (!hovered) return s;
@@ -484,7 +562,7 @@
       };
 
       return (
-        <svg className="absolute inset-0" style={{ right: '380px' }}
+        <svg className="absolute inset-0" style={{ right: '340px' }}
              viewBox="0 0 1400 700" preserveAspectRatio="xMidYMid meet"
              onClick={() => onSelect(null)}>
           <defs>
@@ -494,11 +572,11 @@
             </filter>
           </defs>
 
-          {/* Lane labels */}
+          {/* Lane labels at band centers. */}
           <g style={{ opacity: 0.4 }}>
-            <text x={COLS.signals} y={90} textAnchor="middle" fill="var(--ink-mute)" fontFamily="JetBrains Mono" fontSize="9.5" letterSpacing="2.5">SIGNALS · {counts.signals}</text>
-            <text x={COLS.mechs}   y={90} textAnchor="middle" fill="var(--ink-mute)" fontFamily="JetBrains Mono" fontSize="9.5" letterSpacing="2.5">MECHANISMS · {counts.mechsActive}/{counts.mechs}</text>
-            <text x={COLS.levers}  y={90} textAnchor="middle" fill="var(--ink-mute)" fontFamily="JetBrains Mono" fontSize="9.5" letterSpacing="2.5">LEVERS · {counts.levers}</text>
+            <text x={(BAND.signals[0] + BAND.signals[1]) / 2} y={90} textAnchor="middle" fill="var(--ink-mute)" fontFamily="JetBrains Mono" fontSize="9.5" letterSpacing="2.5">SIGNALS · {counts.signals}</text>
+            <text x={(BAND.mechs[0]   + BAND.mechs[1])   / 2} y={90} textAnchor="middle" fill="var(--ink-mute)" fontFamily="JetBrains Mono" fontSize="9.5" letterSpacing="2.5">MECHANISMS · {counts.mechsActive}/{counts.mechs}</text>
+            <text x={(BAND.levers[0]  + BAND.levers[1])  / 2} y={90} textAnchor="middle" fill="var(--ink-mute)" fontFamily="JetBrains Mono" fontSize="9.5" letterSpacing="2.5">LEVERS · {counts.levers}</text>
           </g>
           {/* Thin-engagement hint: case is at intake, no active mechs to draw. */}
           {counts.mechsActive === 0 && (
@@ -562,12 +640,16 @@
           })}
 
           </g>
-          {/* Mechanism nodes (rounded rect with theme band) */}
+          {/* Mechanism nodes (rounded rect with theme band, contribution-weighted height) */}
           <g className="cn-fade-in-2">
           {graph.mechs.map(n => {
             const p = pos[n.id]; const lit = isLit(n.id);
             const selected = selectedId === n.id;
-            const w = 200, h = 44;
+            const share = (pos._shareById || {})[n.id] || 0;
+            // Active rect height scales 36→60 with contribution share. Inactive
+            // mechs render small (32) so the case shape is readable at a glance.
+            const h = n.active ? Math.round(36 + (share / maxShare) * 24) : 32;
+            const w = 200;
             const x0 = p.x - w/2, y0 = p.y - h/2;
             const stroke = selected ? 'var(--coral)' : (n.active ? 'var(--coral)' : 'var(--ink-mute)');
             const sw = selected ? '1.5' : '1';
@@ -582,11 +664,11 @@
                       filter={selected ? 'url(#cn-glow)' : undefined}
                       vectorEffect="non-scaling-stroke" />
                 <rect x={x0} y={y0} width="3" height={h} fill={themeBand(n.theme)} />
-                <text x={x0 + 12} y={p.y - 2} fill={n.active ? 'var(--ink)' : 'var(--ink-mute)'}
+                <text x={x0 + 12} y={p.y - 4} fill={n.active ? 'var(--ink)' : 'var(--ink-mute)'}
                       fontFamily="JetBrains Mono" fontSize="10.5">
                   {(n.label || '').slice(0, 32)}{(n.label || '').length > 32 ? '…' : ''}
                 </text>
-                <text x={x0 + 12} y={p.y + 13} fill="var(--ink-mute)" fontFamily="JetBrains Mono"
+                <text x={x0 + 12} y={p.y + 11} fill="var(--ink-mute)" fontFamily="JetBrains Mono"
                       fontSize="8.5" letterSpacing="1.2">
                   {(n.theme || 'untyped').toUpperCase()}
                 </text>
@@ -595,15 +677,16 @@
           })}
 
           </g>
-          {/* Lever nodes (circle, primary = gold + larger) */}
+          {/* Lever nodes (circle). Primary status reads through the thicker
+              coral edge only — no node treatment (per locked rule:
+              "thicker edge only, no node treatment. Pick one."). */}
           <g className="cn-fade-in-3">
           {graph.levers.map(n => {
             const p = pos[n.id]; const lit = isLit(n.id);
             const selected = selectedId === n.id;
-            const isPrimary = graph.edges.some(e => e.kind === 'mech-lev' && e.to === n.id && e.primary);
-            const r = (selected || isPrimary) ? 11 : 9;
-            const stroke = selected ? 'var(--coral)' : (isPrimary ? 'var(--gold)' : 'var(--ink-mute)');
-            const sw = (selected || isPrimary) ? 1.5 : 1;
+            const r = selected ? 11 : 9;
+            const stroke = selected ? 'var(--coral)' : 'var(--ink-mute)';
+            const sw = selected ? 1.5 : 1;
             return (
               <g key={n.id} className="cn-node" opacity={lit ? 1 : 0.25} style={{ cursor: 'pointer' }}
                  onMouseEnter={() => onHover(n.id)} onMouseLeave={() => onHover(null)}
@@ -613,7 +696,10 @@
                         stroke={stroke} strokeWidth={sw}
                         filter={selected ? 'url(#cn-glow)' : undefined}
                         vectorEffect="non-scaling-stroke" />
-                <text x={p.x + 16} y={p.y + 4} fill={lit ? 'var(--ink-soft)' : 'var(--ink-mute)'}
+                {/* Labels read inward (text-anchor=end) so they live left
+                    of the lever circle and don't push past the SVG right edge. */}
+                <text x={p.x - 14} y={p.y + 4} textAnchor="end"
+                      fill={lit ? 'var(--ink-soft)' : 'var(--ink-mute)'}
                       fontFamily="JetBrains Mono" fontSize="10">
                   {(n.label || '').slice(0, 28)}
                 </text>
@@ -845,7 +931,7 @@
 
       return (
         <aside className="panel-bg absolute top-0 right-0 bottom-0 z-20 overflow-y-auto"
-               style={{ width: '380px' }}>
+               style={{ width: '340px' }}>
           <div className="px-7 pt-7 pb-3 border-b" style={{ borderColor: 'var(--line-soft)' }}>
             <HeadlineNumber annualValue={analysis?.arvFull}
               secondary={`NPV ${fmtMoney(analysis?.npv)} · BCR ${fmtMultiple(analysis?.bcr)} · CoD ${fmtMoney(analysis?.monthlyDelay)}/mo`}
@@ -971,7 +1057,7 @@
 
       return (
         <div className="relative h-full overflow-hidden">
-          <Canvas graph={graph} counts={counts} hovered={hovered} onHover={setHovered}
+          <Canvas graph={graph} analysis={analysis} counts={counts} hovered={hovered} onHover={setHovered}
                   selectedId={selectedId} onSelect={setSelectedId} trace={trace} />
           <FloatingHeader engagement={bundle.engagement} mechCount={counts.mechsActive} />
           <Panel engagement={bundle.engagement} analysis={analysis} graph={graph} evidence={bundle.evidence}
