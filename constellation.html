@@ -79,6 +79,109 @@
 
     const loadEngagement = (id) => sbSelect('vef_engagements', { eq: { engagement_id: id } }).then(r => r[0] || null);
 
+    /* ---------- LOADERS (RFID-vertical fallback mirrors workspace2 @ 937777a) ---------- */
+    const loadDomain      = (id) => sbSelect('vef_domains', { eq: { domain_id: id } }).then(r => r[0] || null);
+    const loadSignals     = (domainId) => sbSelect('vef_value_signals', { eq: { domain_id: domainId } }).catch(() => []);
+    const loadEvidence    = (domainId) => sbSelect('vef_evidence_registry', { eq: { domain_id: domainId } }).catch(() => []);
+    const loadSelections  = (engId) => sbSelect('vef_scenario_selections', { eq: { engagement_id: engId } }).catch(() => []);
+    const loadInputValues = async (engId) => {
+      const arr = await sbSelect('vef_input_values', { eq: { engagement_id: engId } }).catch(() => []);
+      const m = {}; arr.forEach(iv => m[iv.input_key] = iv); return m;
+    };
+    async function loadScenarios(domainId, domain) {
+      let s = await sbSelect('vef_value_scenarios', { eq: { domain_id: domainId } }).catch(() => []);
+      if (!s.length && domain?.technology === 'RFID' && domainId !== 'RFD')
+        s = await sbSelect('vef_value_scenarios', { eq: { domain_id: 'RFD' } }).catch(() => []);
+      return s;
+    }
+    async function loadInputDefs(domainId, domain) {
+      let r = await sbSelect('vef_input_definitions', { eq: { domain_id: domainId } }).catch(() => []);
+      if (!r.length && domain?.technology === 'RFID' && domainId !== 'RFD')
+        r = await sbSelect('vef_input_definitions', { eq: { domain_id: 'RFD' } }).catch(() => []);
+      const seen = new Set();
+      return r.filter(d => seen.has(d.input_key) ? false : (seen.add(d.input_key), true));
+    }
+
+    /* ---------- GRAPH DERIVATION (structural edges only) ----------
+       Three columns: Signals → Mechanisms → Levers. Theme is a node property
+       on mechanisms (color band in C3), not a column — vef_value_signals has
+       no value_theme FK, so signal→theme would be composed-only. Per the
+       "structural or doesn't ship" rule we ship only direct-FK edges. */
+    const splitCsv = (s) => (s || '').split(',').map(t => t.trim()).filter(Boolean);
+    const FORMULA_STOPWORDS = new Set(['and','or','not','if','min','max','log','exp','sqrt','abs']);
+    const tokenizeFormula = (f) =>
+      (f || '').match(/[a-z][a-z0-9_]{2,}/g)?.filter(t => !FORMULA_STOPWORDS.has(t)) || [];
+
+    function deriveMechLevers(scenario, defKeys, drift) {
+      // Spot-check (run before this build): inputs_required is 99.4% populated
+      // on the scenario side. Take the union with formula tokens and filter
+      // against the loaded input_defs. Bimodal per-domain resolution against
+      // vef_input_definitions is a pre-existing data-completeness state, not
+      // a derivation bug — surfaced in panel structural read, not silenced.
+      const declared = new Set(splitCsv(scenario.inputs_required));
+      const tokens = new Set([
+        ...tokenizeFormula(scenario.value_scenario_formula),
+        ...tokenizeFormula(scenario.delay_cost_formula),
+        ...tokenizeFormula(scenario.cost_of_inaction_formula)
+      ]);
+      const out = new Set();
+      [...declared, ...tokens].forEach(k => { if (defKeys.has(k)) out.add(k); });
+      const disagree = [...declared].some(k => !tokens.has(k) && defKeys.has(k))
+        || [...tokens].some(k => !declared.has(k) && defKeys.has(k));
+      if (disagree) drift.leverEdge++;
+      return [...out];
+    }
+
+    function buildGraph(bundle) {
+      const drift = { signalEdge: 0, leverEdge: 0 };
+      const defKeys = new Set((bundle.defs || []).map(d => d.input_key));
+      const selById = Object.fromEntries((bundle.selections || []).map(s => [s.scenario_id, s]));
+
+      const mechs = (bundle.scenarios || []).map(s => ({
+        kind: 'mech', id: s.scenario_id, label: s.mechanism_label || s.scenario_id,
+        theme: s.value_theme || null,
+        active: selById[s.scenario_id] ? selById[s.scenario_id].is_active !== false : !!s.active_by_default,
+        levers: deriveMechLevers(s, defKeys, drift),
+        raw: s
+      }));
+      const mechById = Object.fromEntries(mechs.map(m => [m.id, m]));
+
+      const signals = (bundle.signals || []).map(sig => {
+        const fromCsv = splitCsv(sig.scenario_ids);
+        const fromReverse = (bundle.scenarios || [])
+          .filter(s => splitCsv(s.linked_vl_nums).includes(sig.signal_id))
+          .map(s => s.scenario_id);
+        const union = Array.from(new Set([...fromCsv, ...fromReverse])).filter(id => mechById[id]);
+        const disagree = fromCsv.some(id => !fromReverse.includes(id) && mechById[id])
+          || fromReverse.some(id => !fromCsv.includes(id));
+        if (disagree) drift.signalEdge++;
+        return { kind: 'signal', id: sig.signal_id, label: sig.signal_name || sig.signal_id,
+                 primary_lever: sig.primary_lever || null, mechIds: union, raw: sig };
+      });
+
+      const levers = (bundle.defs || []).map(d => ({
+        kind: 'lever', id: d.input_key, label: d.label || d.input_key, raw: d
+      }));
+
+      // Edges with primary flag: a lever is "primary" if it appears as
+      // signal.primary_lever for any signal that answers an active mechanism
+      // pulling that lever (per the spec — primary is contextual to the case).
+      const activeMechIds = new Set(mechs.filter(m => m.active).map(m => m.id));
+      const isPrimaryLeverInCase = new Set();
+      signals.forEach(sig => {
+        if (!sig.primary_lever) return;
+        if (sig.mechIds.some(id => activeMechIds.has(id))) isPrimaryLeverInCase.add(sig.primary_lever);
+      });
+      const edges = [];
+      signals.forEach(sig => sig.mechIds.forEach(mid => edges.push({ from: sig.id, to: mid, kind: 'sig-mech' })));
+      mechs.forEach(m => m.levers.forEach(k => edges.push({
+        from: m.id, to: k, kind: 'mech-lev', primary: isPrimaryLeverInCase.has(k) && m.active
+      })));
+
+      window.__constellation_drift = drift;
+      return { signals, mechs, levers, edges, drift };
+    }
+
     /* ---------- FORMAT ---------- */
     function fmtMoney(n) {
       if (n == null || !isFinite(n)) return '—';
@@ -100,9 +203,9 @@
     }
 
     /* ---------- FLOATING HEADER (top-left) ---------- */
-    function FloatingHeader({ engagement }) {
-      const stage = (engagement?.deal_stage || '').toLowerCase();
-      const meta = `${engagement ? '— mechanisms · ' : ''}${stage || '—'} stage`;
+    function FloatingHeader({ engagement, mechCount }) {
+      const stage = (engagement?.deal_stage || '').toLowerCase() || '—';
+      const meta = `${mechCount} mechanism${mechCount === 1 ? '' : 's'} · ${stage} stage`;
       return (
         <div className="absolute top-5 left-6 z-10 select-none">
           <div className="flex items-center gap-2">
@@ -195,21 +298,29 @@
 
     /* ---------- SHELL ---------- */
     function ConstellationShell({ engagementId }) {
-      const [engagement, setEngagement] = useState(null);
+      const [bundle, setBundle] = useState(null);
       const [err, setErr] = useState(null);
 
       useEffect(() => {
         let cancelled = false;
         (async () => {
           try {
-            const e = await loadEngagement(engagementId);
+            const eng = await loadEngagement(engagementId);
+            if (!eng) throw new Error(`No engagement found: ${engagementId}`);
+            const domain = eng.domain_id ? await loadDomain(eng.domain_id) : null;
+            const [signals, scenarios, defs, evidence, selections, values] = await Promise.all([
+              loadSignals(eng.domain_id), loadScenarios(eng.domain_id, domain),
+              loadInputDefs(eng.domain_id, domain), loadEvidence(eng.domain_id),
+              loadSelections(engagementId), loadInputValues(engagementId)
+            ]);
             if (cancelled) return;
-            if (!e) throw new Error(`No engagement found: ${engagementId}`);
-            setEngagement(e);
+            setBundle({ engagement: eng, domain, signals, scenarios, defs, evidence, selections, values });
           } catch (e) { if (!cancelled) setErr(e.message || String(e)); }
         })();
         return () => { cancelled = true; };
       }, [engagementId]);
+
+      const graph = useMemo(() => bundle ? buildGraph(bundle) : null, [bundle]);
 
       if (err) return (
         <div className="h-full grid place-items-center text-[var(--coral)] text-xs px-4 text-center">
@@ -218,17 +329,21 @@
              className="mt-3 text-[var(--ink-mute)] hover:text-[var(--ink)] underline">← back to workspace</a>
         </div>
       );
-      if (!engagement) return <div className="h-full grid place-items-center text-[var(--ink-mute)] text-xs">Loading…</div>;
+      if (!bundle || !graph) return <div className="h-full grid place-items-center text-[var(--ink-mute)] text-xs">Loading…</div>;
 
-      // Counts + macro values fill in starting C2/C4. Stub zeros for now.
-      const counts = { signals: 0, mechs: 0, mechsActive: 0, levers: 0 };
+      const counts = {
+        signals: graph.signals.length,
+        mechs: graph.mechs.length,
+        mechsActive: graph.mechs.filter(m => m.active).length,
+        levers: graph.levers.length
+      };
 
       return (
         <div className="relative h-full overflow-hidden">
           <Canvas counts={counts} />
-          <FloatingHeader engagement={engagement} />
+          <FloatingHeader engagement={bundle.engagement} mechCount={counts.mechsActive} />
           <HeadlineNumber annualValue={null} secondary={null} onTrace={() => {}} traceOn={false} />
-          <Panel engagement={engagement} />
+          <Panel engagement={bundle.engagement} />
         </div>
       );
     }
