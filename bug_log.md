@@ -115,3 +115,12 @@
 **Prevention rule:** Any new `sbUpsert` call with an `onConflict` argument must verify that a matching UNIQUE or EXCLUSION constraint exists on the named columns before merge. Tables in this codebase with ON CONFLICT upserts: `vef_scenario_selections (engagement_id, scenario_id)` — now constrained as of this fix; `vef_input_values (engagement_id, input_key)` — constraint status NOT verified in this session, has been working in production but worth confirming exists. Audit step: before merging a chunk that adds an upsert with a new conflict tuple, paste a `\d <table>` output or the DDL in the commit message.
 **Status:** RESOLVED (DDL applied)
 **Project:** alt-meridian
+
+## BUG-011 2026-08-25 — index.html threw uncaught error on every load; ~380 lines of dead chat-tool JS
+- File(s): index.html (pre-rewrite version, commit 7ca5600 and earlier)
+- Symptom: Every page load ran `loadTool()`, which fired 5 Supabase REST queries then wrote to `document.getElementById('tool-engine-label')` — a DOM node the chat-drawer markup no longer contained (drawer HTML had been removed at some point; the JS never was). The write threw inside the `try`; the `catch` block wrote to the same missing element and threw again, uncaught, on every visitor.
+- Root cause: A chat-tool feature was pulled from the markup without removing its supporting JavaScript. ~32% of the file (`toolSend`, `toolDiscoveryTurn`, `toolCFOTurn`, `toolReset`, `callClaude`, ~20 more functions) referenced DOM nodes that no longer existed. `callClaude` also posted to `api.anthropic.com` directly from the browser with no API key and no `anthropic-version` header — dead on arrival even if the DOM had been intact.
+- Fix applied: Full rewrite of `index.html` as part of a requested site-wide pivot to a single personal-services page (no chat tool, no Supabase calls, no Anthropic calls). All dead code removed rather than patched, since the entire feature category left the page.
+- Prevention rule: When removing a feature's markup, grep the script block for every function/ID the removed markup fed and delete the JS in the same commit — don't leave orphaned handlers on the theory they're harmless if unreached. A `getElementById` that can return null needs either a null-guard or removal, not deferral.
+- Status: RESOLVED
+- Project: alt-meridian
