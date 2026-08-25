@@ -10,7 +10,7 @@
 <meta property="og:description" content="A value case the customer can take to finance, procurement, and leadership — built from customer data, transparent assumptions, and relevant benchmarks.">
 <meta property="og:url" content="https://altmeridian.com/">
 <meta name="twitter:card" content="summary">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%231B1F27'/%3E%3Cpath d='M14 42 L26 22 L38 34 L50 16' stroke='%23C84B2F' stroke-width='5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%231B1F27'/%3E%3Cpath d='M14 42 L26 22 L38 34 L50 16' stroke='%232E5C8A' stroke-width='5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
@@ -20,7 +20,7 @@
   :root {
     --ink: #1B1F27;
     --muted: #5B6270;
-    --accent: #C84B2F;
+    --accent: #2E5C8A;
     --bg: #FFFFFF;
     --bg-alt: #F7F6F3;
     --rule: #E4E1D9;
@@ -197,6 +197,30 @@
   }
   .step p { font-size: 15px; }
 
+  /* ── STAT ROW ───────────────────────────────────────────── */
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 32px;
+    max-width: 700px;
+    margin-top: 34px;
+    padding-top: 30px;
+    border-top: 1px solid var(--rule);
+  }
+  .stat-num {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 34px;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 10px;
+  }
+  .stat-label {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
   /* ── FINAL CTA ──────────────────────────────────────────── */
   .final-cta { text-align: left; }
   .final-cta .btn { margin: 8px 0 16px; }
@@ -234,6 +258,7 @@
     .hero-body { order: 1; }
     .hero h1 { font-size: 30px; }
     h2 { font-size: 22px; }
+    .stat-row { grid-template-columns: 1fr; gap: 22px; }
   }
 </style>
 </head>
@@ -241,7 +266,7 @@
 
 <header>
   <div class="wordmark">Alt Meridian</div>
-  <a class="btn btn-sm" href="mailto:josh@altmeridian.com?subject=Value%20case%20discussion&body=Hi%20Josh%2C%0A%0AI%20am%20interested%20in%20discussing%20a%20defensible%20ROI%20and%20value%20case%20for%20a%20complex%20sales%20opportunity.%0A%0ACompany%3A%0AContact%20name%20and%20role%3A%0ASolution%20and%20market%20details%3A%0ACustomer%20or%20opportunity%2C%20if%20shareable%3A%0AApproximate%20deal%20size%3A%0ACurrent%20sales%20stage%3A%0AThe%20customer%20problem%20or%20decision%20at%20hand%3A%0A%0AThanks%2C%0A">Contact Josh</a>
+  <a class="btn btn-sm" href="mailto:josh@altmeridian.com?subject=Value%20case%20discussion&body=Hi%20Josh%2C%0A%0AI%20am%20interested%20in%20discussing%20a%20defensible%20ROI%20and%20value%20case%20for%20a%20complex%20sales%20opportunity.%0A%0ACompany%3A%0AContact%20name%20and%20role%3A%0ASolution%20and%20market%20details%3A%0ACustomer%20or%20opportunity%2C%20if%20shareable%3A%0AApproximate%20deal%20size%3A%0ACurrent%20sales%20stage%3A%0AThe%20customer%20problem%20or%20decision%20at%20hand%3A%0A%0AThanks%2C%0A">Contact</a>
 </header>
 
 <section class="hero">
@@ -252,7 +277,7 @@
         <p>I help enterprise sales teams uncover hidden financial value and turn it into fast, accurate ROI cases that customer champions can take to finance.</p>
         <p>Each engagement also creates useful case-study evidence that helps sellers explain similar customer problems, value drivers, and business outcomes in future deals.</p>
         <div class="hero-cta">
-          <a class="btn" href="mailto:josh@altmeridian.com?subject=Value%20case%20discussion&body=Hi%20Josh%2C%0A%0AI%20am%20interested%20in%20discussing%20a%20defensible%20ROI%20and%20value%20case%20for%20a%20complex%20sales%20opportunity.%0A%0ACompany%3A%0AContact%20name%20and%20role%3A%0ASolution%20and%20market%20details%3A%0ACustomer%20or%20opportunity%2C%20if%20shareable%3A%0AApproximate%20deal%20size%3A%0ACurrent%20sales%20stage%3A%0AThe%20customer%20problem%20or%20decision%20at%20hand%3A%0A%0AThanks%2C%0A">Contact Josh</a>
+          <a class="btn" href="mailto:josh@altmeridian.com?subject=Value%20case%20discussion&body=Hi%20Josh%2C%0A%0AI%20am%20interested%20in%20discussing%20a%20defensible%20ROI%20and%20value%20case%20for%20a%20complex%20sales%20opportunity.%0A%0ACompany%3A%0AContact%20name%20and%20role%3A%0ASolution%20and%20market%20details%3A%0ACustomer%20or%20opportunity%2C%20if%20shareable%3A%0AApproximate%20deal%20size%3A%0ACurrent%20sales%20stage%3A%0AThe%20customer%20problem%20or%20decision%20at%20hand%3A%0A%0AThanks%2C%0A">Contact</a>
         </div>
         <p class="hero-note">For complex B2B opportunities where cost, risk, revenue, capacity, or operational performance will determine the decision.</p>
       </div>
@@ -261,13 +286,13 @@
           <line x1="0" y1="230" x2="360" y2="230" stroke="#E4E1D9" stroke-width="1"/>
           <line x1="0" y1="150" x2="360" y2="150" stroke="#E4E1D9" stroke-width="1"/>
           <line x1="0" y1="70" x2="360" y2="70" stroke="#E4E1D9" stroke-width="1"/>
-          <line x1="150" y1="0" x2="150" y2="300" stroke="#C84B2F" stroke-width="1" stroke-dasharray="3 5" opacity="0.55"/>
+          <line x1="150" y1="0" x2="150" y2="300" stroke="#2E5C8A" stroke-width="1" stroke-dasharray="3 5" opacity="0.55"/>
           <text x="156" y="18" font-family="DM Mono, monospace" font-size="10" fill="#5B6270" letter-spacing="0.05em">PAYBACK</text>
           <path d="M -20 250 C 60 246, 110 238, 150 230 C 210 218, 260 170, 320 90 C 345 58, 365 30, 400 10"
                 fill="none" stroke="#1B1F27" stroke-width="2.5" stroke-linecap="round"/>
           <path d="M -20 250 C 60 246, 110 238, 150 230 C 210 218, 260 170, 320 90 C 345 58, 365 30, 400 10 L 400 300 L -20 300 Z"
-                fill="#C84B2F" opacity="0.06"/>
-          <circle cx="150" cy="230" r="4.5" fill="#C84B2F"/>
+                fill="#2E5C8A" opacity="0.06"/>
+          <circle cx="150" cy="230" r="4.5" fill="#2E5C8A"/>
           <circle cx="320" cy="90" r="4.5" fill="#1B1F27"/>
         </svg>
       </div>
@@ -278,6 +303,32 @@
 <hr class="rule">
 
 <section class="alt">
+  <div class="wrap">
+    <div class="eyebrow">Why This Matters</div>
+    <h2>Enterprise buyers need more than a pitch</h2>
+    <p>A complex purchase has to survive internal scrutiny. Your buyer doesn't just need an ROI analysis — they need a credible way to justify, validate, and socialize the investment internally.</p>
+    <div class="stat-row">
+      <div class="stat">
+        <div class="stat-num">97%</div>
+        <div class="stat-label">of technology decision-makers use a business case to justify a purchase</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">82%</div>
+        <div class="stat-label">consider relevant examples and case studies important to the decision</div>
+      </div>
+      <div class="stat">
+        <div class="stat-num">74%</div>
+        <div class="stat-label">of B2B buying teams experience unhealthy conflict while deciding</div>
+      </div>
+    </div>
+    <p class="fine">Sources: Forrester, Gartner</p>
+    <p style="margin-top:26px;">Alt Meridian builds the ROI model, evidence, and internal-ready narrative your customer champion can use to create alignment.</p>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section>
   <div class="wrap">
     <div class="eyebrow">The Problem</div>
     <h2>The product is not always the problem</h2>
@@ -296,7 +347,7 @@
 
 <hr class="rule">
 
-<section>
+<section class="alt">
   <div class="wrap">
     <div class="eyebrow">What You Get</div>
     <h2>A value case built for real internal review</h2>
@@ -314,7 +365,7 @@
 
 <hr class="rule">
 
-<section class="alt">
+<section>
   <div class="wrap">
     <div class="eyebrow">Beyond This Deal</div>
     <h2>Useful for this deal and the next one</h2>
@@ -332,7 +383,7 @@
 
 <hr class="rule">
 
-<section>
+<section class="alt">
   <div class="wrap">
     <div class="eyebrow">How It Works</div>
     <h2>Three steps, one conversation to start</h2>
@@ -370,7 +421,7 @@
     <h2>Start with a conversation</h2>
     <p>Have an active opportunity where the customer needs a clearer economic reason to act?</p>
     <div>
-      <a class="btn" href="mailto:josh@altmeridian.com?subject=Value%20case%20discussion&body=Hi%20Josh%2C%0A%0AI%20am%20interested%20in%20discussing%20a%20defensible%20ROI%20and%20value%20case%20for%20a%20complex%20sales%20opportunity.%0A%0ACompany%3A%0AContact%20name%20and%20role%3A%0ASolution%20and%20market%20details%3A%0ACustomer%20or%20opportunity%2C%20if%20shareable%3A%0AApproximate%20deal%20size%3A%0ACurrent%20sales%20stage%3A%0AThe%20customer%20problem%20or%20decision%20at%20hand%3A%0A%0AThanks%2C%0A">Contact Josh</a>
+      <a class="btn" href="mailto:josh@altmeridian.com?subject=Value%20case%20discussion&body=Hi%20Josh%2C%0A%0AI%20am%20interested%20in%20discussing%20a%20defensible%20ROI%20and%20value%20case%20for%20a%20complex%20sales%20opportunity.%0A%0ACompany%3A%0AContact%20name%20and%20role%3A%0ASolution%20and%20market%20details%3A%0ACustomer%20or%20opportunity%2C%20if%20shareable%3A%0AApproximate%20deal%20size%3A%0ACurrent%20sales%20stage%3A%0AThe%20customer%20problem%20or%20decision%20at%20hand%3A%0A%0AThanks%2C%0A">Contact</a>
     </div>
     <p class="fine">No generic contact form. Send the deal context directly, and I will respond personally.</p>
   </div>
