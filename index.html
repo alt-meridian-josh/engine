@@ -3,46 +3,77 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Alt Meridian — Defensible ROI for Complex Enterprise Deals</title>
-<meta name="description" content="Alt Meridian builds the ROI model, evidence, and internal-ready narrative enterprise buyers need to justify a purchase.">
+<title>Alt Meridian — The Internal Case for Change</title>
+<meta name="description" content="Value strategy and economic evidence for complex B2B decisions. Alt Meridian builds the internal case that gets a purchase approved.">
 <meta property="og:type" content="website">
-<meta property="og:title" content="Alt Meridian — Defensible ROI for Complex Enterprise Deals">
-<meta property="og:description" content="The ROI model, evidence, and narrative your buyer's champion needs to justify a purchase internally.">
+<meta property="og:title" content="Alt Meridian — The Internal Case for Change">
+<meta property="og:description" content="Value strategy and economic evidence for complex B2B decisions. Alt Meridian builds the internal case that gets a purchase approved.">
 <meta property="og:url" content="https://altmeridian.com/">
 <meta name="twitter:card" content="summary">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%230F0F0F'/%3E%3Cpath d='M14 42 L26 22 L38 34 L50 16' stroke='%231E5C3A' stroke-width='5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' fill='%2314110D'/%3E%3Cpath d='M14 44 L26 24 L38 34 L50 14' stroke='%23A34A2A' stroke-width='5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;0,600;0,700;1,400&family=DM+Sans:wght@300;400;500&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --ink: #0F0F0F;
+    --paper: #F6F1E7;
+    --ink: #14110D;
+    --rust: #A34A2A;
+    --rust-tile: #8B4632;
     --muted: #6B6459;
-    --accent: #1E5C3A;
-    --bg: #F5F2EB;
-    --bg-alt: #FFFFFF;
-    --rule: #DEDAD2;
+    --rule: #E2DBC9;
   }
 
   html { scroll-behavior: smooth; }
 
   body {
-    background: var(--bg);
+    background: var(--paper);
     color: var(--ink);
     font-family: 'DM Sans', sans-serif;
     font-weight: 300;
     line-height: 1.65;
     -webkit-font-smoothing: antialiased;
+    overflow-x: hidden;
   }
 
   a { color: inherit; }
 
+  img, svg { max-width: 100%; display: block; }
+
   .wrap {
-    max-width: 880px;
+    max-width: 1120px;
     margin: 0 auto;
     padding: 0 32px;
+  }
+
+  hr.rule { border: none; border-top: 1px solid var(--rule); }
+
+  /* ── TYPE ───────────────────────────────────────────────── */
+  h1, h2 {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    color: var(--ink);
+    letter-spacing: -0.01em;
+  }
+
+  h2 {
+    font-size: clamp(1.9rem, 1.3rem + 2.6vw, 3rem);
+    line-height: 1.15;
+    max-width: 680px;
+  }
+
+  p { font-size: 16px; color: var(--muted); max-width: 620px; font-weight: 300; }
+  p + p { margin-top: 16px; }
+
+  .eyebrow {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--rust);
+    margin-bottom: 20px;
   }
 
   /* ── HEADER ─────────────────────────────────────────────── */
@@ -50,193 +81,275 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 24px 32px;
-    max-width: 944px;
+    max-width: 1120px;
     margin: 0 auto;
+    padding: 28px 32px;
   }
 
   .wordmark {
-    font-family: 'Syne', sans-serif;
-    font-weight: 800;
-    font-size: 15px;
-    letter-spacing: 0.1em;
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+    font-size: 13px;
+    letter-spacing: 0.14em;
     text-transform: uppercase;
     color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
+  .wordmark svg { flex: none; }
 
+  /* ── BUTTONS ────────────────────────────────────────────── */
   .btn {
     display: inline-block;
     font-family: 'DM Sans', sans-serif;
     font-weight: 500;
     font-size: 14px;
-    color: #fff;
-    background: var(--accent);
-    border: 1px solid var(--accent);
-    padding: 11px 22px;
-    border-radius: 3px;
+    color: var(--paper);
+    background: var(--ink);
+    border: 1px solid var(--ink);
+    padding: 13px 26px;
+    border-radius: 2px;
     text-decoration: none;
     white-space: nowrap;
-    transition: opacity 0.15s ease;
+    transition: opacity 0.15s ease, transform 0.15s ease;
   }
-  .btn:hover { opacity: 0.88; }
-
-  .btn-sm { font-size: 13px; padding: 9px 18px; }
+  .btn:hover { opacity: 0.85; transform: translateY(-1px); }
+  .btn:active { transform: translateY(0); }
+  .btn-sm { font-size: 13px; padding: 10px 20px; }
 
   /* ── SECTION RHYTHM ─────────────────────────────────────── */
-  section {
-    padding: 80px 0;
-  }
-  section.alt { background: var(--bg-alt); }
+  section { padding: 96px 0; }
+  section .eyebrow:first-child { margin-top: 0; }
 
-  .eyebrow {
-    font-family: 'DM Mono', monospace;
-    font-size: 11px;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--accent);
-    margin-bottom: 18px;
-  }
-
-  h1, h2 {
-    font-family: 'Syne', sans-serif;
-    font-weight: 800;
-    color: var(--ink);
-    letter-spacing: -0.01em;
-  }
-
-  h2 {
-    font-size: 26px;
-    line-height: 1.3;
-    margin-bottom: 22px;
-    max-width: 620px;
-  }
-
-  p { font-size: 16px; color: var(--muted); max-width: 620px; }
-  p + p { margin-top: 14px; }
-
-  ul { list-style: none; max-width: 620px; }
-  li {
-    font-size: 16px;
-    color: var(--muted);
-    padding-left: 26px;
+  /* ── TILE SYSTEM ────────────────────────────────────────── */
+  .tile {
     position: relative;
-    margin-top: 13px;
+    overflow: hidden;
+    border-radius: 0;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    box-shadow: 1px 2px 0 rgba(20,17,13,0.05);
   }
-  li::before {
-    content: '';
-    position: absolute;
-    left: 0; top: 9px;
-    width: 7px; height: 7px;
-    border-radius: 50%;
-    background: var(--accent);
-  }
-
-  hr.rule { border: none; border-top: 1px solid var(--rule); }
-
-  .fine {
+  .tile-label {
     font-family: 'DM Mono', monospace;
-    font-size: 12px;
-    color: var(--muted);
-    margin-top: 16px;
-    max-width: 620px;
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    line-height: 1.5;
+  }
+  .tile-number {
+    font-family: 'Fraunces', serif;
+    font-weight: 600;
+    font-size: clamp(1.6rem, 1.2rem + 1.4vw, 2.2rem);
+    line-height: 1;
+  }
+  .tile-phrase {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 15px;
+    line-height: 1.35;
+  }
+
+  .tile--paper { background: var(--paper); border: 1px solid var(--ink); color: var(--ink); }
+  .tile--ink   { background: var(--ink); border: 1px solid var(--paper); color: var(--paper); }
+  .tile--rust  { background: var(--rust-tile); border: 1px solid var(--paper); color: var(--paper); }
+  .tile--grid  {
+    background: transparent;
+    border: 1px solid var(--rule);
+    color: var(--ink);
+    background-image: radial-gradient(circle, var(--rule) 1px, transparent 1px);
+    background-size: 14px 14px;
+  }
+  .tile--paper .tile-label,
+  .tile--grid .tile-label { color: var(--muted); }
+  .tile--ink .tile-label,
+  .tile--rust .tile-label { color: var(--paper); opacity: 0.85; }
+
+  .tile-check { font-size: 13px; }
+
+  .tile-meridian {
+    position: absolute;
+    top: -8px; bottom: -8px;
+    left: 46%;
+    width: 1px;
+    background: currentColor;
+    opacity: 0.4;
+  }
+
+  /* ── REVEAL / PARALLAX MOTION ───────────────────────────── */
+  .reveal {
+    opacity: 0;
+    transform: translateY(14px);
+    transition: opacity .6s ease, transform .6s ease;
+  }
+  .reveal-left  { opacity: 0; transform: translateX(-20px); transition: opacity .6s ease, transform .6s ease; }
+  .reveal-right { opacity: 0; transform: translateX(20px);  transition: opacity .6s ease, transform .6s ease; }
+  .reveal.is-visible,
+  .reveal-left.is-visible,
+  .reveal-right.is-visible { opacity: 1; transform: translate(0,0); }
+
+  .parallax-tile {
+    transform: translateY(var(--parallax, 0px));
+    transition: transform .15s linear;
+    will-change: transform;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .reveal, .reveal-left, .reveal-right { transform: none !important; transition: opacity .35s ease !important; }
+    .parallax-tile { transform: none !important; transition: none !important; }
   }
 
   /* ── HERO ───────────────────────────────────────────────── */
-  .hero {
-    padding: 52px 0 88px;
-  }
+  .hero { padding: 40px 0 100px; }
   .hero-grid {
     display: grid;
-    grid-template-columns: 1.1fr 0.9fr;
-    gap: 56px;
+    grid-template-columns: 1.05fr 0.95fr;
+    gap: 48px;
     align-items: center;
   }
   .hero h1 {
-    font-size: 40px;
-    line-height: 1.18;
-    margin-bottom: 20px;
+    font-size: clamp(2.6rem, 1.7rem + 4vw, 5.2rem);
+    line-height: 1.05;
+    margin: 18px 0 22px;
   }
-  .hero-cta { margin: 26px 0 20px; }
-  .hero-note {
-    font-size: 14px;
-    color: var(--muted);
-    max-width: 480px;
-  }
+  .hero-eyebrow { margin-bottom: 4px; }
+  .hero-sub { font-size: 18px; max-width: 480px; }
+  .hero-cta { margin: 30px 0 0; }
 
-  .hero-visual {
-    position: relative;
-    overflow: hidden;
-    border-radius: 4px;
-  }
-  .hero-visual svg { display: block; width: 100%; height: auto; }
-
-  /* ── STAT ROW ───────────────────────────────────────────── */
-  .stat-row {
+  .tile-board {
     display: grid;
     grid-template-columns: repeat(3, 1fr);
-    gap: 32px;
-    max-width: 700px;
-    margin-top: 28px;
-    padding-top: 26px;
-    border-top: 1px solid var(--rule);
+    gap: 10px;
+    max-width: 400px;
+    margin-left: auto;
   }
-  .stat-num {
-    font-family: 'Syne', sans-serif;
-    font-weight: 800;
-    font-size: 34px;
-    color: var(--accent);
-    line-height: 1;
-    margin-bottom: 8px;
-  }
-  .stat-label {
-    font-size: 13px;
-    color: var(--muted);
-    line-height: 1.5;
-  }
+  .tile-board .tile { aspect-ratio: 1 / 1; padding: 12px; }
 
-  /* ── HOW IT WORKS ───────────────────────────────────────── */
-  .steps {
-    display: grid;
-    gap: 30px;
-    margin-top: 6px;
-  }
-  .step { display: flex; gap: 20px; max-width: 700px; }
-  .step-num {
-    font-family: 'Syne', sans-serif;
-    font-weight: 800;
-    font-size: 15px;
-    color: var(--accent);
-    border: 1px solid var(--rule);
-    border-radius: 50%;
-    width: 34px; height: 34px;
-    flex: none;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .step-title {
-    font-family: 'DM Sans', sans-serif;
-    font-weight: 500;
-    font-size: 16px;
+  /* ── ABOUT ──────────────────────────────────────────────── */
+  .about-copy h2 { margin-bottom: 24px; }
+  .about-copy .lede { font-style: italic; font-family: 'Fraunces', serif; font-weight: 400; }
+  .about-close {
+    font-family: 'Fraunces', serif;
+    font-style: italic;
+    font-weight: 400;
+    font-size: 19px;
     color: var(--ink);
-    margin-bottom: 5px;
+    margin-top: 22px;
   }
-  .step p { font-size: 15px; }
+  .about-tiles {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 52px;
+  }
+  .about-tiles .tile { min-height: 150px; }
 
-  /* ── FINAL CTA ──────────────────────────────────────────── */
-  .final-cta { text-align: left; }
-  .final-cta .btn { margin: 8px 0 14px; }
+  /* ── THE WORK ───────────────────────────────────────────── */
+  .work-copy { max-width: 680px; }
+  .work-copy h2 { margin-bottom: 24px; }
+  .work-cta { margin-top: 30px; }
+  .work-rail {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 16px;
+    margin-top: 56px;
+  }
+  .work-rail .tile {
+    min-height: 168px;
+    cursor: default;
+  }
+  .work-rail .tile-glyph { width: 26px; height: 26px; }
+  .work-rail .tile-label { font-size: 12px; margin-top: 14px; }
+  .work-rail .tile-word {
+    font-family: 'Fraunces', serif;
+    font-weight: 500;
+    font-size: 20px;
+  }
+
+  /* ── WHY IT MATTERS ─────────────────────────────────────── */
+  .why-copy h2 { margin-bottom: 24px; }
+  .why-copy p a {
+    color: var(--rust);
+    text-decoration: underline;
+    text-decoration-color: var(--rust);
+    text-underline-offset: 2px;
+  }
+  .stat-tiles {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    margin-top: 56px;
+    max-width: 720px;
+  }
+  .stat-tiles .tile { min-height: 220px; padding: 28px; }
+  .stat-tiles .tile-number { font-size: clamp(3.4rem, 2.6rem + 3vw, 5.5rem); }
+  .stat-tiles .tile-label { margin-top: 18px; }
+
+  /* ── ENGAGE ─────────────────────────────────────────────── */
+  .engage-copy h2 { margin-bottom: 24px; }
+  .price-line {
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    color: var(--ink);
+    border-top: 1px solid var(--rule);
+    border-bottom: 1px solid var(--rule);
+    padding: 16px 0;
+    margin-top: 26px;
+    max-width: 620px;
+  }
+  .engage-cta { margin-top: 30px; margin-bottom: 64px; }
+
+  form {
+    max-width: 620px;
+    display: grid;
+    gap: 26px;
+  }
+  .field { display: grid; gap: 8px; }
+  .field label {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .field input,
+  .field textarea {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    font-weight: 400;
+    color: var(--ink);
+    background: var(--paper);
+    border: none;
+    border-bottom: 1px solid var(--ink);
+    padding: 10px 2px;
+    border-radius: 0;
+    outline: none;
+  }
+  .field textarea { resize: vertical; min-height: 96px; }
+  .field input:focus,
+  .field textarea:focus { border-bottom: 1px solid var(--rust); }
+  form .btn {
+    justify-self: start;
+    border: 1px solid var(--ink);
+    cursor: pointer;
+  }
 
   /* ── FOOTER ─────────────────────────────────────────────── */
   footer {
-    padding: 44px 0 60px;
+    padding: 48px 0 64px;
     border-top: 1px solid var(--rule);
   }
   .footer-word {
-    font-family: 'Syne', sans-serif;
-    font-weight: 800;
-    font-size: 13px;
-    letter-spacing: 0.1em;
+    font-family: 'DM Mono', monospace;
+    font-weight: 500;
+    font-size: 12px;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-    margin-bottom: 8px;
+    margin-bottom: 10px;
   }
   .footer-tag { font-size: 13px; color: var(--muted); margin-bottom: 18px; }
   .footer-email {
@@ -245,55 +358,95 @@
     color: var(--muted);
     text-decoration: none;
   }
-  .footer-email:hover { color: var(--accent); }
+  .footer-email:hover { color: var(--rust); }
 
   /* ── RESPONSIVE ─────────────────────────────────────────── */
+  @media (max-width: 900px) {
+    .work-rail { grid-template-columns: repeat(2, 1fr); }
+    .about-tiles { grid-template-columns: repeat(3, 1fr); }
+  }
+
   @media (max-width: 760px) {
-    header { padding: 20px 24px; }
-    .wrap { padding: 0 24px; }
-    section { padding: 60px 0; }
-    .hero { padding: 8px 0 60px; }
-    .hero-grid { grid-template-columns: 1fr; gap: 32px; }
-    .hero-visual { order: 2; }
-    .hero-body { order: 1; }
-    .hero h1 { font-size: 30px; }
-    h2 { font-size: 22px; }
-    .stat-row { grid-template-columns: 1fr; gap: 22px; }
+    header { padding: 22px 20px; }
+    .wrap { padding: 0 20px; }
+    section { padding: 68px 0; }
+    .hero { padding: 12px 0 64px; }
+    .hero-grid { grid-template-columns: 1fr; gap: 40px; }
+    .tile-board { max-width: 320px; margin: 0 auto; }
+    .about-tiles { grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 40px; }
+    .about-tiles .tile { min-height: 110px; padding: 10px; }
+    .work-rail { grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 40px; }
+    .stat-tiles { grid-template-columns: 1fr; margin-top: 40px; }
+    .parallax-tile { transform: none !important; }
+  }
+
+  @media (max-width: 420px) {
+    .about-tiles { grid-template-columns: 1fr 1fr; }
+    .about-tiles .tile:nth-child(3) { grid-column: span 2; }
+    .work-rail { grid-template-columns: 1fr; }
   }
 </style>
 </head>
 <body>
 
 <header>
-  <div class="wordmark">Alt Meridian</div>
+  <div class="wordmark">
+    <svg width="16" height="16" viewBox="0 0 20 20" aria-hidden="true"><path d="M2 15 L8 6 L12 11 L18 3" stroke="#A34A2A" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    Alt Meridian
+  </div>
   <a class="btn btn-sm" href="mailto:josh@altmeridian.com?subject=Value%20case%20discussion&body=Hi%20Josh%2C%0A%0AI%20am%20interested%20in%20discussing%20a%20defensible%20ROI%20and%20value%20case%20for%20a%20complex%20sales%20opportunity.%0A%0ACustomer%3A%0ASolution%2Fmarket%3A%0A%0AThanks%2C%0A">Contact</a>
 </header>
 
+<!-- ── HERO ─────────────────────────────────────────────── -->
 <section class="hero">
   <div class="wrap">
     <div class="hero-grid">
-      <div class="hero-body">
-        <h1>Defensible ROI for complex enterprise deals</h1>
-        <p>Alt Meridian turns hidden financial value into a defensible ROI case — the model, the evidence, and the narrative a buyer's champion can carry into finance.</p>
+      <div>
+        <div class="eyebrow hero-eyebrow">Alt Meridian</div>
+        <h1>The internal case for change.</h1>
+        <p class="hero-sub">Value strategy and economic evidence for complex B2B decisions.</p>
         <div class="hero-cta">
           <a class="btn" href="mailto:josh@altmeridian.com?subject=Value%20case%20discussion&body=Hi%20Josh%2C%0A%0AI%20am%20interested%20in%20discussing%20a%20defensible%20ROI%20and%20value%20case%20for%20a%20complex%20sales%20opportunity.%0A%0ACustomer%3A%0ASolution%2Fmarket%3A%0A%0AThanks%2C%0A">Contact</a>
         </div>
-        <p class="hero-note">For complex B2B deals where cost, risk, or revenue has to be proven before they close.</p>
       </div>
-      <div class="hero-visual" aria-hidden="true">
-        <svg viewBox="0 0 360 300" xmlns="http://www.w3.org/2000/svg">
-          <line x1="0" y1="230" x2="360" y2="230" stroke="#DEDAD2" stroke-width="1"/>
-          <line x1="0" y1="150" x2="360" y2="150" stroke="#DEDAD2" stroke-width="1"/>
-          <line x1="0" y1="70" x2="360" y2="70" stroke="#DEDAD2" stroke-width="1"/>
-          <line x1="150" y1="0" x2="150" y2="300" stroke="#1E5C3A" stroke-width="1" stroke-dasharray="3 5" opacity="0.55"/>
-          <text x="156" y="18" font-family="DM Mono, monospace" font-size="10" fill="#6B6459" letter-spacing="0.05em">PAYBACK</text>
-          <path d="M -20 250 C 60 246, 110 238, 150 230 C 210 218, 260 170, 320 90 C 345 58, 365 30, 400 10"
-                fill="none" stroke="#0F0F0F" stroke-width="2.5" stroke-linecap="round"/>
-          <path d="M -20 250 C 60 246, 110 238, 150 230 C 210 218, 260 170, 320 90 C 345 58, 365 30, 400 10 L 400 300 L -20 300 Z"
-                fill="#1E5C3A" opacity="0.07"/>
-          <circle cx="150" cy="230" r="4.5" fill="#1E5C3A"/>
-          <circle cx="320" cy="90" r="4.5" fill="#0F0F0F"/>
-        </svg>
+
+      <div class="tile-board" aria-hidden="true">
+        <div class="tile tile--ink reveal" data-stagger="0">
+          <span class="tile-label">Alt Meridian</span>
+          <svg width="28" height="22" viewBox="0 0 28 22"><path d="M2 20 L10 8 L16 14 L26 2" stroke="#A34A2A" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="tile tile--grid reveal" data-stagger="70">
+          <span class="tile-label">Fig. 02</span>
+          <svg width="100%" height="34" viewBox="0 0 80 34" preserveAspectRatio="none"><path d="M-4 30 C 16 30, 26 24, 36 20 C 50 14, 60 6, 84 -2" stroke="#14110D" stroke-width="1.5" fill="none" opacity="0.35"/></svg>
+        </div>
+        <div class="tile tile--paper reveal" data-stagger="140">
+          <span class="tile-label">Evidence<br>Not collateral</span>
+        </div>
+        <div class="tile tile--rust reveal" data-stagger="210">
+          <span class="tile-label">Fig. 03</span>
+          <span class="tile-number">12</span>
+          <span class="tile-label">Assumptions logged</span>
+        </div>
+        <div class="tile tile--ink reveal" data-stagger="280">
+          <span class="tile-phrase" style="color:var(--paper);">Cost of status quo &rarr; case for change</span>
+        </div>
+        <div class="tile tile--paper reveal" data-stagger="350">
+          <span class="tile-label">Source</span>
+          <span class="tile-label" style="color:var(--ink);">Customer input</span>
+        </div>
+        <div class="tile tile--grid reveal" data-stagger="420">
+          <span class="tile-check">&#10003;</span>
+          <span class="tile-label">Assumption<br>documented</span>
+        </div>
+        <div class="tile tile--paper reveal" data-stagger="490" style="align-items:flex-end;">
+          <span class="tile-meridian" style="color:var(--ink);"></span>
+          <span class="tile-label" style="align-self:flex-end;">41.2&deg;N</span>
+        </div>
+        <div class="tile tile--ink reveal" data-stagger="560">
+          <span class="tile-label">Fig. 04</span>
+          <span class="tile-number">6</span>
+          <span class="tile-label">Value drivers mapped</span>
+        </div>
       </div>
     </div>
   </div>
@@ -301,108 +454,70 @@
 
 <hr class="rule">
 
-<section class="alt">
-  <div class="wrap">
-    <div class="eyebrow">Why This Matters</div>
-    <h2>Buyers need more than a pitch</h2>
-    <p>A complex purchase has to survive internal scrutiny. Your buyer doesn't need an ROI slide — they need a credible way to justify, validate, and socialize the investment internally.</p>
-    <div class="stat-row">
-      <div class="stat">
-        <div class="stat-num">97%</div>
-        <div class="stat-label">of technology decision-makers use a business case to justify a purchase</div>
-      </div>
-      <div class="stat">
-        <div class="stat-num">82%</div>
-        <div class="stat-label">consider relevant case studies important to the decision</div>
-      </div>
-      <div class="stat">
-        <div class="stat-num">74%</div>
-        <div class="stat-label">of B2B buying teams see unhealthy conflict while deciding</div>
-      </div>
-    </div>
-    <p class="fine">Sources: Forrester, Gartner</p>
-  </div>
-</section>
-
-<hr class="rule">
-
+<!-- ── ABOUT ────────────────────────────────────────────── -->
 <section>
   <div class="wrap">
-    <div class="eyebrow">The Problem</div>
-    <h2>The product isn't always the problem</h2>
-    <p>Even when the buyer likes the solution, their champion still has to answer:</p>
-    <ul>
-      <li>What is the current problem costing us?</li>
-      <li>Why does this investment matter now?</li>
-      <li>Which benefits are credible enough to include?</li>
-      <li>What will finance, procurement, or leadership challenge?</li>
-      <li>When could the investment pay back?</li>
-    </ul>
-    <p style="margin-top:24px;">Alt Meridian turns those questions into a defensible business case.</p>
+    <div class="about-copy">
+      <div class="eyebrow">About</div>
+      <h2>Sales claims are easy.<br>Internal alignment is not.</h2>
+      <p>Complex purchases do not move forward because a product is impressive. They move when someone can explain the cost of the status quo, connect value to operational priorities, and defend the investment in a room the seller is not in.</p>
+      <p class="about-close">Alt Meridian helps make that conversation concrete.</p>
+    </div>
+
+    <div class="about-tiles">
+      <div class="tile tile--paper reveal-left" data-stagger="0">
+        <span class="tile-label">Status quo</span>
+        <span class="tile-label" style="color:var(--muted);">Cost, unexamined</span>
+      </div>
+      <div class="tile tile--grid reveal" data-stagger="90">
+        <span class="tile-label">Fig. 05</span>
+        <svg width="100%" height="30" viewBox="0 0 80 30" preserveAspectRatio="none"><path d="M-4 6 C 14 10, 30 16, 44 20 C 58 24, 68 26, 84 28" stroke="#8B4632" stroke-width="1.5" fill="none" opacity="0.55"/></svg>
+      </div>
+      <div class="tile tile--rust reveal-right" data-stagger="180">
+        <span class="tile-phrase">Built to travel internally.</span>
+      </div>
+    </div>
   </div>
 </section>
 
 <hr class="rule">
 
-<section class="alt">
-  <div class="wrap">
-    <div class="eyebrow">What You Get</div>
-    <h2>A value case built for internal review</h2>
-    <ul>
-      <li>Customer cost, risk, or missed opportunity — quantified</li>
-      <li>The few value drivers that matter most</li>
-      <li>ROI and payback calculations</li>
-      <li>Benchmarks, assumptions, and source notes</li>
-      <li>A business case your champion can take to finance</li>
-      <li>Guidance for the next finance or procurement conversation</li>
-    </ul>
-    <p style="margin-top:24px;">Every number is traceable — fact, benchmark, or assumption, clearly labeled.</p>
-  </div>
-</section>
-
-<hr class="rule">
-
+<!-- ── THE WORK ─────────────────────────────────────────── -->
 <section>
   <div class="wrap">
-    <div class="eyebrow">Beyond This Deal</div>
-    <h2>Built to outlast one deal</h2>
-    <p>Every engagement leaves your team with reusable assets:</p>
-    <ul>
-      <li>Sharper language for similar customer problems</li>
-      <li>Stronger discovery questions</li>
-      <li>Reusable value drivers and evidence</li>
-      <li>An anonymized case study, when appropriate</li>
-      <li>More credible executive conversations</li>
-    </ul>
-  </div>
-</section>
+    <div class="work-copy">
+      <div class="eyebrow">The Work</div>
+      <h2>Value cases built for scrutiny.</h2>
+      <p>We work with teams selling operationally complex products and services. Starting with a live opportunity, we translate customer inputs, operational realities, and credible assumptions into one coherent case for change.</p>
+      <p>The work may include an ROI model, executive narrative, internal presentation, and an evidence appendix. The output is not collateral — it is a decision tool.</p>
+      <div class="work-cta">
+        <a class="btn" href="mailto:josh@altmeridian.com?subject=Value%20case%20discussion&body=Hi%20Josh%2C%0A%0AI%20am%20interested%20in%20discussing%20a%20defensible%20ROI%20and%20value%20case%20for%20a%20complex%20sales%20opportunity.%0A%0ACustomer%3A%0ASolution%2Fmarket%3A%0A%0AThanks%2C%0A">Contact</a>
+      </div>
+    </div>
 
-<hr class="rule">
-
-<section class="alt">
-  <div class="wrap">
-    <div class="eyebrow">How It Works</div>
-    <h2>Three steps to a defensible case</h2>
-    <div class="steps">
-      <div class="step">
-        <div class="step-num">1</div>
-        <div>
-          <div class="step-title">Review the opportunity</div>
-          <p>The customer, solution, deal stage, and available data.</p>
+    <div class="work-rail">
+      <div class="parallax-tile" data-factor="0.05">
+        <div class="tile tile--paper reveal" data-stagger="0">
+          <svg class="tile-glyph" viewBox="0 0 26 26"><path d="M3 22 V14 M11 22 V8 M19 22 V16 M27 22 V4" stroke="#14110D" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+          <span class="tile-word">Model</span>
         </div>
       </div>
-      <div class="step">
-        <div class="step-num">2</div>
-        <div>
-          <div class="step-title">Build the case</div>
-          <p>Model the value drivers that matter, with transparent assumptions.</p>
+      <div class="parallax-tile" data-factor="0.035">
+        <div class="tile tile--ink reveal" data-stagger="80">
+          <svg class="tile-glyph" viewBox="0 0 26 26"><path d="M2 6 H24 M2 13 H18 M2 20 H22" stroke="#F6F1E7" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+          <span class="tile-word" style="color:var(--paper);">Narrative</span>
         </div>
       </div>
-      <div class="step">
-        <div class="step-num">3</div>
-        <div>
-          <div class="step-title">Equip the team</div>
-          <p>An ROI model and business case, ready for the next conversation.</p>
+      <div class="parallax-tile" data-factor="0.06">
+        <div class="tile tile--grid reveal" data-stagger="160">
+          <svg class="tile-glyph" viewBox="0 0 26 26"><path d="M4 24 L13 4 L22 24 M9 15 H17" stroke="#A34A2A" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span class="tile-word">Champion</span>
+        </div>
+      </div>
+      <div class="parallax-tile" data-factor="0.04">
+        <div class="tile tile--rust reveal" data-stagger="240">
+          <svg class="tile-glyph" viewBox="0 0 26 26"><path d="M4 14 L11 21 L23 6" stroke="#F6F1E7" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span class="tile-word" style="color:var(--paper);">Evidence</span>
         </div>
       </div>
     </div>
@@ -411,24 +526,154 @@
 
 <hr class="rule">
 
-<section class="alt final-cta">
+<!-- ── WHY IT MATTERS ───────────────────────────────────── -->
+<section>
   <div class="wrap">
-    <div class="eyebrow">Get Started</div>
-    <h2>Start with a conversation</h2>
-    <p>Have an active opportunity that needs a clearer economic case?</p>
-    <div>
-      <a class="btn" href="mailto:josh@altmeridian.com?subject=Value%20case%20discussion&body=Hi%20Josh%2C%0A%0AI%20am%20interested%20in%20discussing%20a%20defensible%20ROI%20and%20value%20case%20for%20a%20complex%20sales%20opportunity.%0A%0ACustomer%3A%0ASolution%2Fmarket%3A%0A%0AThanks%2C%0A">Contact</a>
+    <div class="why-copy">
+      <div class="eyebrow">Why It Matters</div>
+      <h2>A business case is not a pitch deck.</h2>
+      <p><a href="https://www.forrester.com/blogs/roi-business-cases-help-differentiate-during-economic-uncertainty/" target="_blank" rel="noopener noreferrer">Forrester</a> found that 97% of technology decision-makers use business cases to justify purchases. Gartner reports that 74% of B2B buying teams experience unhealthy conflict while making a decision. The job is not to make a bigger claim. It is to make the right claim supportable.</p>
     </div>
+
+    <div class="stat-tiles">
+      <div class="tile tile--paper reveal-left" data-stagger="0">
+        <span class="tile-number">97%</span>
+        <span class="tile-label">Forrester</span>
+      </div>
+      <div class="tile tile--ink reveal-right" data-stagger="100">
+        <span class="tile-number" style="color:var(--paper);">74%</span>
+        <span class="tile-label">Gartner</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- ── ENGAGE ───────────────────────────────────────────── -->
+<section>
+  <div class="wrap">
+    <div class="engage-copy">
+      <div class="eyebrow">Engage</div>
+      <h2>Start with what is in front of you.</h2>
+      <p>Alt Meridian supports focused value-case work and ongoing fractional value-engineering partnerships. Each engagement is shaped around the opportunity, decision process, and internal capability your team needs next.</p>
+      <p class="price-line">Focused reviews begin at $1,000. Live-opportunity value cases begin at $2,500.</p>
+      <div class="engage-cta">
+        <a class="btn" href="mailto:josh@altmeridian.com?subject=Value%20case%20discussion&body=Hi%20Josh%2C%0A%0AI%20am%20interested%20in%20discussing%20a%20defensible%20ROI%20and%20value%20case%20for%20a%20complex%20sales%20opportunity.%0A%0ACustomer%3A%0ASolution%2Fmarket%3A%0A%0AThanks%2C%0A">Contact</a>
+      </div>
+    </div>
+
+    <form id="engage-form">
+      <div class="field">
+        <label for="field-name">Name</label>
+        <input type="text" id="field-name" name="name" required>
+      </div>
+      <div class="field">
+        <label for="field-email">Work email</label>
+        <input type="email" id="field-email" name="email" required>
+      </div>
+      <div class="field">
+        <label for="field-company">Company</label>
+        <input type="text" id="field-company" name="company" required>
+      </div>
+      <div class="field">
+        <label for="field-opportunity">What decision or opportunity are you working through?</label>
+        <textarea id="field-opportunity" name="opportunity" required></textarea>
+      </div>
+      <button type="submit" class="btn">Send</button>
+    </form>
   </div>
 </section>
 
 <footer>
   <div class="wrap">
     <div class="footer-word">Alt Meridian</div>
-    <div class="footer-tag">Defensible value cases for complex B2B decisions</div>
+    <div class="footer-tag">Value strategy and economic evidence for complex B2B decisions.</div>
     <a class="footer-email" href="mailto:josh@altmeridian.com">josh@altmeridian.com</a>
   </div>
 </footer>
+
+<script>
+  (function () {
+    'use strict';
+
+    var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    // ── Reveal on scroll ──────────────────────────────────
+    var revealEls = document.querySelectorAll('.reveal, .reveal-left, .reveal-right');
+
+    if (reducedMotion || !('IntersectionObserver' in window)) {
+      revealEls.forEach(function (el) { el.classList.add('is-visible'); });
+    } else {
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (entry.isIntersecting) {
+            var el = entry.target;
+            var delay = parseInt(el.getAttribute('data-stagger') || '0', 10);
+            window.setTimeout(function () { el.classList.add('is-visible'); }, delay);
+            io.unobserve(el);
+          }
+        });
+      }, { threshold: 0.2, rootMargin: '0px 0px -40px 0px' });
+
+      revealEls.forEach(function (el) { io.observe(el); });
+    }
+
+    // ── Parallax drift (desktop only, non-reduced-motion) ─
+    var parallaxEls = document.querySelectorAll('.parallax-tile');
+
+    if (!reducedMotion && parallaxEls.length && window.innerWidth > 760) {
+      var ticking = false;
+
+      function updateParallax() {
+        var vh = window.innerHeight;
+        parallaxEls.forEach(function (el) {
+          var factor = parseFloat(el.getAttribute('data-factor') || '0.03');
+          var rect = el.getBoundingClientRect();
+          var center = rect.top + rect.height / 2;
+          var drift = (vh / 2 - center) * factor;
+          if (drift > 8) drift = 8;
+          if (drift < -8) drift = -8;
+          el.style.setProperty('--parallax', drift.toFixed(2) + 'px');
+        });
+        ticking = false;
+      }
+
+      window.addEventListener('scroll', function () {
+        if (!ticking) {
+          window.requestAnimationFrame(updateParallax);
+          ticking = true;
+        }
+      }, { passive: true });
+
+      updateParallax();
+    }
+
+    // ── Engage form → mailto ──────────────────────────────
+    var form = document.getElementById('engage-form');
+    if (form) {
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+
+        var name = document.getElementById('field-name').value.trim();
+        var email = document.getElementById('field-email').value.trim();
+        var company = document.getElementById('field-company').value.trim();
+        var opportunity = document.getElementById('field-opportunity').value.trim();
+
+        var subject = 'Value case discussion';
+        var body = 'Name: ' + name + '\n' +
+                    'Work email: ' + email + '\n' +
+                    'Company: ' + company + '\n\n' +
+                    opportunity;
+
+        var url = 'mailto:josh@altmeridian.com?subject=' +
+                   encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+
+        window.location.href = url;
+      });
+    }
+  })();
+</script>
 
 </body>
 </html>
