@@ -4,13 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Alt Meridian — Defensible ROI for Complex Enterprise Deals</title>
-<meta name="description" content="I help enterprise sales teams uncover hidden financial value and turn it into fast, accurate ROI cases that customer champions can take to finance.">
+<meta name="description" content="Alt Meridian builds the ROI model, evidence, and internal-ready narrative enterprise buyers need to justify a purchase.">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Alt Meridian — Defensible ROI for Complex Enterprise Deals">
-<meta property="og:description" content="A value case the customer can take to finance, procurement, and leadership — built from customer data, transparent assumptions, and relevant benchmarks.">
+<meta property="og:description" content="The ROI model, evidence, and narrative your buyer's champion needs to justify a purchase internally.">
 <meta property="og:url" content="https://altmeridian.com/">
 <meta name="twitter:card" content="summary">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%231B1F27'/%3E%3Cpath d='M14 42 L26 22 L38 34 L50 16' stroke='%232E5C8A' stroke-width='5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='10' fill='%230F0F0F'/%3E%3Cpath d='M14 42 L26 22 L38 34 L50 16' stroke='%231E5C3A' stroke-width='5' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
@@ -18,12 +18,12 @@
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --ink: #1B1F27;
-    --muted: #5B6270;
-    --accent: #2E5C8A;
-    --bg: #FFFFFF;
-    --bg-alt: #F7F6F3;
-    --rule: #E4E1D9;
+    --ink: #0F0F0F;
+    --muted: #6B6459;
+    --accent: #1E5C3A;
+    --bg: #F5F2EB;
+    --bg-alt: #FFFFFF;
+    --rule: #DEDAD2;
   }
 
   html { scroll-behavior: smooth; }
@@ -84,7 +84,7 @@
 
   /* ── SECTION RHYTHM ─────────────────────────────────────── */
   section {
-    padding: 88px 0;
+    padding: 80px 0;
   }
   section.alt { background: var(--bg-alt); }
 
@@ -107,12 +107,12 @@
   h2 {
     font-size: 26px;
     line-height: 1.3;
-    margin-bottom: 24px;
+    margin-bottom: 22px;
     max-width: 620px;
   }
 
   p { font-size: 16px; color: var(--muted); max-width: 620px; }
-  p + p { margin-top: 16px; }
+  p + p { margin-top: 14px; }
 
   ul { list-style: none; max-width: 620px; }
   li {
@@ -120,7 +120,7 @@
     color: var(--muted);
     padding-left: 26px;
     position: relative;
-    margin-top: 14px;
+    margin-top: 13px;
   }
   li::before {
     content: '';
@@ -137,13 +137,13 @@
     font-family: 'DM Mono', monospace;
     font-size: 12px;
     color: var(--muted);
-    margin-top: 18px;
+    margin-top: 16px;
     max-width: 620px;
   }
 
   /* ── HERO ───────────────────────────────────────────────── */
   .hero {
-    padding: 56px 0 96px;
+    padding: 52px 0 88px;
   }
   .hero-grid {
     display: grid;
@@ -154,13 +154,13 @@
   .hero h1 {
     font-size: 40px;
     line-height: 1.18;
-    margin-bottom: 22px;
+    margin-bottom: 20px;
   }
-  .hero-cta { margin: 30px 0 22px; }
+  .hero-cta { margin: 26px 0 20px; }
   .hero-note {
     font-size: 14px;
     color: var(--muted);
-    max-width: 520px;
+    max-width: 480px;
   }
 
   .hero-visual {
@@ -170,11 +170,35 @@
   }
   .hero-visual svg { display: block; width: 100%; height: auto; }
 
+  /* ── STAT ROW ───────────────────────────────────────────── */
+  .stat-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 32px;
+    max-width: 700px;
+    margin-top: 28px;
+    padding-top: 26px;
+    border-top: 1px solid var(--rule);
+  }
+  .stat-num {
+    font-family: 'Syne', sans-serif;
+    font-weight: 800;
+    font-size: 34px;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+  .stat-label {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
   /* ── HOW IT WORKS ───────────────────────────────────────── */
   .steps {
     display: grid;
-    gap: 36px;
-    margin-top: 8px;
+    gap: 30px;
+    margin-top: 6px;
   }
   .step { display: flex; gap: 20px; max-width: 700px; }
   .step-num {
@@ -193,41 +217,17 @@
     font-weight: 500;
     font-size: 16px;
     color: var(--ink);
-    margin-bottom: 6px;
+    margin-bottom: 5px;
   }
   .step p { font-size: 15px; }
 
-  /* ── STAT ROW ───────────────────────────────────────────── */
-  .stat-row {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    gap: 32px;
-    max-width: 700px;
-    margin-top: 34px;
-    padding-top: 30px;
-    border-top: 1px solid var(--rule);
-  }
-  .stat-num {
-    font-family: 'Syne', sans-serif;
-    font-weight: 800;
-    font-size: 34px;
-    color: var(--accent);
-    line-height: 1;
-    margin-bottom: 10px;
-  }
-  .stat-label {
-    font-size: 13px;
-    color: var(--muted);
-    line-height: 1.5;
-  }
-
   /* ── FINAL CTA ──────────────────────────────────────────── */
   .final-cta { text-align: left; }
-  .final-cta .btn { margin: 8px 0 16px; }
+  .final-cta .btn { margin: 8px 0 14px; }
 
   /* ── FOOTER ─────────────────────────────────────────────── */
   footer {
-    padding: 48px 0 64px;
+    padding: 44px 0 60px;
     border-top: 1px solid var(--rule);
   }
   .footer-word {
@@ -251,8 +251,8 @@
   @media (max-width: 760px) {
     header { padding: 20px 24px; }
     .wrap { padding: 0 24px; }
-    section { padding: 64px 0; }
-    .hero { padding: 8px 0 64px; }
+    section { padding: 60px 0; }
+    .hero { padding: 8px 0 60px; }
     .hero-grid { grid-template-columns: 1fr; gap: 32px; }
     .hero-visual { order: 2; }
     .hero-body { order: 1; }
@@ -274,26 +274,25 @@
     <div class="hero-grid">
       <div class="hero-body">
         <h1>Defensible ROI for complex enterprise deals</h1>
-        <p>I help enterprise sales teams uncover hidden financial value and turn it into fast, accurate ROI cases that customer champions can take to finance.</p>
-        <p>Each engagement also creates useful case-study evidence that helps sellers explain similar customer problems, value drivers, and business outcomes in future deals.</p>
+        <p>Alt Meridian turns hidden financial value into a defensible ROI case — the model, the evidence, and the narrative a buyer's champion can carry into finance.</p>
         <div class="hero-cta">
           <a class="btn" href="mailto:josh@altmeridian.com?subject=Value%20case%20discussion&body=Hi%20Josh%2C%0A%0AI%20am%20interested%20in%20discussing%20a%20defensible%20ROI%20and%20value%20case%20for%20a%20complex%20sales%20opportunity.%0A%0ACompany%3A%0AContact%20name%20and%20role%3A%0ASolution%20and%20market%20details%3A%0ACustomer%20or%20opportunity%2C%20if%20shareable%3A%0AApproximate%20deal%20size%3A%0ACurrent%20sales%20stage%3A%0AThe%20customer%20problem%20or%20decision%20at%20hand%3A%0A%0AThanks%2C%0A">Contact</a>
         </div>
-        <p class="hero-note">For complex B2B opportunities where cost, risk, revenue, capacity, or operational performance will determine the decision.</p>
+        <p class="hero-note">For complex B2B deals where cost, risk, or revenue has to be proven before they close.</p>
       </div>
       <div class="hero-visual" aria-hidden="true">
         <svg viewBox="0 0 360 300" xmlns="http://www.w3.org/2000/svg">
-          <line x1="0" y1="230" x2="360" y2="230" stroke="#E4E1D9" stroke-width="1"/>
-          <line x1="0" y1="150" x2="360" y2="150" stroke="#E4E1D9" stroke-width="1"/>
-          <line x1="0" y1="70" x2="360" y2="70" stroke="#E4E1D9" stroke-width="1"/>
-          <line x1="150" y1="0" x2="150" y2="300" stroke="#2E5C8A" stroke-width="1" stroke-dasharray="3 5" opacity="0.55"/>
-          <text x="156" y="18" font-family="DM Mono, monospace" font-size="10" fill="#5B6270" letter-spacing="0.05em">PAYBACK</text>
+          <line x1="0" y1="230" x2="360" y2="230" stroke="#DEDAD2" stroke-width="1"/>
+          <line x1="0" y1="150" x2="360" y2="150" stroke="#DEDAD2" stroke-width="1"/>
+          <line x1="0" y1="70" x2="360" y2="70" stroke="#DEDAD2" stroke-width="1"/>
+          <line x1="150" y1="0" x2="150" y2="300" stroke="#1E5C3A" stroke-width="1" stroke-dasharray="3 5" opacity="0.55"/>
+          <text x="156" y="18" font-family="DM Mono, monospace" font-size="10" fill="#6B6459" letter-spacing="0.05em">PAYBACK</text>
           <path d="M -20 250 C 60 246, 110 238, 150 230 C 210 218, 260 170, 320 90 C 345 58, 365 30, 400 10"
-                fill="none" stroke="#1B1F27" stroke-width="2.5" stroke-linecap="round"/>
+                fill="none" stroke="#0F0F0F" stroke-width="2.5" stroke-linecap="round"/>
           <path d="M -20 250 C 60 246, 110 238, 150 230 C 210 218, 260 170, 320 90 C 345 58, 365 30, 400 10 L 400 300 L -20 300 Z"
-                fill="#2E5C8A" opacity="0.06"/>
-          <circle cx="150" cy="230" r="4.5" fill="#2E5C8A"/>
-          <circle cx="320" cy="90" r="4.5" fill="#1B1F27"/>
+                fill="#1E5C3A" opacity="0.07"/>
+          <circle cx="150" cy="230" r="4.5" fill="#1E5C3A"/>
+          <circle cx="320" cy="90" r="4.5" fill="#0F0F0F"/>
         </svg>
       </div>
     </div>
@@ -305,8 +304,8 @@
 <section class="alt">
   <div class="wrap">
     <div class="eyebrow">Why This Matters</div>
-    <h2>Enterprise buyers need more than a pitch</h2>
-    <p>A complex purchase has to survive internal scrutiny. Your buyer doesn't just need an ROI analysis — they need a credible way to justify, validate, and socialize the investment internally.</p>
+    <h2>Buyers need more than a pitch</h2>
+    <p>A complex purchase has to survive internal scrutiny. Your buyer doesn't need an ROI slide — they need a credible way to justify, validate, and socialize the investment internally.</p>
     <div class="stat-row">
       <div class="stat">
         <div class="stat-num">97%</div>
@@ -314,15 +313,14 @@
       </div>
       <div class="stat">
         <div class="stat-num">82%</div>
-        <div class="stat-label">consider relevant examples and case studies important to the decision</div>
+        <div class="stat-label">consider relevant case studies important to the decision</div>
       </div>
       <div class="stat">
         <div class="stat-num">74%</div>
-        <div class="stat-label">of B2B buying teams experience unhealthy conflict while deciding</div>
+        <div class="stat-label">of B2B buying teams see unhealthy conflict while deciding</div>
       </div>
     </div>
     <p class="fine">Sources: Forrester, Gartner</p>
-    <p style="margin-top:26px;">Alt Meridian builds the ROI model, evidence, and internal-ready narrative your customer champion can use to create alignment.</p>
   </div>
 </section>
 
@@ -331,9 +329,8 @@
 <section>
   <div class="wrap">
     <div class="eyebrow">The Problem</div>
-    <h2>The product is not always the problem</h2>
-    <p>A complex deal can stall even when the customer likes the solution.</p>
-    <p>The customer champion still needs to explain:</p>
+    <h2>The product isn't always the problem</h2>
+    <p>Even when the buyer likes the solution, their champion still has to answer:</p>
     <ul>
       <li>What is the current problem costing us?</li>
       <li>Why does this investment matter now?</li>
@@ -341,7 +338,7 @@
       <li>What will finance, procurement, or leadership challenge?</li>
       <li>When could the investment pay back?</li>
     </ul>
-    <p style="margin-top:26px;">I turn those questions into a clear business case.</p>
+    <p style="margin-top:24px;">Alt Meridian turns those questions into a defensible business case.</p>
   </div>
 </section>
 
@@ -350,16 +347,16 @@
 <section class="alt">
   <div class="wrap">
     <div class="eyebrow">What You Get</div>
-    <h2>A value case built for real internal review</h2>
+    <h2>A value case built for internal review</h2>
     <ul>
-      <li>A view of the customer's current cost, risk, or missed opportunity</li>
+      <li>Customer cost, risk, or missed opportunity — quantified</li>
       <li>The few value drivers that matter most</li>
       <li>ROI and payback calculations</li>
-      <li>Customer inputs, benchmarks, assumptions, and source notes</li>
-      <li>A concise business case the customer champion can take to finance</li>
-      <li>Seller guidance for the next executive, finance, or procurement conversation</li>
+      <li>Benchmarks, assumptions, and source notes</li>
+      <li>A business case your champion can take to finance</li>
+      <li>Guidance for the next finance or procurement conversation</li>
     </ul>
-    <p style="margin-top:26px;">A defensible ROI case makes the logic visible. It distinguishes customer facts from benchmarks, labels assumptions, avoids double-counting, and separates conservative value from upside.</p>
+    <p style="margin-top:24px;">Every number is traceable — fact, benchmark, or assumption, clearly labeled.</p>
   </div>
 </section>
 
@@ -368,15 +365,14 @@
 <section>
   <div class="wrap">
     <div class="eyebrow">Beyond This Deal</div>
-    <h2>Useful for this deal and the next one</h2>
-    <p>The immediate output helps the customer make a decision.</p>
-    <p>The seller also keeps reusable material for future opportunities:</p>
+    <h2>Built to outlast one deal</h2>
+    <p>Every engagement leaves your team with reusable assets:</p>
     <ul>
-      <li>Clearer language for similar customer problems</li>
+      <li>Sharper language for similar customer problems</li>
       <li>Stronger discovery questions</li>
       <li>Reusable value drivers and evidence</li>
-      <li>An anonymized case-study narrative, when appropriate</li>
-      <li>More credible executive-level conversations</li>
+      <li>An anonymized case study, when appropriate</li>
+      <li>More credible executive conversations</li>
     </ul>
   </div>
 </section>
@@ -386,27 +382,27 @@
 <section class="alt">
   <div class="wrap">
     <div class="eyebrow">How It Works</div>
-    <h2>Three steps, one conversation to start</h2>
+    <h2>Three steps to a defensible case</h2>
     <div class="steps">
       <div class="step">
         <div class="step-num">1</div>
         <div>
           <div class="step-title">Review the opportunity</div>
-          <p>We discuss the customer, solution, current deal stage, business problem, decision process, and available data.</p>
+          <p>The customer, solution, deal stage, and available data.</p>
         </div>
       </div>
       <div class="step">
         <div class="step-num">2</div>
         <div>
           <div class="step-title">Build the case</div>
-          <p>I focus on the few value drivers that matter and build the financial logic using customer inputs and transparent assumptions.</p>
+          <p>Model the value drivers that matter, with transparent assumptions.</p>
         </div>
       </div>
       <div class="step">
         <div class="step-num">3</div>
         <div>
-          <div class="step-title">Equip the seller and champion</div>
-          <p>You get an ROI model and practical business case for the customer's internal decision process and the next sales conversation.</p>
+          <div class="step-title">Equip the team</div>
+          <p>An ROI model and business case, ready for the next conversation.</p>
         </div>
       </div>
     </div>
@@ -419,11 +415,11 @@
   <div class="wrap">
     <div class="eyebrow">Get Started</div>
     <h2>Start with a conversation</h2>
-    <p>Have an active opportunity where the customer needs a clearer economic reason to act?</p>
+    <p>Have an active opportunity that needs a clearer economic case?</p>
     <div>
       <a class="btn" href="mailto:josh@altmeridian.com?subject=Value%20case%20discussion&body=Hi%20Josh%2C%0A%0AI%20am%20interested%20in%20discussing%20a%20defensible%20ROI%20and%20value%20case%20for%20a%20complex%20sales%20opportunity.%0A%0ACompany%3A%0AContact%20name%20and%20role%3A%0ASolution%20and%20market%20details%3A%0ACustomer%20or%20opportunity%2C%20if%20shareable%3A%0AApproximate%20deal%20size%3A%0ACurrent%20sales%20stage%3A%0AThe%20customer%20problem%20or%20decision%20at%20hand%3A%0A%0AThanks%2C%0A">Contact</a>
     </div>
-    <p class="fine">No generic contact form. Send the deal context directly, and I will respond personally.</p>
+    <p class="fine">No contact form. Send the deal context directly.</p>
   </div>
 </section>
 
