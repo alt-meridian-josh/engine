@@ -73,7 +73,6 @@ nav a.btn { padding: 11px 18px; }
 
 /* Hero */
 .hero { padding-block: 72px 80px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 320px); gap: 56px; align-items: center; }
-.hero:has(.reel[hidden]) { grid-template-columns: minmax(0, 1fr); }
 .hero-text { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
 .hero .eyebrow { letter-spacing: 0.14em; }
 h1 { font-size: clamp(2.7rem, 9vw, 4.4rem); line-height: 0.94; font-weight: 900; font-stretch: 78%; text-transform: uppercase; text-wrap: balance; }
@@ -82,6 +81,27 @@ h1 span { color: var(--silver); }
 .cta { display: flex; flex-wrap: wrap; gap: 14px; }
 .reel { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .cap { font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; color: var(--muted); text-transform: uppercase; }
+
+/* Hero app screen: shown until the reel video exists, so the hero always shows the product */
+.screen { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.hero:has(.reel:not([hidden])) .screen { display: none; }
+.screen-card { background: var(--graphite); border: 1px solid var(--steel); border-radius: 20px; padding: 22px; display: flex; flex-direction: column; gap: 22px; }
+.screen-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.screen-top b { display: block; font-size: 1.35rem; font-weight: 800; font-stretch: 88%; line-height: 1.15; }
+.screen-top .sub { font-size: 0.95rem; color: var(--text-2); }
+.screen-count { display: flex; align-items: flex-end; gap: 10px; }
+.screen-count .n { font-size: 7.5rem; line-height: 0.8; font-weight: 900; font-stretch: 78%; color: var(--signal); font-variant-numeric: tabular-nums; }
+.screen-count .u { font-size: 1rem; color: var(--text-2); padding-bottom: 4px; margin-right: auto; }
+.screen-bars { display: flex; align-items: flex-end; gap: 7px; height: 84px; }
+.screen-bars i { width: 22px; border-radius: 5px; background: var(--rule); }
+.screen-bars i.last { background: var(--signal); }
+.screen-bars i.off { opacity: 0.16; }
+.screen-meter { display: flex; flex-direction: column; gap: 8px; font-size: 0.9rem; color: var(--text-2); }
+.screen-meter .row { display: flex; justify-content: space-between; gap: 12px; }
+.screen-meter b { color: var(--bone); font-weight: 700; font-variant-numeric: tabular-nums; }
+.screen-meter .track { height: 8px; background: var(--steel); border-radius: 999px; overflow: hidden; }
+.screen-meter .fill { height: 100%; width: 60%; background: var(--signal); border-radius: 999px; }
+.screen-foot { border-top: 1px solid var(--steel); padding-top: 14px; font-family: var(--mono); font-size: 11px; letter-spacing: 0.08em; color: var(--muted); text-transform: uppercase; }
 
 /* Video frames: the placeholder shows until the file loads */
 .frame { position: relative; aspect-ratio: 9 / 16; width: 100%; max-width: 100%; background: var(--graphite); border: 1px solid var(--steel); border-radius: 12px; overflow: hidden; }
@@ -170,6 +190,7 @@ h1 span { color: var(--silver); }
 @media (max-width: 860px) {
   .hero { grid-template-columns: minmax(0, 1fr); gap: 40px; padding-block: 56px 64px; }
   .reel { max-width: 300px; }
+  .screen { max-width: 380px; }
   .g3, .g2, .faq { grid-template-columns: minmax(0, 1fr); }
   .join .wrap { grid-template-columns: minmax(0, 1fr); padding-block: 56px; }
   .sec { padding-block: 60px; gap: 28px; }
@@ -181,6 +202,8 @@ h1 span { color: var(--silver); }
 }
 @media (prefers-reduced-motion: no-preference) {
   .frame video { transition: opacity 0.3s ease; }
+  .screen-bars i { transition: opacity 0.25s ease; }
+  .screen-meter .fill { transition: width 0.4s ease; }
   html { scroll-behavior: smooth; }
 }
 </style>
@@ -218,6 +241,24 @@ h1 span { color: var(--silver); }
         <video id="video-reel" src="media/reel.mp4" muted loop playsinline controls preload="metadata" data-autoplay aria-label="Concept reel: five short animations of a training session being logged"></video>
       </div>
       <span class="cap">Concept reel · animation, not footage</span>
+    </div>
+    <div class="screen" id="screen">
+      <div class="screen-card" role="img" aria-label="Sample app screen. Bench press, 135 pounds, set 2. Four reps counted, with a bar for each rep's speed. The last rep was 12 percent slower than the first.">
+        <div class="screen-top">
+          <div><b>Bench press</b><span class="sub">135 lb · Set 2</span></div>
+          <span class="pill tested">LIFTING</span>
+        </div>
+        <div class="screen-count">
+          <span class="n" id="screen-reps">4</span><span class="u">reps</span>
+          <div class="screen-bars"><i style="height: 100%"></i><i style="height: 88%"></i><i style="height: 72%"></i><i class="last" style="height: 52%"></i></div>
+        </div>
+        <div class="screen-meter">
+          <div class="row"><span>Last rep vs first</span><b id="screen-loss">12% slower</b></div>
+          <div class="track"><div class="fill" id="screen-fill"></div></div>
+        </div>
+        <div class="screen-foot">Today · 3 lifts · 9 sets · 0 typed</div>
+      </div>
+      <span class="cap">Sample screen · app in development</span>
     </div>
   </div>
 
@@ -301,12 +342,12 @@ h1 span { color: var(--silver); }
     <div class="wrap sec" style="gap: 28px">
       <div class="head"><span class="eyebrow">Questions</span><h2>Straight answers</h2></div>
       <div class="faq">
-        <div class="q"><h3>Does it use cameras?</h3><p>No. It reads radio tags. We use a camera only in our own testing, to check the counts.</p></div>
-        <div class="q"><h3>Do I have to wear anything?</h3><p>No. A watch or chest strap adds heart rate if you already wear one.</p></div>
-        <div class="q"><h3>Will it work with my equipment?</h3><p>The tags go on the bars, plates and bells you already own. We are testing with standard racks and iron plates first.</p></div>
-        <div class="q"><h3>How accurate is it?</h3><p>We don't know yet, and we won't claim a number until we've tested it side by side with a dedicated velocity device.</p></div>
-        <div class="q"><h3>Can I buy one?</h3><p>Not yet. Join the waitlist to follow the tests and apply to be an alpha site.</p></div>
-        <div class="q"><h3>What will it cost?</h3><p>Not set. The plan is a yearly software license with hardware at about cost.</p></div>
+        <div class="q"><h3>Does it use cameras?</h3><p>No. It reads small radio tags on your equipment. Nothing in your gym is filmed.</p></div>
+        <div class="q"><h3>Do I have to wear anything?</h3><p>No. The tags are on the equipment, not on you. Heart rate from a watch or chest strap is planned as an option.</p></div>
+        <div class="q"><h3>Will it work with my equipment?</h3><p>It's built for the bars, plates, dumbbells and kettlebells you already own. The tags stick on, so there is nothing to replace.</p></div>
+        <div class="q"><h3>How accurate is it?</h3><p>Rep counting is working on bench press in our own garage tests. Bar speed is next. We're checking it against a dedicated velocity device and will publish the comparison.</p></div>
+        <div class="q"><h3>Can I buy one?</h3><p>Not yet. The first kits go to a small group of home gyms. Join the waitlist to be considered.</p></div>
+        <div class="q"><h3>What will it cost?</h3><p>Pricing isn't final. The plan is a yearly software license, with tags and hardware sold at about cost.</p></div>
       </div>
     </div>
   </section>
@@ -362,6 +403,31 @@ h1 span { color: var(--silver); }
       videos.forEach(function (o) { if (o !== v && !o.paused) o.pause(); });
     });
   });
+
+  // Hero app screen: replays a sample set, one rep at a time. Stays on the finished set if motion is reduced.
+  (function () {
+    var losses = [0, 3, 7, 12];
+    var count = document.getElementById("screen-reps");
+    var loss = document.getElementById("screen-loss");
+    var fill = document.getElementById("screen-fill");
+    var bars = Array.prototype.slice.call(document.querySelectorAll(".screen-bars i"));
+    function show(n) {
+      count.textContent = n;
+      loss.textContent = losses[n - 1] === 0 ? "Same speed" : losses[n - 1] + "% slower";
+      fill.style.width = losses[n - 1] * 5 + "%";
+      bars.forEach(function (b, i) {
+        b.classList.toggle("off", i >= n);
+        b.classList.toggle("last", i === n - 1);
+      });
+    }
+    if (reduce) return;
+    var n = 4;
+    function step() {
+      if (!document.hidden) { n = n === 4 ? 1 : n + 1; show(n); }
+      setTimeout(step, n === 4 ? 3600 : 1500);
+    }
+    setTimeout(step, 2600);
+  })();
 
   var form = document.getElementById("waitlist");
   var input = document.getElementById("waitlist-email");
