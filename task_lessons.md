@@ -265,3 +265,10 @@
 **Root cause:** The page was built around assets that lived in another session, so it depended on files it could not reach.
 **Rule going forward:** For a static page with optional media or a pending backend, default every dependent block to hidden or to a working fallback, and reveal it only when the dependency responds. Never ship a visible placeholder or a control that does nothing (Rule 6). Verify on the live URL, not only locally.
 **Applies to:** alt-meridian, datum-strength, any static page on GitHub Pages
+
+## 2026-11-13 — Public sign-up form straight to Supabase, insert-only
+**Context:** Datum Strength waitlist on a static GitHub Pages page (`datum/index.html`), saving to a `waitlist` table in the `datum-strength` Supabase project with no backend.
+**What happened:** The table has RLS on, one insert policy, and a column-level grant so the publishable key can set `email` and nothing else. It cannot read the list. Verified as the `anon` role in rolled-back transactions before wiring the page, then with a real submit on the live URL. A duplicate address returns 409; the form shows the same success message so it does not reveal who has signed up.
+**Root cause:** N/A. Design decision.
+**Rule going forward:** For a public form writing to Supabase, grant `insert` on the exact columns only, never `select`, and test as `anon` (insert works, select is denied, extra columns are denied) before the page ships. Send `apikey` plus `Prefer: return=minimal`, because without select rights a returned row would fail. Treat 409 as success.
+**Applies to:** supabase, datum-strength, any static-page form
