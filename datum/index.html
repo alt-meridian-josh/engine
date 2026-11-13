@@ -333,8 +333,11 @@ h1 span { color: var(--silver); }
 
 <script>
 (function () {
-  // Where waitlist sign-ups are sent. While this is empty, the form opens a pre-filled email instead.
-  var WAITLIST_ENDPOINT = "";
+  // Sign-ups go to the waitlist table in the datum-strength Supabase project.
+  // The publishable key is meant to be public: the table only lets it add an email, never read the list.
+  // If the endpoint is ever emptied, the form falls back to opening a pre-filled email.
+  var WAITLIST_ENDPOINT = "https://odhzmfboqsooumilciwu.supabase.co/rest/v1/waitlist?columns=email";
+  var WAITLIST_KEY = "sb_publishable_AYyGQ4h2uFr2F9JZRSZ5Xw_wEcS1YaF";
   var WAITLIST_EMAIL = "josh@altmeridian.com";
 
   var reduce = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -366,7 +369,8 @@ h1 span { color: var(--silver); }
   var button = document.getElementById("waitlist-submit");
   form.addEventListener("submit", function (e) {
     e.preventDefault();
-    var email = input.value.trim();
+    // The table only accepts lowercase addresses, so duplicates differing by case can't slip in.
+    var email = input.value.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       msg.textContent = "Enter an email address like you@example.com.";
       input.focus();
@@ -381,14 +385,15 @@ h1 span { color: var(--silver); }
     msg.textContent = "Sending.";
     fetch(WAITLIST_ENDPOINT, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Accept": "application/json" },
+      headers: { "Content-Type": "application/json", "apikey": WAITLIST_KEY, "Prefer": "return=minimal" },
       body: JSON.stringify({ email: email })
     }).then(function (r) {
-      if (!r.ok) throw new Error("status " + r.status);
+      // 409 means the address is already on the list. Treat it as success so the form doesn't reveal who has signed up.
+      if (!r.ok && r.status !== 409) throw new Error("waitlist sign-up failed with status " + r.status);
       msg.textContent = "You're on the list. We'll email you when the next test is posted.";
       form.reset();
     }).catch(function () {
-      msg.textContent = "That didn't go through. Check your connection and try again.";
+      msg.textContent = "That didn't go through. Try again, or email " + WAITLIST_EMAIL + ".";
     }).then(function () { button.disabled = false; });
   });
 })();
