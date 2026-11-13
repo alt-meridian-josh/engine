@@ -279,3 +279,10 @@
 **Root cause:** Rendered output was treated as the deliverable and the source was left in a scratch folder.
 **Rule going forward:** When a page depends on generated media, commit the generator and its input data in the same change as the output. Look at one full-size frame per scene before the full render, and check frames pulled from the finished files, not from the drawing code.
 **Applies to:** datum-strength, any generated video or image asset
+
+## 2026-11-13 — Datum page: lead with data, app and research; keep hardware generic
+**Context:** Repositioning the Datum Strength page for two readers at once: SXSW Pitch reviewers and Zebra.
+**What happened:** The first version led with tags and "two antennas, one reader". The hero now says what the product records, and How it works is built around a plot of a real recorded set (readings, bar movement, reps) instead of a hardware list. Hardware is one line: Datum is the software layer and runs on standard RFID readers and tags.
+**Root cause:** The page was written from the build log, so it described the rig. The pitch is the data layer.
+**Rule going forward:** On Datum pages, show data and the app first, back it with research, and explain how it works with a real plot. Do not state antenna counts, reader models or rig details. Keep hardware to a generic line that reads as complementary to reader vendors.
+**Applies to:** datum-strength
