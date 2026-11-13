@@ -272,3 +272,10 @@
 **Root cause:** N/A. Design decision.
 **Rule going forward:** For a public form writing to Supabase, grant `insert` on the exact columns only, never `select`, and test as `anon` (insert works, select is denied, extra columns are denied) before the page ships. Send `apikey` plus `Prefer: return=minimal`, because without select rights a returned row would fail. Treat 409 as success.
 **Applies to:** supabase, datum-strength, any static-page form
+
+## 2026-11-13 — Keep the source for rendered media next to the page
+**Context:** The Datum Strength page needed six videos that had been rendered in an earlier session. Only the mp4s existed, in a chat this session could not read, and the script that made them was gone.
+**What happened:** The clips had to be rebuilt from scratch. The new ones are filmed from one HTML file with a time-seek function, using real set data exported from the datum repo. The HTML, the render script and the data file are now committed in the datum repo under `site/film/`, and the finished files under `datum/media/` here.
+**Root cause:** Rendered output was treated as the deliverable and the source was left in a scratch folder.
+**Rule going forward:** When a page depends on generated media, commit the generator and its input data in the same change as the output. Look at one full-size frame per scene before the full render, and check frames pulled from the finished files, not from the drawing code.
+**Applies to:** datum-strength, any generated video or image asset
